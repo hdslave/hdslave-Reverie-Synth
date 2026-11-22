@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""Reverie's progressions, made from the M3 factory pad chord sets.
+"""Reverie's progressions, made from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets.
 
-Reads the chord pack's all-progressions.json (every factory Pad 1-8 chord set of the M3 XPanded Motion Synth, Pad,
-SlowSynth and Vocal presets, with the exact MIDI notes of each pad) and writes Reverie's progression table:
+Reads two private packs, kept outside the repository:
+
+  * the M3 chord pack's all-progressions.json: every factory Pad 1-8 chord set of the M3 XPanded Motion Synth, Pad,
+    SlowSynth and Vocal presets, with the exact MIDI notes of each pad;
+  * the SQUID pack's chord-sets.json: its 18 Chord mode sets of 16 pads, read from its firmware. Each set gives two
+    progressions, pads 1-8 then pads 9-16, after all the M3 ones (so the M3 ones keep their places);
+
+and writes Reverie's progression table:
 
   * one progression per distinct set (sets that are the same chords in another key count once);
   * a set is taken when every pad is a chord: three pitch classes or more, or a third (a fifth is then implied);
@@ -11,10 +17,11 @@ SlowSynth and Vocal presets, with the exact MIDI notes of each pad) and writes R
     classes (the fifth may be missing), its lowest note the bass (a slash chord when that is not the root);
   * the set moves so pad 1's root is C, minor when pad 1 is a minor chord; KEY then moves it to any key.
 
-  tools/m3_progressions.py PACK/all-progressions.json             report what it takes and leaves
-  tools/m3_progressions.py PACK/all-progressions.json --write     also rewrite src/progressions.h and README.md
+  tools/make_progressions.py M3/all-progressions.json SQUID/chord-sets.json            report what it takes and leaves
+  tools/make_progressions.py M3/all-progressions.json SQUID/chord-sets.json --write    also rewrite src/progressions.h
+                                                                                        and README.md
 
-The names are Reverie's own (the factory preset names are not used). Run from the repository.
+The names are Reverie's own (neither the factory preset names nor the chord set names are used).
 """
 import collections
 import json
@@ -85,7 +92,19 @@ NAMES = {
     ("PROGUD", 39): "Synthetic Soul", ("PROGUD", 41): "Digital Gospel", ("PROGUD", 43): "Neon Sermon",
     ("PROGUD", 49): "Static Prayer", ("PROGUD", 55): "Carrier Wave", ("PROGUD", 59): "Modulated Calm",
     ("PROGUD", 63): "Iron Lullaby",
+    # the SQUID's sets: slot 2n-1 is set n's pads 1-8, slot 2n its pads 9-16
+    ("SQUID", 1): "First Light", ("SQUID", 2): "Early Hours", ("SQUID", 3): "Brooding Sky", ("SQUID", 4): "Overcast",
+    ("SQUID", 5): "Amber Hour", ("SQUID", 6): "Fading Sun", ("SQUID", 7): "Last Goodbye", ("SQUID", 8): "Empty Platform",
+    ("SQUID", 9): "Flint Strike", ("SQUID", 10): "Live Wire", ("SQUID", 11): "Summit Path", ("SQUID", 12): "Upward Spiral",
+    ("SQUID", 13): "Open Road", ("SQUID", 14): "Far Shore", ("SQUID", 15): "Kind Hands", ("SQUID", 16): "Gentle Mercy",
+    ("SQUID", 17): "Light Wind", ("SQUID", 18): "Paper Kites", ("SQUID", 19): "Schoolyard", ("SQUID", 20): "Old Toybox",
+    ("SQUID", 21): "Held High", ("SQUID", 22): "Victory Lap", ("SQUID", 23): "Morning Prayer", ("SQUID", 24): "Open Palms",
+    ("SQUID", 25): "Lemon Sun", ("SQUID", 26): "Clear Skies", ("SQUID", 27): "Snowfield", ("SQUID", 28): "Frozen Lake",
+    ("SQUID", 29): "Old Stones", ("SQUID", 30): "Sunken City", ("SQUID", 31): "Thank You Note",
+    ("SQUID", 32): "Warm Welcome", ("SQUID", 33): "Zero Gravity", ("SQUID", 34): "Soap Bubbles", ("SQUID", 35): "Full Steam",
+    ("SQUID", 36): "Onward",
 }
+SQUID_GROUP = "06 - TORAIZ SQUID chord sets (each set's pads 1-8, then its pads 9-16)"
 
 PC_NAME = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 LETTERS = "CDEFGAB"
@@ -178,10 +197,23 @@ def signature(item):
     return tuple(((min(p) - b0) % 12, tuple(sorted({(n - b0) % 12 for n in p}))) if p else () for p in pads)
 
 
-def build(pack_path):
+def squid_items(path):
+    """The SQUID's sets as M3-pack-like items: two eight-pad halves each."""
+    items = []
+    for s in json.load(open(path)):
+        assert len(s["pads_midi"]) == 16, s["name"]
+        for half in range(2):
+            items.append({"bank": "SQUID", "slot": 2 * s["set"] - 1 + half,
+                          "name": f'{s["name"]} pads {1 + 8 * half}-{8 + 8 * half}', "group": SQUID_GROUP,
+                          "pads_midi": s["pads_midi"][8 * half:8 * half + 8]})
+    assert len(items) == 36
+    return items
+
+
+def build(m3_path, squid_path):
     qualities = read_qualities()
     full_of = {s: f for s, _t, f in qualities}
-    items = json.load(open(pack_path))
+    items = json.load(open(m3_path)) + squid_items(squid_path)
     seen = {}
     taken, left = [], []
     for it in items:
@@ -240,12 +272,14 @@ def header_table(taken):
 
 
 def readme_table(taken, left):
-    out = ["| # | Progression | Key | Pads A01-A08 (in C) |", "|---|---|---|---|"]
+    out = ["| # | Progression | From | Key | Pads A01-A08 (in C) |", "|---|---|---|---|---|"]
     for i, e in enumerate(taken, 1):
-        out.append(f"| {i} | {e['name']} | {'minor' if e['minor'] else 'major'} | {' '.join(e['chords'])} |")
+        source = "SQUID" if e["item"]["bank"] == "SQUID" else "M3"
+        out.append(f"| {i} | {e['name']} | {source} | {'minor' if e['minor'] else 'major'} | {' '.join(e['chords'])} |")
     out.append("")
     reasons = collections.Counter(why for _it, why in left)
-    out.append(f"Left out ({len(left)} sets): " + "; ".join(f"{n} with {why}" for why, n in sorted(reasons.items())) + ".")
+    out.append(f"Left out ({len(left)} M3 sets): " + "; ".join(f"{n} with {why}" for why, n in sorted(reasons.items()))
+               + ". Every SQUID set is in.")
     return "\n".join(out)
 
 
@@ -257,18 +291,20 @@ def replace_between(path, start, end, body):
 
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         sys.exit(__doc__)
-    taken, left = build(sys.argv[1])
+    taken, left = build(sys.argv[1], sys.argv[2])
     pads = 8 * len(taken)
-    print(f"{len(taken)} progressions ({pads} pads, every one named exactly from its notes); {len(left)} sets left out")
+    squid = sum(e["item"]["bank"] == "SQUID" for e in taken)
+    print(f"{len(taken)} progressions ({len(taken) - squid} M3, {squid} SQUID; {pads} pads, every one named exactly from"
+          f" its notes); {len(left)} sets left out")
     for it, why in left:
         print(f"  left out: {it['bank']} {it['slot']:3d}  {why}")
-    if "--write" in sys.argv[2:]:
+    if "--write" in sys.argv[3:]:
         replace_between(os.path.join(ROOT, "src", "progressions.h"),
-                        "// --- made by tools/m3_progressions.py: do not edit by hand ---",
+                        "// --- made by tools/make_progressions.py: do not edit by hand ---",
                         "    // --- end of the made part ---", header_table(taken))
-        replace_between(os.path.join(ROOT, "README.md"), "<!-- progressions: made by tools/m3_progressions.py -->",
+        replace_between(os.path.join(ROOT, "README.md"), "<!-- progressions: made by tools/make_progressions.py -->",
                         "<!-- end of progressions -->", readme_table(taken, left))
         print("wrote src/progressions.h and README.md")
 

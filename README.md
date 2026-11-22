@@ -4,11 +4,11 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 172 chord progressions taken from the M3's factory pad chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
-Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets (below); their names are Reverie's own.
+Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.3.0). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.0). Not yet run on the MPC itself.
 
 ## Install
 
@@ -39,7 +39,7 @@ the progressions.
 
 | Control | What it does |
 |---|---|
-| PROG | the progression (172, listed below) |
+| PROG | the progression (208, listed below) |
 | VOICING | how the chords are spread (below) |
 | KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass is voice-led between G1 and C3 in every key |
 | OCT | the whole chord up or down, -2 to +2 octaves |
@@ -57,7 +57,7 @@ Each chord is a bass note (the root, or a slash chord's bass) and an upper struc
 the style's register. Pads A01-A08 play only the chord's own tones, so what the page names is what sounds. The bass
 notes are chosen for the whole progression at once, between G1 and C3, so a bass line that steps, slides by a
 semitone or stays put does not jump an octave in the middle (only a line that runs further than that range breaks,
-once: 42 of the 2,064 progressions in a key). Of every way to place the upper tones, Reverie takes the one
+once: 46 of the 2,496 progressions in a key). Of every way to place the upper tones, Reverie takes the one
 that keeps the low register open (no thirds or seconds crowded down low), has no minor ninths except in b9 chords,
 keeps the style's spacing, avoids a third or root on top, and moves least from the chord before it. The progression is
 voiced in order twice round, so the eighth chord leads back into the first.
@@ -66,7 +66,7 @@ Pads A09-A16 (**Lift**) voice each chord higher, with one colour tone added when
 progression itself plays somewhere (a ninth on a triad or a major seventh, an eleventh on a minor chord...), so the
 colour stays in the progression's scale; a chord with no such tone is lifted as it is. Rootless never plays the root of a
 chord of four tones or more. Every progression is voiced in every style and key when Reverie is built (a table of
-12,384 sets of sixteen pads), so picking one, or automating it on the same step as a chord, costs the audio thread
+14,976 sets of sixteen pads), so picking one, or automating it on the same step as a chord, costs the audio thread
 nothing.
 
 | Voicing | Sound |
@@ -84,195 +84,238 @@ A2 | E4 G4 B4 D5.
 
 ### The progressions
 
-Every progression is one of the M3's factory Pad 1-8 chord sets: the Motion Synth combinations and programs first,
-then the Pad, SlowSynth and Vocal ones, in the order the factory banks hold them. Each pad's chord is named from the
-pad's own notes, with a name whose tones are exactly its pitch classes (a fifth the pad leaves out may sound), its
-lowest note as the bass (a slash chord when that is not the root). Each set is moved so pad 1's root is C (minor when
-pad 1 is a minor chord), and KEY moves it from there. Sets that come back in other presets, or in another key, are
-listed once. Reverie voices the chords in its own six styles, so a pad does not keep the M3's exact spacing and
-octaves.
+Every progression is one of two makers' factory chord sets:
 
-`tools/m3_progressions.py` makes this table and `src/progressions.h` from the chord pack's `all-progressions.json`.
-Projects saved with 0.1 or 0.2 (whose progressions were retired) keep everything but the progression, which starts
-at the first one.
+- **1-172, the M3's Pad 1-8 chord sets:** the Motion Synth combinations and programs first, then the Pad, SlowSynth
+  and Vocal ones, in the order the factory banks hold them.
+- **173-208, the SQUID's 18 Chord mode sets:** each set is 16 pads, so it gives two progressions, its pads 1-8 and
+  then its pads 9-16, in the set's order. The sets come from the SQUID's own firmware (1.12), since its manual does
+  not list them.
 
-<!-- progressions: made by tools/m3_progressions.py -->
-| # | Progression | Key | Pads A01-A08 (in C) |
-|---|---|---|---|
-| 1 | Ringed Orbit | major | C D Fadd9 A7sus Eb6 Eb7sus/Db Abm/B Bb9sus |
-| 2 | Signal Tower | minor | Cm7 Ebm7 Ab Gb B Ab7 F F9sus |
-| 3 | Watchful Horizon | major | Cmaj7 Fm7 Gm7(11) Fm11/Ab Am7 Cmaj7/E G7sus/F G7sus |
-| 4 | Low Cathedral | major | C Eb Bb F Bb Db Ab Bb |
-| 5 | Frost Dawn | major | C Em/B Am Bm7/A C/G Cm/G D7/F# G9sus |
-| 6 | Tender Embrace | major | C Cmaj7/G Am A7/E Dm F7 Cadd9/E G7/D |
-| 7 | Starbound Voyage | minor | Cm Ab/C Bm7 Gm/Bb F/A Ab7b5 G G7/F |
-| 8 | Spectral Prism | minor | Cm7 Gm7 Dbsus2 Fm7 Eb7sus/Db Abmaj9/C Fm7(11) Ebadd9/G |
-| 9 | Neon Boulevard | minor | Cm Bb Fm Ab/Eb Db Bbm Fm Eb |
-| 10 | Hidden Passage | major | Csus2 Fm7(11) Ebadd9/G Absus2 Dbadd9/F Ebadd11 Dbadd9 Bbm7 |
-| 11 | Kinetic Drift | minor | Cm9 Fm9/Ab Ebmadd9/Gb Ebm7(11) Emaj9#11 Bsus2 Amaj9#11 Gb7sus |
-| 12 | Prismatic Turn | minor | Cm7 Bbadd9/D Ebadd9 Fsus4 Gm F6 Bbadd11/Eb F7sus |
-| 13 | Cell Division | minor | Cm Bb Eb Gm7 Abadd9 Bb Eb Bb |
-| 14 | Sugar Village | minor | Cm Gm Db Eb Ab Bb7/Ab Eb G7/D |
-| 15 | Horizon Fade | minor | Cm Bb/D Eb Ebadd9/G Abadd9 Ebmaj9/G Dbadd9 Absus2 |
-| 16 | Chrono Shift | minor | Cm11 Ebm11 Bmaj9 Gbadd9/Bb Eadd9/G# Badd11/E Ebm11 Dbm11 |
-| 17 | Tidal Formant | minor | Cm Bbm Abmaj7 Gbsus2 Abadd9 Db6/9 Fm9 Dbadd11/Gb |
-| 18 | Resonant Pulse | minor | Cm9 Ab6/9 Gm7 Cm9/Eb F7sus G7sus Ab7sus Bb9sus |
-| 19 | Quiet Machinery | minor | Cmadd11 Dbmaj7 Cm Ebm6 Fmadd9 Gbmaj7 Fm7/Ab Ebadd9/G |
-| 20 | Folded Space | minor | Cmadd11/Eb G9 Ab Bbm/Db Fm/C Db Bbadd9 Cm/G |
-| 21 | Mirror Steps | minor | Cm7 Dm7 Fm7 Gm7 Cm7 Dm7 Fm7 Gm7 |
-| 22 | Neon Glyph | major | C Bbsus2#11 Am7 Fm7 Ebm Ebm7/Db B6 Fsus2/G |
-| 23 | Temple Gong | minor | Cm Csus2 Gmadd11/C Am7/C Ab/C Abadd#11/C Gmadd11/C D7sus/G |
-| 24 | Slow Bounce | minor | Cm Cm7/Bb F/A Fm/Ab Fm Dbmaj9 Dbmaj9/C C |
-| 25 | Endless Ring | major | Csus2 Absus2 Fsus2 Dbsus2 Bbsus2 F#sus2 Ebsus2 Bsus2 |
-| 26 | Last Departure | minor | Cm Ab Bb Gm Ab Fm Eb Bb |
-| 27 | Eight Sides | major | C6 Am Em Dm7 C Bb G9sus A9sus |
-| 28 | Voice Lattice | minor | Cm Db Gb E6 Dbsus2 Badd9 Bbm Ab7sus |
-| 29 | Clockwork Lace | major | Csus2 Ebsus2 Dsus2 Fsus2 D7sus/C F7sus/Eb E7sus/D G7sus/F |
-| 30 | Dice and Ivory | minor | Cm Fm Eb Gm Ab Eb/G Gb6 F7sus |
-| 31 | Second Thoughts | major | Csus#4 C Em/B G/B A9sus Am7 D9sus D |
-| 32 | Distant Broadcast | minor | Cm F/A Bbm Edim7 Bb/F D/F# Gm7 G |
-| 33 | Sweeping Choir | major | Csus2 Fm Bbsus2 Ab F Db Ebadd9 F7sus/Bb |
-| 34 | Gated Glow | minor | Cm7 F Cm/Eb F Bbm Abmadd11/Db Ebm Emaj7 |
-| 35 | Phosphor Tide | minor | Cm Bb Fm7(11) Gm Cm Eb Bb Fm7(11) |
-| 36 | Resin Rhythm | minor | Cmadd9 Dm Ebmaj7 F6 Fm6 Gm7/F Em7(11) G7/F |
-| 37 | Light Steps | minor | Cm Eb Fm7 Bbsus4 Cm Cm7/Eb Fm G |
-| 38 | Platform Clock | minor | Cm Bbadd9/C Dm7/C Cm Cmadd11/F Bb/F Fm Bb |
-| 39 | Mischief Broth | minor | Cm Ebmaj7 Fm7(11) G7 F G Abmaj7 Bb7 |
-| 40 | Slow Becoming | minor | Cm C9sus Cm7/Bb Gm7 Dm Eb Dm7 G |
-| 41 | Water Voices | major | C Am Bbsus2/C Bb/D Csus2/D Cm/Eb Ab Fm |
-| 42 | Liquid Ascent | major | C Em7/G Fmaj9/A Gadd9/B Fadd9/A G7 F Dmadd11/G |
-| 43 | Shapeshift Cloud | major | C Em7/G Cadd9/E A7sus C6/9/G C6/9 C6/9/E C6/9/G |
-| 44 | Timeless Expanse | minor | Cm11 Ebm11 Bbm11 Dbm11 Abm11 Bm11 F#m11 Am11 |
-| 45 | Monarch Drift | minor | Cm Ab Bb/D Eb Abm Gb E Abmaj9/Bb |
-| 46 | Fairy Lantern | major | C Eb/Bb Ebsus#4/Bb Ebmadd11/Ab Ebm7/Gb Bb/F Ab G/B |
-| 47 | Freefall | minor | Cm Ebadd#11 Gm/D Cm/Eb Dbdim/E A/E Dm/F Fdim7 |
-| 48 | Seed Pods | major | C G/B Am7(11) Em11 Dm11 Am11 Cadd11/F Fadd11/Bb |
-| 49 | Skyward Glider | minor | Cm Eb6/9 Abmaj13 Gbmaj13 Ebm11 Gbmaj9sus/B Bbm11 Gm11 |
-| 50 | Zephyr Cascade | minor | Cm11 Ebadd11/Ab Fm11 Abadd11/Db Bbm11 Dbadd11/Gb Ebm11 Gbadd11/B |
-| 51 | Metamorphosis | minor | Cm7(11) F7sus/Eb Abmaj9 Cm7/Bb F7sus Ebadd11/Ab F7sus/Bb Fm7(11) |
-| 52 | Moth Wings | minor | Cm7 Bbsus4 F/A Bb7sus/Ab Amadd11 Bbsus2#11 Gb7/Bb Bb |
-| 53 | Circle of Dreams | major | C7sus F9sus Bb9sus Eb9sus Ab9sus Db9sus F#9sus B9sus |
-| 54 | Spiral Stair | major | C7 C7sus Fadd11/A Bb Gmadd9 C6 Fadd#11 Fadd9 |
-| 55 | Night Rotation | minor | Cm Cm7 Dm7/C Gm Gm7 Cm F9sus G7 |
-| 56 | Lunar Capsule | minor | Cm7 Cmadd11/F Gmadd11 D7sus Ebadd9 C9sus Am7 G |
-| 57 | Mirror Lake | major | C G Am Bbmaj7 Cm7/Bb Bbadd9/C Eb6 D/F# |
-| 58 | Hummingbird | minor | Cm7 Abadd9 Gm/Bb Absus2 Ab Eb/G Fm7 Bb9sus |
-| 59 | Sparkle Veil | minor | Cm6 Abmaj7/Eb Abmaj7#11/D Ebm9/Db Amaj9 Bmaj7#5/A# Abm7 G7 |
-| 60 | Scattered Light | major | Csus2 Bbm7(11) Bb7sus/Ab Fsus2/G Fm7(11) F7sus/Eb Dbsus2 Cm7(11) |
-| 61 | Stained Glass | major | C Bb F/A Ab6 Ebm Bbm/Db Ab G/B |
-| 62 | Reed Whisper | major | C F C/G Fmaj7 F Em C G7 |
-| 63 | Delayed Hours | minor | Cm Gm Bbm7 Fm7 Abm Ebm7 Bmaj7 Abm7 |
-| 64 | Old Hymnal | major | C Csus2#11 Gsus4 G A A/C# G/D D |
-| 65 | Stutter Choir | major | Csus4 Bbadd9/D Ebsus2 Fsus2 Gsus2 Fmadd9/Ab Bbsus4 Csus4 |
-| 66 | Torchlight | minor | Cm Ebadd#11/A Bb Bb6 Cm7 F/C Dm G/D |
-| 67 | Silk Ribbon | major | Csus4 C Dm7/C Edim/Bb F/A Emadd11/A Gmadd11/Bb Gm/Bb |
-| 68 | Deep Sea Bloom | minor | Cm7/Bb Bbm7(11) Bmaj7/A# Bsus4 Bm7/A Am7(11) Asus4 Am7/G |
-| 69 | Satellite Blink | minor | Cm7 Ebmaj7 Abmaj7 Fm7/Eb Dm7b5 Amadd11/D Dbmaj7 Bbm9 |
-| 70 | Countdown | major | Cadd9 Db7sus E9sus Dbm7(11) Amaj9 B Gmaj9 F#m7(11) |
-| 71 | Mercury Rain | minor | Cm Ebm Bb/D Dbadd#11 Ab/C Bmaj7 Eb/Bb Bb |
-| 72 | Grid Shimmer | minor | Cm7 Gm7 Am7 Em7 Amaj7 Am7 Dm7/A G6 |
-| 73 | Carefree Sway | minor | Cm Cm/Eb Fm G/B Fm G Ab6 Bbadd9 |
-| 74 | Golden Avenue | major | Cmaj9 Dm7(11) G9sus G9 Dm9 Em7 Am7/G Am7/G |
-| 75 | Bow and Gourd | minor | Cm7(11) Ab6/9 F9sus Bbm11/Db Cm9 Ebmaj9sus/Ab Cmadd11/F Gm7(11) |
-| 76 | High Thermal | minor | Cmadd9 Gm7(11) Ebadd11/Ab Bb Fm7 C9sus Abadd11/Db G7sus |
-| 77 | Spellbound | major | Cadd9 G/B Em D A Bm G A |
-| 78 | Slow Crossfade | major | C Am6 Abmaj7 F Ebadd9 Dbmaj7 Ab G7 |
-| 79 | Rain on Glass | major | Csus2 Ebsus2 Absus2 F#sus2 B6 Emaj7 Amaj7#11 Dmaj9#11 |
-| 80 | Adrift | minor | Cmadd11/F Bb/F Fm Eb Dbmaj7 Cm7 Fmadd9 Ebadd9 |
-| 81 | Vowel Moment | major | C Am/C Cadd9/D F Am Ddim/Ab C/G F#m7b5 |
-| 82 | Cool Meadow | major | Csus2 Bbsus2 Fadd9 C Abadd9 Bbadd9 G7sus C |
-| 83 | Closing Credits | minor | Cm Fm/C G7/B Eb/Bb Bbaug Bbm Cm7/Bb Adim |
-| 84 | Wide Choir | major | Csus2 Abadd9/C Bbsus2/C Csus4 Bb11/Ab Fm7(11) C7sus/Bb G7sus |
-| 85 | Moonlit Sleep | minor | Cm7(11) Abmaj13 Fm7(11) Abadd11/Db Gbadd9 Ebm7(11) Badd11/E Db7sus |
-| 86 | Silicon Lullaby | minor | Cm7(11) Gm7(11) Abadd9 F Bbsus2 G7sus Eb6 Bbadd9/D |
-| 87 | Orchestral Dawn | major | Cmaj9 D7sus Dm9/F Bbmadd9/Db Dbsus2/Eb F G9/F Ebmaj7#11/G |
-| 88 | Warm Front | major | C Gmadd11/C Fmaj7/C Amadd11/D F6 Em7 Bm7b5/F G |
-| 89 | Rising Voices | minor | Cm7(11) Gm7(11) Dbadd9/F C/Eb Cm/Eb Bbadd9/D Eb7sus/Db Abadd9/C |
-| 90 | Velvet Quartet | major | C13sus F13 Bb13sus A7alt Dm11 Bb13#11 Abmaj13 Db13b9/G |
-| 91 | Ripple Field | minor | Cmadd11/F Cm7 Dbmaj7/Ab Eb6 Dbmaj7/F Cm7 Dbsus2 Fm11 |
-| 92 | Monastery | major | Cadd11 Cm11 Fadd11/C Abmaj9/C Dbmaj7/F F9sus Bbm9 Ebmaj7/Bb |
-| 93 | Unending Bow | major | Cmaj7#11/B AmMaj7 Am7/G Cadd#11/F# E E7sus/D Cmaj7 Am6 |
-| 94 | Cloud Bells | minor | Cmadd9 Abmaj9 Dm7(11) Dbmaj9 Gbmaj9#11 Dbmaj9/F Ebm7(11) Dbadd9/F |
-| 95 | Infinite Choir | major | C Gmaj7/B Em Bm/D Cmaj7 Fmaj7 Bbmaj7 Abmaj7#11 |
-| 96 | Dust and Light | major | C Am Dm Fadd9 F Em Dm Gsus4 |
-| 97 | Trembling Air | major | C7 Fm Cm/Eb Dm7 Cm7/Bb Bb Ebsus4 Eb |
-| 98 | Quiet Aside | minor | Cm F/A Bbadd9 C7/Bb Am A7/C# Dm G/B |
-| 99 | Vintage Haze | minor | Cm9 Badd9/D# Ebadd9/G Ab7sus/Gb Ebsus2/F Amaj7b13/E Dm/G# Bmaj7#11 |
-| 100 | Open Sky | major | Cadd11/F Bb6/9/F D9sus G7sus/C E9sus E9 Cadd9/G Gm7 |
-| 101 | Bright Tomorrow | minor | Cm Am7b5 Abmaj7 Fm7 Ebm B Abm7 Bb |
-| 102 | Digital Hearth | major | Cadd9/D Dm Amadd11/D Gm/D Ebadd9/G Fsus2/G Gm7(11) Ebadd9/G |
-| 103 | Old Regrets | minor | Cm7 Fm7 Dbmaj7 Bb7sus Dm Eb Abmaj9 G9sus |
-| 104 | Mellow Haze | major | Cadd9 Abmaj7 Bbadd9 Am Dm Cadd9 Abmaj7 G9sus |
-| 105 | String Garden | major | C6/9 Ebmaj7#11 Bb6/9 Eb6/9 C7sus/F Fmaj7 Dm7 Fmadd9/Ab |
-| 106 | Sine Lullaby | major | Cmaj9 Cm9 Abmaj7 Am7 Eb Dm7 Bbmaj7 Fmaj7/A |
-| 107 | Suspended Hours | minor | Cmadd11/Eb Bbadd9/D Bbmaj7 Am7 Gm7 Fmaj7 Bbadd11/Eb D7 |
-| 108 | Soft Daydream | minor | Cmadd9 Fm7 Ebmaj7/Bb Abmaj7 Gm7 Ab6/9 Bbadd9/F Gm |
-| 109 | Glacier Breath | minor | Cm Ebm Bb/D Dm Fm Eb7 Abadd9 Eb |
-| 110 | Trance State | minor | Cm Fm7 Eb Bb F Bbm Db6 Gm7 |
-| 111 | Fond Memory | minor | Cm Gm F Cm7 Cadd9 Eb6 Abmaj9 G9sus |
-| 112 | Ember Glow | minor | Cm7 Fm Dm7 G9sus A F Dm G9sus |
-| 113 | Long Sweep | major | Cadd9 F6/9 Bb6/9 A7sus Dmadd9 Bbmaj7 Cm7/Bb G9sus |
-| 114 | Closing Filter | minor | Cm9 Gaddb9/B Cm7/Bb Gm7 Fm Eb/G Db/Ab G |
-| 115 | Thinning Air | minor | Cm Dm7 Eb F Gm Cm7(11) Dm7(11) Gadd9 |
-| 116 | Hybrid Strings | minor | Cm7(11) Dm7(11) Fsus2 D7sus/G Bbm/Db F/C Eb/Bb Bb |
-| 117 | Real and Ghost | minor | Cm Abadd9 Bb Cmadd11 Fm Cmadd9 Ab G7 |
-| 118 | Honeyed Pad | minor | Cm7 Ebmaj7 Dm Gm Eb Ab Abadd11/Db Gm7(11) |
-| 119 | Brass Clouds | major | C7/Bb Bb6/9 Am7 F/A Dm7 C F6 Gadd9 |
-| 120 | Sea Breeze | minor | Cm Em7 Am9 Bm7 Eadd9 Badd9 Gsus2 B7sus |
-| 121 | Comet Tails | minor | Cm Gm Bbm7 Fm7 Abm7 Bbm7 Db11/B G7b13 |
-| 122 | Evocation | minor | Cm Bb Ab Fm Bb Cm Bb/D G/B |
-| 123 | Ghost Voices | minor | Cm7(11) Bbadd9 Ab Gadd9 Amadd9 Gmaj7 Am7 Dadd9 |
-| 124 | Whale Song | major | C6/9/E Gadd9/D D11/C Gmaj7/B Am11 Gmaj7 Cm13 D7sus |
-| 125 | Angel Wings | minor | Cm9 Gadd11 Ebadd9 G9sus C Dm7(11) Am G |
-| 126 | After Midnight | major | C7sus Bbm7(11) Ebmadd9/Gb Dbadd9/F Bmaj9/D# Dbadd11 Emaj9/G# Bbm7(11) |
-| 127 | Easy Glow | minor | Cm F Bbm7 Fm7 G9sus A9sus Bb9sus G9sus |
-| 128 | Hiss and Hum | minor | Cm Fm/C G/B Cm/Eb Fm D7/F# D7sus G/D |
-| 129 | Molten Iron | minor | Cm Ebm Bbm/F Fm Db/Ab Abadd9 Bmaj7/D# Bbsus4 |
-| 130 | Reed Organ | major | C Cm Csus4 Abm Fm7 Gm7 Bbm7 Cm7 |
-| 131 | Brass Horizon | minor | Cm Abmaj7/C Eb/Bb Bb Fm7 Bb7sus/Ab Bbsus4 Bb |
-| 132 | Slow Sine | minor | Cm Dm Gm Ebmaj9 Cm Bbmaj7 Am A7/C# |
-| 133 | Vector Field | minor | Cm11 Dm11 Gm7 A7/G F/C Gmadd9/Bb Abmaj7 Gm7 |
-| 134 | Ripple Tank | minor | Cm7 Gm7 Dbsus2 Fm7 Abm7(11) Ebm7 Bb7sus C7sus |
-| 135 | Gentle Bowing | minor | Cm7 Bb6/9/D Fm7(11) Cm7(11) Gm7 Ebadd11/Ab Bbadd9 Bbm11/Db |
-| 136 | Silent Hours | major | C7/Bb F/A B7/A E/G# A7/G D/F# G7 C |
-| 137 | Sealed Letter | minor | Cm Cm7/Bb Fm/Ab Fsus2/G Ab Ddim/Ab Eb Dm7(11) |
-| 138 | Stillness | minor | Cm Ab Fm Db Bbm Gb Ebm B |
-| 139 | Old Photographs | minor | Cm7 Eb9sus Fm7(11) G7sus Absus2#11 Dbmaj9sus/Gb Gb9/E Bb9/Ab |
-| 140 | Simple Sweep | minor | Cm11 Fm11 Dm11 G13b9 Cadd9 Dm7/C Abmaj9 Dbmaj9 |
-| 141 | Wide Vista | minor | Cmadd11/F Bbm9 Ebm11 Absus2 Dbm11 Emaj9sus/A Ab7sus Dbmaj13/Gb |
-| 142 | Scat Cafe | major | C7/6 B13b9 Bbmaj7 A13b9 Amadd11/D G11 C9sus Bbm6/9/A |
-| 143 | Baritone Lounge | major | Cmaj13 Cm11/Eb Am9 D13b9 Gadd9 Bb13 Cm11/Eb D9sus |
-| 144 | Soprano Smoke | minor | Cm7b5 F13b9 E13sus Amaj13 Ebm7b5 Ab13b9 Gb13sus B13b9 |
-| 145 | Chapel Choir | major | C Bbadd9/D Ebsus2 D/F# Am7b5/G Gm Eb Bbmaj7/F |
-| 146 | Circle of Fourths | minor | Cm11 Fm11 Bbm11 Ebm11 Abm11 Dbm11 F#m11 Bm11 |
-| 147 | Breathing Aahs | minor | Cm9/Bb Dmaj7/A Bbmaj9/A Abmaj9#11 Cmaj7/G Cm7b5/Gb Gm9/F Dbmaj7/Ab |
-| 148 | Soft Aahs | major | C Gmaj7/B Em Bm/D Cmaj7 Fmaj7 Bbmaj7 Ebmaj7 |
-| 149 | Twin Oohs | major | Cadd9 Bbmaj13 Bb11/Ab Bbadd9/F Ebmaj7#11 Bbmaj7/D Ebmaj9/Ab Gm11 |
-| 150 | Gentle Oohs | major | C Em F Am Bb Dm Eb Absus2 |
-| 151 | Choral Mist | minor | Cdim/Eb Ab7 Db6 Abadd9/C Bbm Bbm7/Ab Gb6/9 Dbadd9/F |
-| 152 | Steppe Voice | minor | Cm7(11) Bbm7(11) Fm7(11) Gm7(11) Gm/D F#m/C# Gm Bm11 |
-| 153 | Birdsong Dawn | major | C/E Em Bm/D D Dm Am/C Am G |
-| 154 | Tape Choir | major | C Cmaj7 F/C Fm/C Dm7 G7/D Dm7 G7 |
-| 155 | Vowel Shift | minor | Cm Bb Ab Eb Ab Bb Bdim7 Cm |
-| 156 | Highland Voices | minor | Cm9 Abmaj9 Fm9 Bbm9/Db Abmaj7/C Gbadd9/Bb Abadd9 Gbmaj7 |
-| 157 | Alpine Echo | major | Cmaj7/B AmMaj7 Am7/G Cadd#11/F# E E7sus/D Cmaj7 Am6 |
-| 158 | Dream Chorus | minor | Cm9 Am11 Gm9 Fmaj9 F#m9 Abm9 Gmaj9 Cmaj9 |
-| 159 | Polar Night | minor | Cm Ab/C G/B Gm/Bb F/A Fm/Ab Dm7b5 G7 |
-| 160 | Listening Post | minor | Cm Eb Gm Bdim Ab Fmadd11 Bbadd9/D G7 |
-| 161 | Robot Hymn | minor | Cm7 Gm7 Ab Ebadd9 Ab/C Bb/D Eb Abadd11/Db |
-| 162 | Machine Psalm | major | Cmaj7 Dm7 Ebm7 Em7 Fm Eb Dbmaj7 F#13 |
-| 163 | Chrome Ballad | minor | Cm9 B7alt Bbm9 A7alt Abmaj7 Dbmaj9 Gm7b5 C7sus |
-| 164 | Wired Dusk | minor | Cm C9sus Abmaj7/C C9sus Fm7 Gm7 Abmaj7 Bb |
-| 165 | Steel Anthem | minor | Cm Ab Bb Gm Ab Fm7 Cm/G G7 |
-| 166 | Synthetic Soul | minor | Cm Ebmaj7/Bb Abmaj7 G7sus Fm9 Dm7b5/Ab Cm/G G7 |
-| 167 | Digital Gospel | major | Cmaj7 Fm9 Abmaj9 G9sus Fmaj9 Em7 Dm7(11) Cadd11/G |
-| 168 | Neon Sermon | major | Cmaj9 Bbmaj9 Am7 Gm9 Fmaj9 Em7(11) Dm7(11) Dsus2/E |
-| 169 | Static Prayer | minor | Cm Dm7/C Ab Absus2#11 Fm9 Dm/F Ab Bb |
-| 170 | Carrier Wave | major | C7sus F/C Abadd9/C C9sus F9sus Fsus4 F7sus Fsus4 |
-| 171 | Modulated Calm | major | Csus4 Cm Bbsus2 Bb Fm/Ab Ab6 Fsus2/G Gsus4 |
-| 172 | Iron Lullaby | minor | Cm7 Fm9 Gaug C9sus Fm7 Gm7 Ab6 G7b13 |
+Each pad's chord is named from the pad's own notes, with a name whose tones are exactly its pitch classes (a fifth the
+pad leaves out may sound), its lowest note as the bass (a slash chord when that is not the root). Each set is moved
+so pad 1's root is C (minor when pad 1 is a minor chord), and KEY moves it from there. Sets that come back in other
+presets, or in another key, are listed once. Reverie voices the chords in its own six styles, so a pad does not keep
+the source's exact spacing and octaves.
 
-Left out (45 sets): 1 with a cluster no chord name fits; 44 with power chords, octaves or single notes.
+`tools/make_progressions.py` makes this table and `src/progressions.h` from the two private chord packs (the M3
+pack's `all-progressions.json`, the SQUID pack's `chord-sets.json`). Projects saved with 0.1 or 0.2 (whose
+progressions were retired) keep everything but the progression, which starts at the first one; projects saved with
+0.3.0 keep theirs, since the M3 progressions keep their places.
+
+<!-- progressions: made by tools/make_progressions.py -->
+| # | Progression | From | Key | Pads A01-A08 (in C) |
+|---|---|---|---|---|
+| 1 | Ringed Orbit | M3 | major | C D Fadd9 A7sus Eb6 Eb7sus/Db Abm/B Bb9sus |
+| 2 | Signal Tower | M3 | minor | Cm7 Ebm7 Ab Gb B Ab7 F F9sus |
+| 3 | Watchful Horizon | M3 | major | Cmaj7 Fm7 Gm7(11) Fm11/Ab Am7 Cmaj7/E G7sus/F G7sus |
+| 4 | Low Cathedral | M3 | major | C Eb Bb F Bb Db Ab Bb |
+| 5 | Frost Dawn | M3 | major | C Em/B Am Bm7/A C/G Cm/G D7/F# G9sus |
+| 6 | Tender Embrace | M3 | major | C Cmaj7/G Am A7/E Dm F7 Cadd9/E G7/D |
+| 7 | Starbound Voyage | M3 | minor | Cm Ab/C Bm7 Gm/Bb F/A Ab7b5 G G7/F |
+| 8 | Spectral Prism | M3 | minor | Cm7 Gm7 Dbsus2 Fm7 Eb7sus/Db Abmaj9/C Fm7(11) Ebadd9/G |
+| 9 | Neon Boulevard | M3 | minor | Cm Bb Fm Ab/Eb Db Bbm Fm Eb |
+| 10 | Hidden Passage | M3 | major | Csus2 Fm7(11) Ebadd9/G Absus2 Dbadd9/F Ebadd11 Dbadd9 Bbm7 |
+| 11 | Kinetic Drift | M3 | minor | Cm9 Fm9/Ab Ebmadd9/Gb Ebm7(11) Emaj9#11 Bsus2 Amaj9#11 Gb7sus |
+| 12 | Prismatic Turn | M3 | minor | Cm7 Bbadd9/D Ebadd9 Fsus4 Gm F6 Bbadd11/Eb F7sus |
+| 13 | Cell Division | M3 | minor | Cm Bb Eb Gm7 Abadd9 Bb Eb Bb |
+| 14 | Sugar Village | M3 | minor | Cm Gm Db Eb Ab Bb7/Ab Eb G7/D |
+| 15 | Horizon Fade | M3 | minor | Cm Bb/D Eb Ebadd9/G Abadd9 Ebmaj9/G Dbadd9 Absus2 |
+| 16 | Chrono Shift | M3 | minor | Cm11 Ebm11 Bmaj9 Gbadd9/Bb Eadd9/G# Badd11/E Ebm11 Dbm11 |
+| 17 | Tidal Formant | M3 | minor | Cm Bbm Abmaj7 Gbsus2 Abadd9 Db6/9 Fm9 Dbadd11/Gb |
+| 18 | Resonant Pulse | M3 | minor | Cm9 Ab6/9 Gm7 Cm9/Eb F7sus G7sus Ab7sus Bb9sus |
+| 19 | Quiet Machinery | M3 | minor | Cmadd11 Dbmaj7 Cm Ebm6 Fmadd9 Gbmaj7 Fm7/Ab Ebadd9/G |
+| 20 | Folded Space | M3 | minor | Cmadd11/Eb G9 Ab Bbm/Db Fm/C Db Bbadd9 Cm/G |
+| 21 | Mirror Steps | M3 | minor | Cm7 Dm7 Fm7 Gm7 Cm7 Dm7 Fm7 Gm7 |
+| 22 | Neon Glyph | M3 | major | C Bbsus2#11 Am7 Fm7 Ebm Ebm7/Db B6 Fsus2/G |
+| 23 | Temple Gong | M3 | minor | Cm Csus2 Gmadd11/C Am7/C Ab/C Abadd#11/C Gmadd11/C D7sus/G |
+| 24 | Slow Bounce | M3 | minor | Cm Cm7/Bb F/A Fm/Ab Fm Dbmaj9 Dbmaj9/C C |
+| 25 | Endless Ring | M3 | major | Csus2 Absus2 Fsus2 Dbsus2 Bbsus2 F#sus2 Ebsus2 Bsus2 |
+| 26 | Last Departure | M3 | minor | Cm Ab Bb Gm Ab Fm Eb Bb |
+| 27 | Eight Sides | M3 | major | C6 Am Em Dm7 C Bb G9sus A9sus |
+| 28 | Voice Lattice | M3 | minor | Cm Db Gb E6 Dbsus2 Badd9 Bbm Ab7sus |
+| 29 | Clockwork Lace | M3 | major | Csus2 Ebsus2 Dsus2 Fsus2 D7sus/C F7sus/Eb E7sus/D G7sus/F |
+| 30 | Dice and Ivory | M3 | minor | Cm Fm Eb Gm Ab Eb/G Gb6 F7sus |
+| 31 | Second Thoughts | M3 | major | Csus#4 C Em/B G/B A9sus Am7 D9sus D |
+| 32 | Distant Broadcast | M3 | minor | Cm F/A Bbm Edim7 Bb/F D/F# Gm7 G |
+| 33 | Sweeping Choir | M3 | major | Csus2 Fm Bbsus2 Ab F Db Ebadd9 F7sus/Bb |
+| 34 | Gated Glow | M3 | minor | Cm7 F Cm/Eb F Bbm Abmadd11/Db Ebm Emaj7 |
+| 35 | Phosphor Tide | M3 | minor | Cm Bb Fm7(11) Gm Cm Eb Bb Fm7(11) |
+| 36 | Resin Rhythm | M3 | minor | Cmadd9 Dm Ebmaj7 F6 Fm6 Gm7/F Em7(11) G7/F |
+| 37 | Light Steps | M3 | minor | Cm Eb Fm7 Bbsus4 Cm Cm7/Eb Fm G |
+| 38 | Platform Clock | M3 | minor | Cm Bbadd9/C Dm7/C Cm Cmadd11/F Bb/F Fm Bb |
+| 39 | Mischief Broth | M3 | minor | Cm Ebmaj7 Fm7(11) G7 F G Abmaj7 Bb7 |
+| 40 | Slow Becoming | M3 | minor | Cm C9sus Cm7/Bb Gm7 Dm Eb Dm7 G |
+| 41 | Water Voices | M3 | major | C Am Bbsus2/C Bb/D Csus2/D Cm/Eb Ab Fm |
+| 42 | Liquid Ascent | M3 | major | C Em7/G Fmaj9/A Gadd9/B Fadd9/A G7 F Dmadd11/G |
+| 43 | Shapeshift Cloud | M3 | major | C Em7/G Cadd9/E A7sus C6/9/G C6/9 C6/9/E C6/9/G |
+| 44 | Timeless Expanse | M3 | minor | Cm11 Ebm11 Bbm11 Dbm11 Abm11 Bm11 F#m11 Am11 |
+| 45 | Monarch Drift | M3 | minor | Cm Ab Bb/D Eb Abm Gb E Abmaj9/Bb |
+| 46 | Fairy Lantern | M3 | major | C Eb/Bb Ebsus#4/Bb Ebmadd11/Ab Ebm7/Gb Bb/F Ab G/B |
+| 47 | Freefall | M3 | minor | Cm Ebadd#11 Gm/D Cm/Eb Dbdim/E A/E Dm/F Fdim7 |
+| 48 | Seed Pods | M3 | major | C G/B Am7(11) Em11 Dm11 Am11 Cadd11/F Fadd11/Bb |
+| 49 | Skyward Glider | M3 | minor | Cm Eb6/9 Abmaj13 Gbmaj13 Ebm11 Gbmaj9sus/B Bbm11 Gm11 |
+| 50 | Zephyr Cascade | M3 | minor | Cm11 Ebadd11/Ab Fm11 Abadd11/Db Bbm11 Dbadd11/Gb Ebm11 Gbadd11/B |
+| 51 | Metamorphosis | M3 | minor | Cm7(11) F7sus/Eb Abmaj9 Cm7/Bb F7sus Ebadd11/Ab F7sus/Bb Fm7(11) |
+| 52 | Moth Wings | M3 | minor | Cm7 Bbsus4 F/A Bb7sus/Ab Amadd11 Bbsus2#11 Gb7/Bb Bb |
+| 53 | Circle of Dreams | M3 | major | C7sus F9sus Bb9sus Eb9sus Ab9sus Db9sus F#9sus B9sus |
+| 54 | Spiral Stair | M3 | major | C7 C7sus Fadd11/A Bb Gmadd9 C6 Fadd#11 Fadd9 |
+| 55 | Night Rotation | M3 | minor | Cm Cm7 Dm7/C Gm Gm7 Cm F9sus G7 |
+| 56 | Lunar Capsule | M3 | minor | Cm7 Cmadd11/F Gmadd11 D7sus Ebadd9 C9sus Am7 G |
+| 57 | Mirror Lake | M3 | major | C G Am Bbmaj7 Cm7/Bb Bbadd9/C Eb6 D/F# |
+| 58 | Hummingbird | M3 | minor | Cm7 Abadd9 Gm/Bb Absus2 Ab Eb/G Fm7 Bb9sus |
+| 59 | Sparkle Veil | M3 | minor | Cm6 Abmaj7/Eb Abmaj7#11/D Ebm9/Db Amaj9 Bmaj7#5/A# Abm7 G7 |
+| 60 | Scattered Light | M3 | major | Csus2 Bbm7(11) Bb7sus/Ab Fsus2/G Fm7(11) F7sus/Eb Dbsus2 Cm7(11) |
+| 61 | Stained Glass | M3 | major | C Bb F/A Ab6 Ebm Bbm/Db Ab G/B |
+| 62 | Reed Whisper | M3 | major | C F C/G Fmaj7 F Em C G7 |
+| 63 | Delayed Hours | M3 | minor | Cm Gm Bbm7 Fm7 Abm Ebm7 Bmaj7 Abm7 |
+| 64 | Old Hymnal | M3 | major | C Csus2#11 Gsus4 G A A/C# G/D D |
+| 65 | Stutter Choir | M3 | major | Csus4 Bbadd9/D Ebsus2 Fsus2 Gsus2 Fmadd9/Ab Bbsus4 Csus4 |
+| 66 | Torchlight | M3 | minor | Cm Ebadd#11/A Bb Bb6 Cm7 F/C Dm G/D |
+| 67 | Silk Ribbon | M3 | major | Csus4 C Dm7/C Edim/Bb F/A Emadd11/A Gmadd11/Bb Gm/Bb |
+| 68 | Deep Sea Bloom | M3 | minor | Cm7/Bb Bbm7(11) Bmaj7/A# Bsus4 Bm7/A Am7(11) Asus4 Am7/G |
+| 69 | Satellite Blink | M3 | minor | Cm7 Ebmaj7 Abmaj7 Fm7/Eb Dm7b5 Amadd11/D Dbmaj7 Bbm9 |
+| 70 | Countdown | M3 | major | Cadd9 Db7sus E9sus Dbm7(11) Amaj9 B Gmaj9 F#m7(11) |
+| 71 | Mercury Rain | M3 | minor | Cm Ebm Bb/D Dbadd#11 Ab/C Bmaj7 Eb/Bb Bb |
+| 72 | Grid Shimmer | M3 | minor | Cm7 Gm7 Am7 Em7 Amaj7 Am7 Dm7/A G6 |
+| 73 | Carefree Sway | M3 | minor | Cm Cm/Eb Fm G/B Fm G Ab6 Bbadd9 |
+| 74 | Golden Avenue | M3 | major | Cmaj9 Dm7(11) G9sus G9 Dm9 Em7 Am7/G Am7/G |
+| 75 | Bow and Gourd | M3 | minor | Cm7(11) Ab6/9 F9sus Bbm11/Db Cm9 Ebmaj9sus/Ab Cmadd11/F Gm7(11) |
+| 76 | High Thermal | M3 | minor | Cmadd9 Gm7(11) Ebadd11/Ab Bb Fm7 C9sus Abadd11/Db G7sus |
+| 77 | Spellbound | M3 | major | Cadd9 G/B Em D A Bm G A |
+| 78 | Slow Crossfade | M3 | major | C Am6 Abmaj7 F Ebadd9 Dbmaj7 Ab G7 |
+| 79 | Rain on Glass | M3 | major | Csus2 Ebsus2 Absus2 F#sus2 B6 Emaj7 Amaj7#11 Dmaj9#11 |
+| 80 | Adrift | M3 | minor | Cmadd11/F Bb/F Fm Eb Dbmaj7 Cm7 Fmadd9 Ebadd9 |
+| 81 | Vowel Moment | M3 | major | C Am/C Cadd9/D F Am Ddim/Ab C/G F#m7b5 |
+| 82 | Cool Meadow | M3 | major | Csus2 Bbsus2 Fadd9 C Abadd9 Bbadd9 G7sus C |
+| 83 | Closing Credits | M3 | minor | Cm Fm/C G7/B Eb/Bb Bbaug Bbm Cm7/Bb Adim |
+| 84 | Wide Choir | M3 | major | Csus2 Abadd9/C Bbsus2/C Csus4 Bb11/Ab Fm7(11) C7sus/Bb G7sus |
+| 85 | Moonlit Sleep | M3 | minor | Cm7(11) Abmaj13 Fm7(11) Abadd11/Db Gbadd9 Ebm7(11) Badd11/E Db7sus |
+| 86 | Silicon Lullaby | M3 | minor | Cm7(11) Gm7(11) Abadd9 F Bbsus2 G7sus Eb6 Bbadd9/D |
+| 87 | Orchestral Dawn | M3 | major | Cmaj9 D7sus Dm9/F Bbmadd9/Db Dbsus2/Eb F G9/F Ebmaj7#11/G |
+| 88 | Warm Front | M3 | major | C Gmadd11/C Fmaj7/C Amadd11/D F6 Em7 Bm7b5/F G |
+| 89 | Rising Voices | M3 | minor | Cm7(11) Gm7(11) Dbadd9/F C/Eb Cm/Eb Bbadd9/D Eb7sus/Db Abadd9/C |
+| 90 | Velvet Quartet | M3 | major | C13sus F13 Bb13sus A7alt Dm11 Bb13#11 Abmaj13 Db13b9/G |
+| 91 | Ripple Field | M3 | minor | Cmadd11/F Cm7 Dbmaj7/Ab Eb6 Dbmaj7/F Cm7 Dbsus2 Fm11 |
+| 92 | Monastery | M3 | major | Cadd11 Cm11 Fadd11/C Abmaj9/C Dbmaj7/F F9sus Bbm9 Ebmaj7/Bb |
+| 93 | Unending Bow | M3 | major | Cmaj7#11/B AmMaj7 Am7/G Cadd#11/F# E E7sus/D Cmaj7 Am6 |
+| 94 | Cloud Bells | M3 | minor | Cmadd9 Abmaj9 Dm7(11) Dbmaj9 Gbmaj9#11 Dbmaj9/F Ebm7(11) Dbadd9/F |
+| 95 | Infinite Choir | M3 | major | C Gmaj7/B Em Bm/D Cmaj7 Fmaj7 Bbmaj7 Abmaj7#11 |
+| 96 | Dust and Light | M3 | major | C Am Dm Fadd9 F Em Dm Gsus4 |
+| 97 | Trembling Air | M3 | major | C7 Fm Cm/Eb Dm7 Cm7/Bb Bb Ebsus4 Eb |
+| 98 | Quiet Aside | M3 | minor | Cm F/A Bbadd9 C7/Bb Am A7/C# Dm G/B |
+| 99 | Vintage Haze | M3 | minor | Cm9 Badd9/D# Ebadd9/G Ab7sus/Gb Ebsus2/F Amaj7b13/E Dm/G# Bmaj7#11 |
+| 100 | Open Sky | M3 | major | Cadd11/F Bb6/9/F D9sus G7sus/C E9sus E9 Cadd9/G Gm7 |
+| 101 | Bright Tomorrow | M3 | minor | Cm Am7b5 Abmaj7 Fm7 Ebm B Abm7 Bb |
+| 102 | Digital Hearth | M3 | major | Cadd9/D Dm Amadd11/D Gm/D Ebadd9/G Fsus2/G Gm7(11) Ebadd9/G |
+| 103 | Old Regrets | M3 | minor | Cm7 Fm7 Dbmaj7 Bb7sus Dm Eb Abmaj9 G9sus |
+| 104 | Mellow Haze | M3 | major | Cadd9 Abmaj7 Bbadd9 Am Dm Cadd9 Abmaj7 G9sus |
+| 105 | String Garden | M3 | major | C6/9 Ebmaj7#11 Bb6/9 Eb6/9 C7sus/F Fmaj7 Dm7 Fmadd9/Ab |
+| 106 | Sine Lullaby | M3 | major | Cmaj9 Cm9 Abmaj7 Am7 Eb Dm7 Bbmaj7 Fmaj7/A |
+| 107 | Suspended Hours | M3 | minor | Cmadd11/Eb Bbadd9/D Bbmaj7 Am7 Gm7 Fmaj7 Bbadd11/Eb D7 |
+| 108 | Soft Daydream | M3 | minor | Cmadd9 Fm7 Ebmaj7/Bb Abmaj7 Gm7 Ab6/9 Bbadd9/F Gm |
+| 109 | Glacier Breath | M3 | minor | Cm Ebm Bb/D Dm Fm Eb7 Abadd9 Eb |
+| 110 | Trance State | M3 | minor | Cm Fm7 Eb Bb F Bbm Db6 Gm7 |
+| 111 | Fond Memory | M3 | minor | Cm Gm F Cm7 Cadd9 Eb6 Abmaj9 G9sus |
+| 112 | Ember Glow | M3 | minor | Cm7 Fm Dm7 G9sus A F Dm G9sus |
+| 113 | Long Sweep | M3 | major | Cadd9 F6/9 Bb6/9 A7sus Dmadd9 Bbmaj7 Cm7/Bb G9sus |
+| 114 | Closing Filter | M3 | minor | Cm9 Gaddb9/B Cm7/Bb Gm7 Fm Eb/G Db/Ab G |
+| 115 | Thinning Air | M3 | minor | Cm Dm7 Eb F Gm Cm7(11) Dm7(11) Gadd9 |
+| 116 | Hybrid Strings | M3 | minor | Cm7(11) Dm7(11) Fsus2 D7sus/G Bbm/Db F/C Eb/Bb Bb |
+| 117 | Real and Ghost | M3 | minor | Cm Abadd9 Bb Cmadd11 Fm Cmadd9 Ab G7 |
+| 118 | Honeyed Pad | M3 | minor | Cm7 Ebmaj7 Dm Gm Eb Ab Abadd11/Db Gm7(11) |
+| 119 | Brass Clouds | M3 | major | C7/Bb Bb6/9 Am7 F/A Dm7 C F6 Gadd9 |
+| 120 | Sea Breeze | M3 | minor | Cm Em7 Am9 Bm7 Eadd9 Badd9 Gsus2 B7sus |
+| 121 | Comet Tails | M3 | minor | Cm Gm Bbm7 Fm7 Abm7 Bbm7 Db11/B G7b13 |
+| 122 | Evocation | M3 | minor | Cm Bb Ab Fm Bb Cm Bb/D G/B |
+| 123 | Ghost Voices | M3 | minor | Cm7(11) Bbadd9 Ab Gadd9 Amadd9 Gmaj7 Am7 Dadd9 |
+| 124 | Whale Song | M3 | major | C6/9/E Gadd9/D D11/C Gmaj7/B Am11 Gmaj7 Cm13 D7sus |
+| 125 | Angel Wings | M3 | minor | Cm9 Gadd11 Ebadd9 G9sus C Dm7(11) Am G |
+| 126 | After Midnight | M3 | major | C7sus Bbm7(11) Ebmadd9/Gb Dbadd9/F Bmaj9/D# Dbadd11 Emaj9/G# Bbm7(11) |
+| 127 | Easy Glow | M3 | minor | Cm F Bbm7 Fm7 G9sus A9sus Bb9sus G9sus |
+| 128 | Hiss and Hum | M3 | minor | Cm Fm/C G/B Cm/Eb Fm D7/F# D7sus G/D |
+| 129 | Molten Iron | M3 | minor | Cm Ebm Bbm/F Fm Db/Ab Abadd9 Bmaj7/D# Bbsus4 |
+| 130 | Reed Organ | M3 | major | C Cm Csus4 Abm Fm7 Gm7 Bbm7 Cm7 |
+| 131 | Brass Horizon | M3 | minor | Cm Abmaj7/C Eb/Bb Bb Fm7 Bb7sus/Ab Bbsus4 Bb |
+| 132 | Slow Sine | M3 | minor | Cm Dm Gm Ebmaj9 Cm Bbmaj7 Am A7/C# |
+| 133 | Vector Field | M3 | minor | Cm11 Dm11 Gm7 A7/G F/C Gmadd9/Bb Abmaj7 Gm7 |
+| 134 | Ripple Tank | M3 | minor | Cm7 Gm7 Dbsus2 Fm7 Abm7(11) Ebm7 Bb7sus C7sus |
+| 135 | Gentle Bowing | M3 | minor | Cm7 Bb6/9/D Fm7(11) Cm7(11) Gm7 Ebadd11/Ab Bbadd9 Bbm11/Db |
+| 136 | Silent Hours | M3 | major | C7/Bb F/A B7/A E/G# A7/G D/F# G7 C |
+| 137 | Sealed Letter | M3 | minor | Cm Cm7/Bb Fm/Ab Fsus2/G Ab Ddim/Ab Eb Dm7(11) |
+| 138 | Stillness | M3 | minor | Cm Ab Fm Db Bbm Gb Ebm B |
+| 139 | Old Photographs | M3 | minor | Cm7 Eb9sus Fm7(11) G7sus Absus2#11 Dbmaj9sus/Gb Gb9/E Bb9/Ab |
+| 140 | Simple Sweep | M3 | minor | Cm11 Fm11 Dm11 G13b9 Cadd9 Dm7/C Abmaj9 Dbmaj9 |
+| 141 | Wide Vista | M3 | minor | Cmadd11/F Bbm9 Ebm11 Absus2 Dbm11 Emaj9sus/A Ab7sus Dbmaj13/Gb |
+| 142 | Scat Cafe | M3 | major | C7/6 B13b9 Bbmaj7 A13b9 Amadd11/D G11 C9sus Bbm6/9/A |
+| 143 | Baritone Lounge | M3 | major | Cmaj13 Cm11/Eb Am9 D13b9 Gadd9 Bb13 Cm11/Eb D9sus |
+| 144 | Soprano Smoke | M3 | minor | Cm7b5 F13b9 E13sus Amaj13 Ebm7b5 Ab13b9 Gb13sus B13b9 |
+| 145 | Chapel Choir | M3 | major | C Bbadd9/D Ebsus2 D/F# Am7b5/G Gm Eb Bbmaj7/F |
+| 146 | Circle of Fourths | M3 | minor | Cm11 Fm11 Bbm11 Ebm11 Abm11 Dbm11 F#m11 Bm11 |
+| 147 | Breathing Aahs | M3 | minor | Cm9/Bb Dmaj7/A Bbmaj9/A Abmaj9#11 Cmaj7/G Cm7b5/Gb Gm9/F Dbmaj7/Ab |
+| 148 | Soft Aahs | M3 | major | C Gmaj7/B Em Bm/D Cmaj7 Fmaj7 Bbmaj7 Ebmaj7 |
+| 149 | Twin Oohs | M3 | major | Cadd9 Bbmaj13 Bb11/Ab Bbadd9/F Ebmaj7#11 Bbmaj7/D Ebmaj9/Ab Gm11 |
+| 150 | Gentle Oohs | M3 | major | C Em F Am Bb Dm Eb Absus2 |
+| 151 | Choral Mist | M3 | minor | Cdim/Eb Ab7 Db6 Abadd9/C Bbm Bbm7/Ab Gb6/9 Dbadd9/F |
+| 152 | Steppe Voice | M3 | minor | Cm7(11) Bbm7(11) Fm7(11) Gm7(11) Gm/D F#m/C# Gm Bm11 |
+| 153 | Birdsong Dawn | M3 | major | C/E Em Bm/D D Dm Am/C Am G |
+| 154 | Tape Choir | M3 | major | C Cmaj7 F/C Fm/C Dm7 G7/D Dm7 G7 |
+| 155 | Vowel Shift | M3 | minor | Cm Bb Ab Eb Ab Bb Bdim7 Cm |
+| 156 | Highland Voices | M3 | minor | Cm9 Abmaj9 Fm9 Bbm9/Db Abmaj7/C Gbadd9/Bb Abadd9 Gbmaj7 |
+| 157 | Alpine Echo | M3 | major | Cmaj7/B AmMaj7 Am7/G Cadd#11/F# E E7sus/D Cmaj7 Am6 |
+| 158 | Dream Chorus | M3 | minor | Cm9 Am11 Gm9 Fmaj9 F#m9 Abm9 Gmaj9 Cmaj9 |
+| 159 | Polar Night | M3 | minor | Cm Ab/C G/B Gm/Bb F/A Fm/Ab Dm7b5 G7 |
+| 160 | Listening Post | M3 | minor | Cm Eb Gm Bdim Ab Fmadd11 Bbadd9/D G7 |
+| 161 | Robot Hymn | M3 | minor | Cm7 Gm7 Ab Ebadd9 Ab/C Bb/D Eb Abadd11/Db |
+| 162 | Machine Psalm | M3 | major | Cmaj7 Dm7 Ebm7 Em7 Fm Eb Dbmaj7 F#13 |
+| 163 | Chrome Ballad | M3 | minor | Cm9 B7alt Bbm9 A7alt Abmaj7 Dbmaj9 Gm7b5 C7sus |
+| 164 | Wired Dusk | M3 | minor | Cm C9sus Abmaj7/C C9sus Fm7 Gm7 Abmaj7 Bb |
+| 165 | Steel Anthem | M3 | minor | Cm Ab Bb Gm Ab Fm7 Cm/G G7 |
+| 166 | Synthetic Soul | M3 | minor | Cm Ebmaj7/Bb Abmaj7 G7sus Fm9 Dm7b5/Ab Cm/G G7 |
+| 167 | Digital Gospel | M3 | major | Cmaj7 Fm9 Abmaj9 G9sus Fmaj9 Em7 Dm7(11) Cadd11/G |
+| 168 | Neon Sermon | M3 | major | Cmaj9 Bbmaj9 Am7 Gm9 Fmaj9 Em7(11) Dm7(11) Dsus2/E |
+| 169 | Static Prayer | M3 | minor | Cm Dm7/C Ab Absus2#11 Fm9 Dm/F Ab Bb |
+| 170 | Carrier Wave | M3 | major | C7sus F/C Abadd9/C C9sus F9sus Fsus4 F7sus Fsus4 |
+| 171 | Modulated Calm | M3 | major | Csus4 Cm Bbsus2 Bb Fm/Ab Ab6 Fsus2/G Gsus4 |
+| 172 | Iron Lullaby | M3 | minor | Cm7 Fm9 Gaug C9sus Fm7 Gm7 Ab6 G7b13 |
+| 173 | First Light | SQUID | minor | Cm Ab Bb Eb Abmaj7 G7 Cm7/Bb Fm7 |
+| 174 | Early Hours | SQUID | minor | Cm Bm7 E7/D A7 F#m7b5 D6 Gmaj7 B7sus |
+| 175 | Brooding Sky | SQUID | major | Cmaj9 Fmaj9 Em7 A7alt Dm7 Em/G A7/6 F#addb9/G |
+| 176 | Overcast | SQUID | major | C9sus Bbm6 C13sus C7/6 Fadd9 Dbmaj9 Cm9 Bbm6/9/C |
+| 177 | Amber Hour | SQUID | major | Cmaj7 Bm7 Em9 A7 Cmaj9 B7 Em7 A7 |
+| 178 | Fading Sun | SQUID | major | Cmaj7 Bm7 Em7/D A7 Cmaj9 B7 Em9 A9sus |
+| 179 | Last Goodbye | SQUID | minor | Cm7 Fm9 Bb9sus Ebmaj9 Abmaj7#11/D Bmaj7#5/G Bb7b9 F#dim7 |
+| 180 | Empty Platform | SQUID | major | C7sus/Bb Am7b5 G7sus G7 Abmaj7 Bb7/Ab Gm7 C9sus |
+| 181 | Flint Strike | SQUID | minor | Cm9 Am7b5 Fm9 Gm7 Cm9 Am7(11) Fm7 Gm7 |
+| 182 | Live Wire | SQUID | minor | Cm7(11) Am7b5 Fm9 G7alt Cm7(11) Gsus2/A F9 G7b9b13 |
+| 183 | Summit Path | SQUID | major | Cmaj7 B7 Em7 F#m7 Cmaj7 B7 Em11 Gmaj7 |
+| 184 | Upward Spiral | SQUID | major | Cmaj9 B7b13 E9sus Eb9sus Cmaj9 B7b13 Em7(11) F#m7 |
+| 185 | Open Road | SQUID | minor | Cm7 F9 Bb13sus C7sus Abmaj9 Gm7 Cadd9 Ebmaj9 |
+| 186 | Far Shore | SQUID | minor | Cm7 Cadd9 C9sus Gm9 Ebmaj9 Ab13sus D7b13 D7b13 |
+| 187 | Kind Hands | SQUID | major | Cmaj9 Amadd11/D Bm9 F#m7(11) Am9 D13b9 Gmaj9 Esus2/F# |
+| 188 | Gentle Mercy | SQUID | major | Cmaj9 Asus2/B Abm7(11) Abm7(11) Em7 F#m7(11) B7sus Emaj7 |
+| 189 | Light Wind | SQUID | major | Cmaj9 Gadd9/B Am7 Gmaj9 Dsus4 Bm7 Bbdim7 Fmaj9 |
+| 190 | Paper Kites | SQUID | major | Cmaj7 B7alt Em7(11) D9sus Cmaj9 D13sus Em11 G7 |
+| 191 | Schoolyard | SQUID | minor | Cm7 Fm7 Gm7 Abmaj7 Cm7 Fm7 Gm7 Ebadd11/Ab |
+| 192 | Old Toybox | SQUID | minor | Cm9 Fm9 Gm7 Abmaj7 Cm11 Fm13 Gm7 Abmaj9 |
+| 193 | Held High | SQUID | minor | Cm7 Bmaj7 B6 B6/9 Cm9 Bmaj9 Bmaj13 Bmaj13 |
+| 194 | Victory Lap | SQUID | minor | Cm7(11) Bmaj7#11 Abm9/B Emaj7 Bbm9 Ebm9 Fm7 F7alt |
+| 195 | Morning Prayer | SQUID | major | Cmaj7 Gadd11/B Am7(11) C7 Fmaj9 Cadd9/E Dm7 G13sus |
+| 196 | Open Palms | SQUID | major | Cmaj7 F#7#9 Bbmaj7 C13sus Dadd9 Cadd9 Bbmaj7 Am7 |
+| 197 | Lemon Sun | SQUID | major | Cmaj7 Fmaj7 Gadd11/C Fmaj9 Em7 Ebmaj7 Dm9 G13sus |
+| 198 | Clear Skies | SQUID | major | Cmaj9 Bbmaj7 C9sus C7 Fmaj9 Cadd9/E Dm11 Cadd11/G |
+| 199 | Snowfield | SQUID | major | Cmaj9 Gadd9/B Em7(11) Dbm7(11) Am11 D9sus Fsus2/G G7 |
+| 200 | Frozen Lake | SQUID | major | Cmaj9 B7b13 Em7 A7 Am7 D7b9 G7sus G7 |
+| 201 | Old Stones | SQUID | minor | Cm Abmaj7 Fm7 G7 Bbsus4 Bb Bb7sus Bb7 |
+| 202 | Sunken City | SQUID | major | Cmaj9 B7b13 Em7 Am9 D9sus D7b9 Gmaj7 F#m7(11) |
+| 203 | Thank You Note | SQUID | major | Cadd9 G/B Am7 Gm7 Fmaj7 Cadd9/E Dm9 G9sus |
+| 204 | Warm Welcome | SQUID | major | C9 Cm7 D7 Bb7 Abmaj9 G9sus G Bbmaj9 |
+| 205 | Zero Gravity | SQUID | minor | Cm7 Gm7 Fm7 G7b13 Ebm9 Bbm9 Abm9 Emaj9 |
+| 206 | Soap Bubbles | SQUID | major | Cmaj9 Fm7 Bb9sus Ebm7 Abmaj9 D9sus G7b13 Cm9 |
+| 207 | Full Steam | SQUID | minor | Cm9 F13sus Bbmaj9 Bbmaj9 Cm9 F13sus Bbmaj9 Gadd9 |
+| 208 | Onward | SQUID | minor | Cm9 F9sus Bbmaj9 Eb13 E9sus A7alt D9sus Eb7b13/Db |
+
+Left out (45 M3 sets): 1 with a cluster no chord name fits; 44 with power chords, octaves or single notes. Every SQUID set is in.
 <!-- end of progressions -->
 
 ## Sound and parameters
@@ -386,7 +429,7 @@ block reads that were not written since are zeroed first.
 image in the `colima-melodee` Docker context; start it with `colima start melodee`).
 
 - `tests/host.cpp` loads the plug-in as a host does: ports, every parameter and its text, state, the sounds (and
-  that they leave the chord section alone), every progression in every voicing and key (198,144 chords: each a sound
+  that they leave the chord section alone), every progression in every voicing and key (239,616 chords: each a sound
   chord, the third there, only the chord's own tones on pads 1-8 and one colour tone more on 9-16, no root in Rootless,
   no stray minor ninths, a bass line that does not jump), every chord name fitting its pad, the pad map Melodee reads, chords from the pads and banks,
   Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes

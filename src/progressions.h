@@ -5,9 +5,10 @@
 // at the end would move them. More progressions go in a new parameter.
 //
 // Since 0.3.0 every progression is one of the M3 workstation's factory pad chord sets (its Motion Synth, Pad, SlowSynth
-// and Vocal presets), each chord named from the pad's own notes so the name holds exactly its pitch classes, moved so
-// pad 1's root is C. tools/m3_progressions.py makes the table from the chord pack; the names are Reverie's own. The
-// 0.1-0.2 progressions were retired: a state saved before 0.3.0 starts at the first progression (reverie.cpp).
+// and Vocal presets); since 0.4.0 the TORAIZ SQUID's 18 chord sets follow them, each as two progressions (its pads
+// 1-8, then 9-16). Each chord is named from the pad's own notes so the name holds exactly its pitch classes, moved so
+// pad 1's root is C. tools/make_progressions.py makes the table from the two chord packs; the names are Reverie's
+// own. The 0.1-0.2 progressions were retired: a state saved before 0.3.0 starts at the first progression (reverie.cpp).
 //
 // Symbols: a root (C, Db, F#...), a quality (chords.h: maj9, m11, 7sus, add9, m7(11)...) and an optional bass after a
 // slash (Cmaj9/G). The tests parse every one.
@@ -23,7 +24,7 @@ struct ProgressionText
 };
 
 inline constexpr ProgressionText progressionTable[] = {
-    // --- made by tools/m3_progressions.py: do not edit by hand ---
+    // --- made by tools/make_progressions.py: do not edit by hand ---
     // Motion Synth Combis
     { "Ringed Orbit", false, "C D Fadd9 A7sus Eb6 Eb7sus/Db Abm/B Bb9sus" },
     { "Signal Tower", true, "Cm7 Ebm7 Ab Gb B Ab7 F F9sus" },
@@ -201,6 +202,43 @@ inline constexpr ProgressionText progressionTable[] = {
     { "Carrier Wave", false, "C7sus F/C Abadd9/C C9sus F9sus Fsus4 F7sus Fsus4" },
     { "Modulated Calm", false, "Csus4 Cm Bbsus2 Bb Fm/Ab Ab6 Fsus2/G Gsus4" },
     { "Iron Lullaby", true, "Cm7 Fm9 Gaug C9sus Fm7 Gm7 Ab6 G7b13" },
+    // TORAIZ SQUID chord sets (each set's pads 1-8, then its pads 9-16)
+    { "First Light", true, "Cm Ab Bb Eb Abmaj7 G7 Cm7/Bb Fm7" },
+    { "Early Hours", true, "Cm Bm7 E7/D A7 F#m7b5 D6 Gmaj7 B7sus" },
+    { "Brooding Sky", false, "Cmaj9 Fmaj9 Em7 A7alt Dm7 Em/G A7/6 F#addb9/G" },
+    { "Overcast", false, "C9sus Bbm6 C13sus C7/6 Fadd9 Dbmaj9 Cm9 Bbm6/9/C" },
+    { "Amber Hour", false, "Cmaj7 Bm7 Em9 A7 Cmaj9 B7 Em7 A7" },
+    { "Fading Sun", false, "Cmaj7 Bm7 Em7/D A7 Cmaj9 B7 Em9 A9sus" },
+    { "Last Goodbye", true, "Cm7 Fm9 Bb9sus Ebmaj9 Abmaj7#11/D Bmaj7#5/G Bb7b9 F#dim7" },
+    { "Empty Platform", false, "C7sus/Bb Am7b5 G7sus G7 Abmaj7 Bb7/Ab Gm7 C9sus" },
+    { "Flint Strike", true, "Cm9 Am7b5 Fm9 Gm7 Cm9 Am7(11) Fm7 Gm7" },
+    { "Live Wire", true, "Cm7(11) Am7b5 Fm9 G7alt Cm7(11) Gsus2/A F9 G7b9b13" },
+    { "Summit Path", false, "Cmaj7 B7 Em7 F#m7 Cmaj7 B7 Em11 Gmaj7" },
+    { "Upward Spiral", false, "Cmaj9 B7b13 E9sus Eb9sus Cmaj9 B7b13 Em7(11) F#m7" },
+    { "Open Road", true, "Cm7 F9 Bb13sus C7sus Abmaj9 Gm7 Cadd9 Ebmaj9" },
+    { "Far Shore", true, "Cm7 Cadd9 C9sus Gm9 Ebmaj9 Ab13sus D7b13 D7b13" },
+    { "Kind Hands", false, "Cmaj9 Amadd11/D Bm9 F#m7(11) Am9 D13b9 Gmaj9 Esus2/F#" },
+    { "Gentle Mercy", false, "Cmaj9 Asus2/B Abm7(11) Abm7(11) Em7 F#m7(11) B7sus Emaj7" },
+    { "Light Wind", false, "Cmaj9 Gadd9/B Am7 Gmaj9 Dsus4 Bm7 Bbdim7 Fmaj9" },
+    { "Paper Kites", false, "Cmaj7 B7alt Em7(11) D9sus Cmaj9 D13sus Em11 G7" },
+    { "Schoolyard", true, "Cm7 Fm7 Gm7 Abmaj7 Cm7 Fm7 Gm7 Ebadd11/Ab" },
+    { "Old Toybox", true, "Cm9 Fm9 Gm7 Abmaj7 Cm11 Fm13 Gm7 Abmaj9" },
+    { "Held High", true, "Cm7 Bmaj7 B6 B6/9 Cm9 Bmaj9 Bmaj13 Bmaj13" },
+    { "Victory Lap", true, "Cm7(11) Bmaj7#11 Abm9/B Emaj7 Bbm9 Ebm9 Fm7 F7alt" },
+    { "Morning Prayer", false, "Cmaj7 Gadd11/B Am7(11) C7 Fmaj9 Cadd9/E Dm7 G13sus" },
+    { "Open Palms", false, "Cmaj7 F#7#9 Bbmaj7 C13sus Dadd9 Cadd9 Bbmaj7 Am7" },
+    { "Lemon Sun", false, "Cmaj7 Fmaj7 Gadd11/C Fmaj9 Em7 Ebmaj7 Dm9 G13sus" },
+    { "Clear Skies", false, "Cmaj9 Bbmaj7 C9sus C7 Fmaj9 Cadd9/E Dm11 Cadd11/G" },
+    { "Snowfield", false, "Cmaj9 Gadd9/B Em7(11) Dbm7(11) Am11 D9sus Fsus2/G G7" },
+    { "Frozen Lake", false, "Cmaj9 B7b13 Em7 A7 Am7 D7b9 G7sus G7" },
+    { "Old Stones", true, "Cm Abmaj7 Fm7 G7 Bbsus4 Bb Bb7sus Bb7" },
+    { "Sunken City", false, "Cmaj9 B7b13 Em7 Am9 D9sus D7b9 Gmaj7 F#m7(11)" },
+    { "Thank You Note", false, "Cadd9 G/B Am7 Gm7 Fmaj7 Cadd9/E Dm9 G9sus" },
+    { "Warm Welcome", false, "C9 Cm7 D7 Bb7 Abmaj9 G9sus G Bbmaj9" },
+    { "Zero Gravity", true, "Cm7 Gm7 Fm7 G7b13 Ebm9 Bbm9 Abm9 Emaj9" },
+    { "Soap Bubbles", false, "Cmaj9 Fm7 Bb9sus Ebm7 Abmaj9 D9sus G7b13 Cm9" },
+    { "Full Steam", true, "Cm9 F13sus Bbmaj9 Bbmaj9 Cm9 F13sus Bbmaj9 Gadd9" },
+    { "Onward", true, "Cm9 F9sus Bbmaj9 Eb13 E9sus A7alt D9sus Eb7b13/Db" },
     // --- end of the made part ---
 };
 constexpr int progressionCount = (int) (sizeof (progressionTable) / sizeof (progressionTable[0]));

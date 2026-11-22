@@ -28,7 +28,7 @@ struct Quality
 };
 
 // A chord's tones are exactly the ones its name says (the fifth may be left out); Lift's colour tone is never one of
-// them. tools/m3_progressions.py reads this table to name the progressions' chords, so a name always means its notes.
+// them. tools/make_progressions.py reads this table to name the progressions' chords, so a name always means its notes.
 inline constexpr Quality qualities[] = {
     { "", { 4, 7, 0 }, 3, false, { 2, 9 } },
     { "6", { 4, 9, 7, 0 }, 4, false, { 2, -1 } },
