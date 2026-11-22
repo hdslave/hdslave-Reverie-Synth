@@ -1,8 +1,8 @@
 // Native-pixel drawing for Reverie's page on Melodee's screen (320 x 218, shown as RGB565): the palette, primitives,
-// ordered dithering for gradients, and a picture that sends only the pixels that changed.
+// glass controls, proportional type and a picture that sends only the pixels that changed.
 #pragma once
 
-#include "font.h"
+#include "screen_art.h"
 
 #include <algorithm>
 #include <cmath>
@@ -16,14 +16,13 @@ constexpr int width = 320, height = 218;
 constexpr uint32_t noParam = 0xffffffffu;
 using Ink = uint32_t;
 
-// Reverie: an indigo night with aurora light (violet, cyan, rose, gold) and starlight paper.
+// Pale enamel, ocean-blue glass, and high-contrast inks for the LCD.
 namespace ink
 {
-constexpr Ink bg = 0xff07051a, field = 0xff0d0a26, card = 0xff151034, selected = 0xff241a54;
-constexpr Ink rule = 0xff3a2d78, grid = 0xff1a1440, faint = 0xff100c2c;
-constexpr Ink muted = 0xff8a7fc0, soft = 0xffc4b8f0, paper = 0xfff6f1ff, parked = 0xff4a3f80;
-constexpr Ink violet = 0xffa77bff, magenta = 0xffff5fd2, cyan = 0xff5ff0ff, gold = 0xffffd36e, rose = 0xffff8fb1;
-constexpr Ink aurora = 0xff6dffc0, ice = 0xffd8f6ff, deep = 0xff2a1868, red = 0xffff5a6a;
+constexpr Ink bg = 0xffdbedf0, sheet = 0xffeff8f7, rule = 0xffabc9cd, label = 0xff32566a, text = 0xff0a344c;
+constexpr Ink field = 0xff064260, deep = 0xff063451, grid = 0xff215e76, guide = 0xff4789a0;
+constexpr Ink white = 0xfff8ffff, ice = 0xffccefff, foam = 0xff65ecff, lime = 0xffc9fb64, gold = 0xffffbf48;
+constexpr Ink blue = 0xff0872a5, teal = 0xff00836e;
 }
 
 inline Ink mix (Ink a, Ink b, int t256) // a toward b by t/256
@@ -34,9 +33,6 @@ inline Ink mix (Ink a, Ink b, int t256) // a toward b by t/256
     };
     return 0xff000000u | ch (16) | ch (8) | ch (0);
 }
-
-// 4 x 4 Bayer thresholds (0..15): a gradient picks between two neighbouring inks by it, so RGB565 shows no bands.
-constexpr uint8_t bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
 
 struct Host
 {
@@ -138,46 +134,83 @@ struct Raster
             else --x, err += 2 * (y - x) + 1;
         }
     }
-    int text (int x, int y, const char* s, Ink c, int advance = font::glyphWidth) const
+    void gradient (int x, int y, int wide, int high, Ink top, Ink bottom) const
     {
-        for (; *s; ++s, x += advance)
-        {
-            const unsigned ch = static_cast<unsigned char> (*s);
-            const auto& glyph = font::glyphs[(ch >= 32 && ch <= 127 ? ch : '?') - 32];
-            for (int j = 0; j < font::glyphHeight; ++j)
-                for (int bits = glyph[j], k = 0; bits; bits >>= 1, ++k)
-                    if (bits & 1) dot (x + k, y + j, c);
-        }
-        return x;
+        for (int j = 0; j < high; ++j)
+            box (x, y + j, wide, 1, mix (top, bottom, j * 256 / std::max (1, high - 1)));
     }
-    // Twice the size, each row's ink from `top` to `bottom` (a wordmark).
-    int large (int x, int y, const char* s, Ink top, Ink bottom, int advance = 2 * font::glyphWidth + 1) const
+
+    // Cut corners, a bright upper reflection and a darker lower lip, all on native pixel boundaries.
+    void gel (int x, int y, int wide, int high, Ink rim, Ink top, Ink middle, Ink bottom) const
     {
-        for (; *s; ++s, x += advance)
+        for (int j = 0; j < high; ++j)
         {
-            const unsigned ch = static_cast<unsigned char> (*s);
-            const auto& glyph = font::glyphs[(ch >= 32 && ch <= 127 ? ch : '?') - 32];
-            for (int j = 0; j < font::glyphHeight; ++j)
+            const int edge = std::min (j, high - 1 - j);
+            const int inset = edge == 0 ? 3 : (edge == 1 ? 1 : 0);
+            box (x + inset, y + j, wide - 2 * inset, 1, rim);
+            if (! edge) continue;
+            const int split = high * 2 / 5;
+            Ink c = j <= split ? mix (top, middle, (j - 1) * 160 / std::max (1, split - 1))
+                               : mix (middle, bottom, (j - split) * 256 / (high - split));
+            box (x + inset + 1, y + j, wide - 2 * inset - 2, 1, c);
+        }
+        box (x + 4, y + 1, wide - 8, 1, mix (top, ink::white, 140));
+    }
+
+    void bitmap (int x, int y, int wide, int high, const uint16_t* src) const
+    {
+        for (int j = 0; j < high; ++j)
+            for (int i = 0; i < wide; ++i)
             {
-                const Ink c0 = mix (top, bottom, j * 256 / font::glyphHeight), c1 = mix (top, bottom, (2 * j + 1) * 128 / font::glyphHeight);
-                for (int bits = glyph[j], k = 0; bits; bits >>= 1, ++k)
-                    if (bits & 1)
-                    {
-                        dot (x + 2 * k, y + 2 * j, c0), dot (x + 2 * k + 1, y + 2 * j, c0);
-                        dot (x + 2 * k, y + 2 * j + 1, c1), dot (x + 2 * k + 1, y + 2 * j + 1, c1);
-                    }
+                const int v = src[j * wide + i];
+                const unsigned r = v >> 11, g = (v >> 5) & 63, b = v & 31;
+                dot (x + i, y + j, 0xff000000u | ((r << 3 | r >> 2) << 16) | ((g << 2 | g >> 4) << 8) | (b << 3 | b >> 2));
             }
+    }
+
+    static int measure (const char* s, int size)
+    {
+        const auto* widths = size == 12 ? art::width12 : art::width10;
+        int total = 0;
+        for (; *s; ++s) total += widths[glyph (*s)];
+        return total;
+    }
+
+    int text (int x, int y, const char* s, Ink color, int size = 12) const
+    {
+        const auto* widths = size == 12 ? art::width12 : art::width10;
+        const auto* offsets = size == 12 ? art::offset12 : art::offset10;
+        const auto* mask = size == 12 ? art::mask12 : art::mask10;
+        for (; *s; ++s)
+        {
+            const unsigned ch = glyph (*s);
+            const int width = widths[ch];
+            const auto* row = mask + offsets[ch];
+            for (int j = 0; j < size + 2; ++j)
+                for (int i = 0; i < width; ++i)
+                {
+                    const int a = *row++;
+                    if (a == 255) dot (x + i, y + j, color);
+                    else if (a) blend (x + i, y + j, color, a);
+                }
+            x += width;
         }
         return x;
     }
-    void right (int end, int y, const char* s, Ink c, int advance = font::glyphWidth) const
+    void right (int end, int y, const char* s, Ink color, int size = 12) const
     {
-        text (end - advance * (int) std::strlen (s), y, s, c, advance);
+        text (end - measure (s, size), y, s, color, size);
     }
-    void centre (int mid, int y, const char* s, Ink c, int advance = font::glyphWidth) const
+    void centre (int mid, int y, const char* s, Ink color, int size = 12) const
     {
-        text (mid - advance * (int) std::strlen (s) / 2, y, s, c, advance);
+        text (mid - measure (s, size) / 2, y, s, color, size);
     }
+private:
+    static unsigned glyph (char c)
+    {
+        return c >= 32 && c <= 126 ? (unsigned) (c - 32) : (unsigned) ('?' - 32);
+    }
+
 };
 
 // Keeps the last pixels the plug-in drew (Melodee draws its own overlays on the canvas), so each region is drawn into

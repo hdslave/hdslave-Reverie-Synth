@@ -182,14 +182,18 @@ Use Minus and Plus to move through the six pages. [Watch the screen tour in hdsl
 wheel to change it (Shift + wheel for fine steps, Minus and Plus for coarse) and Push again when done. On a switch,
 Push flips it at once. K1-K3 hold the control picked and the next two. Hold Shift to see the controls.
 
+The skyline shows the progression, voicing and key on every page. A green tab marks the page.
+Blue glass marks the selected control and amber marks a control being edited. Each knob has a value marker.
+A hollow amber marker shows where a physical knob sits while it waits for pickup.
+
 | Page | What it holds |
 |---|---|
-| CHORDS | the sixteen pads as they sit on the MPC, each with its chord's name in this key, lit while held; PROG, VOICING, KEY, OCT, STRUM, HUMAN, BASS, VEL, LATCH, GLIDE; a keyboard with the notes that sound (the bass in gold), or the last chord's |
-| MOTION | the X / Y field with the path, its centre and a light for every note on it; X, Y, DEPTH (K1-K3), PATH, RATE, SPREAD, SYNC, DIV, RETRIG and the four destinations |
+| CHORDS | sixteen numbered pads in MPC order, blue for chords and green for lifts, amber while held, with the last strike underlined; PROG, VOICING, KEY, OCT, STRUM, HUMAN, BASS, VEL, LATCH, GLIDE; a keyboard with the notes that sound (the bass in gold), or the last chord's |
+| MOTION | a glass globe with the X / Y path, its centre and a light for every sounding note; X, Y, DEPTH (K1-K3), PATH, RATE, SPREAD, SYNC, DIV, RETRIG and the four destinations |
 | OSC | both oscillators, each drawn as its Position (and Motion) has it now; their controls; WIDTH, AIR, A.TONE, DRIFT |
 | FILTER | the response, with the cutoff where the newest note has it, and the filter envelope |
 | AMP | the amplitude envelope and the LFO |
-| FX | ensemble, delay, reverb and shimmer under an aurora that follows the output |
+| FX | ensemble, tempo delay and shimmer reverb grouped beside an aquarium with a live output peak meter |
 
 The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
 
@@ -216,7 +220,7 @@ the MPC's 1.8 GHz Cortex-A55):
 | the progression played, releases overlapping | 327,240 | 6.8 % |
 | worst: 24 voices, unison 4 + 4, LP 24, every effect up | 704,257 | 14.7 % |
 
-The page costs about 275,000 instructions a frame on CHORDS and 228,000 on MOTION while it moves (25 frames a
+The page costs about 71,000 instructions a frame on CHORDS and 114,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
 channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
@@ -243,5 +247,5 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
 
 ## Licence
 
-No project licence yet. The page's font is Departure Mono (SIL Open Font License, `licenses/OFL-departure-mono.txt`);
+No project licence yet. The page uses Barlow SemiBold (SIL Open Font License, `licenses/OFL-barlow.txt`);
 the CLAP headers are MIT (`third_party/clap/LICENSE`); `src/melodee_screen.h` is MIT.

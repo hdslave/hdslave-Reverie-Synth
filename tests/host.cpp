@@ -998,9 +998,11 @@ void testScreen()
 {
     Instance inst;
     CHECK (inst.screen != nullptr);
-    std::vector<uint32_t> px (320 * 218, 0);
+    constexpr int stride = 327;
+    constexpr uint32_t guard = 0x12345678;
+    std::vector<uint32_t> px (stride * 218, guard);
     melodee_screen_canvas_t c {};
-    c.pixels = px.data(), c.width = 320, c.height = 218, c.stride = 320, c.whole = true, c.accent = 0xff8a5cff;
+    c.pixels = px.data(), c.width = 320, c.height = 218, c.stride = stride, c.whole = true, c.accent = 0xff8a5cff;
     for (auto& k : c.knobs) k.position = -1, k.engaged = true;
     CHECK (inst.screen->paint (inst.plugin, &c));
     c.whole = false;
@@ -1017,7 +1019,22 @@ void testScreen()
         c.now_ms += 100;
         c.whole = true;
         CHECK (inst.screen->paint (inst.plugin, &c));
-        writePng ((outDir + "/screen-" + names[p] + ".png").c_str(), px.data(), 320, 218, 320, 2);
+        writePng ((outDir + "/screen-" + names[p] + ".png").c_str(), px.data(), 320, 218, stride, 2);
+        // An animated partial repaint must produce exactly the complete picture, including panel edges.
+        inst.render (1920);
+        c.now_ms += 40;
+        c.whole = false;
+        inst.screen->paint (inst.plugin, &c);
+        const auto incremental = px;
+        std::fill (px.begin(), px.end(), guard);
+        c.whole = true;
+        CHECK (inst.screen->paint (inst.plugin, &c));
+        CHECK (incremental == px);
+        bool complete = true;
+        for (int y = 0; y < 218; ++y)
+            for (int x = 0; x < stride; ++x)
+                complete &= (px[y * stride + x] == guard) == (x >= 320);
+        CHECK (complete);
         if (p == 1)
         {
             inst.screen->knobs (inst.plugin, ids);
@@ -1052,7 +1069,7 @@ void testScreen()
     c.shift = true;
     c.now_ms += 100;
     CHECK (inst.screen->paint (inst.plugin, &c));
-    writePng ((outDir + "/screen-legend.png").c_str(), px.data(), 320, 218, 320, 2);
+    writePng ((outDir + "/screen-legend.png").c_str(), px.data(), 320, 218, stride, 2);
     // a bad canvas is refused
     melodee_screen_canvas_t bad = c;
     bad.width = 100;

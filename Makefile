@@ -17,14 +17,15 @@ CXXFLAGS := $(BASE) $(OPT)
 # Only clap_entry is exported; libstdc++ and libgcc are linked in so the MPC needs nothing beyond libc and libm. -s leaves
 # out the symbol table.
 LDFLAGS := -shared -s -static-libgcc -static-libstdc++ -Wl,--gc-sections -Wl,-z,now -Wl,-O1 -Wl,--version-script=src/exports.map
+PLUGIN_SOURCES := src/reverie.cpp src/screen.cpp
 HEADERS := $(wildcard src/*.h src/ui/*.h)
 
 .PHONY: all test bench clean fingerprint-update sanitize render
 all: $(OUT)/Reverie.clap
 
-$(OUT)/Reverie.clap: src/reverie.cpp $(HEADERS) src/exports.map Makefile
+$(OUT)/Reverie.clap: $(PLUGIN_SOURCES) $(HEADERS) src/exports.map Makefile
 	@mkdir -p $(OUT)
-	$(CXX) $(CXXFLAGS) $(WARN) -ffunction-sections -fdata-sections src/reverie.cpp $(LDFLAGS) -o $@
+	$(CXX) $(CXXFLAGS) $(WARN) -ffunction-sections -fdata-sections $(PLUGIN_SOURCES) $(LDFLAGS) -o $@
 
 $(OUT)/host: tests/host.cpp tests/wav.h tests/png.h $(HEADERS) Makefile
 	@mkdir -p $(OUT)
@@ -49,16 +50,16 @@ fingerprint-update: $(OUT)/Reverie.clap $(OUT)/fingerprint
 	$(OUT)/fingerprint $(OUT)/Reverie.clap > tests/fingerprint.txt
 
 SAN := -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g -O1
-sanitize: $(HEADERS) src/reverie.cpp tests/host.cpp tests/wav.h tests/png.h Makefile
+sanitize: $(HEADERS) $(PLUGIN_SOURCES) tests/host.cpp tests/wav.h tests/png.h Makefile
 	@mkdir -p $(OUT)/san
-	$(CXX) $(BASE) $(SAN) -mcpu=cortex-a55 -shared src/reverie.cpp -o $(OUT)/san/Reverie.clap
+	$(CXX) $(BASE) $(SAN) -mcpu=cortex-a55 -shared $(PLUGIN_SOURCES) -o $(OUT)/san/Reverie.clap
 	$(CXX) -std=c++17 $(SAN) $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include tests/host.cpp -ldl -o $(OUT)/san/host
 	ASAN_OPTIONS=abort_on_error=1:detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1 \
 	    $(OUT)/san/host $(OUT)/san/Reverie.clap $(OUT)/san
 
-$(OUT)/bench: tests/bench.cpp src/reverie.cpp $(HEADERS) Makefile
+$(OUT)/bench: tests/bench.cpp $(PLUGIN_SOURCES) $(HEADERS) Makefile
 	@mkdir -p $(OUT)
-	$(CXX) $(CXXFLAGS) $(WARN) -g tests/bench.cpp -o $@
+	$(CXX) $(CXXFLAGS) $(WARN) -g tests/bench.cpp src/screen.cpp -o $@
 
 bench: $(OUT)/bench
 
