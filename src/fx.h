@@ -5,7 +5,9 @@
 // an octave-up pitch shifter fed back into the reverb's input.
 //
 // Each effect updates its own controls every control tick (16 samples, the engine's grid) and ramps them across
-// it, so its output does not depend on how a host cuts its blocks.
+// it, so its output does not depend on how a host cuts its blocks. A reset (All Sound Off, the host's reset, falling
+// asleep) does no work on the lines whatever their length (DelayLine), and none at all when nothing ran since the
+// last one.
 #pragma once
 
 #include <algorithm>
@@ -64,20 +66,38 @@ inline float tanh (float x)
 } // namespace fast
 
 // A delay line of a power-of-two length.
+//
+// A clear costs nothing, however long the line (the delay's are a megabyte each): it only forgets what was written.
+// `fill` counts the samples written since (up to the length); until the line is full again, before each block the
+// effect zeroes the few places that block will read and that were not written since (silenceStale), so the block
+// reads exactly what a wiped line would give, through the same code.
 struct DelayLine
 {
     std::vector<float> buffer;
-    uint32_t mask = 0, at = 0;
+    uint32_t mask = 0, at = 0, fill = 0;
 
-    void allocate (size_t minimum)
+    void allocate (size_t minimum) // main thread
     {
         size_t n = 16;
         while (n < minimum) n <<= 1;
         buffer.assign (n, 0.0f);
         mask = (uint32_t) n - 1;
         at = 0;
+        fill = (uint32_t) n; // zeros: silence already
     }
-    void clear() { std::fill (buffer.begin(), buffer.end(), 0.0f); at = 0; }
+    void clear() { at = 0, fill = 0; }
+    bool full() const { return fill > mask; }
+    // `n` samples written by a block.
+    void wrote (uint32_t n) { fill = std::min (fill + n, mask + 1); }
+    // Ahead of a block: the place it reads `back` samples before the newest once `pushed` of its samples are in (and
+    // a place either side, for rounding) set to silence where nothing was written since the clear.
+    void silenceStale (float back, uint32_t pushed)
+    {
+        const uint32_t written = fill + pushed;
+        const uint32_t from = back >= 1.0f ? (uint32_t) back - 1u : 0u;
+        for (uint32_t d = from; d <= from + 3u; ++d)
+            if (d >= written) buffer[(at + pushed - 1u - d) & mask] = 0.0f;
+    }
     void push (float x) { buffer[at] = x; at = (at + 1) & mask; }
     // `d` samples before the newest (0 = the newest).
     float tap (uint32_t d) const { return buffer[(at - 1u - d) & mask]; }
@@ -99,19 +119,28 @@ public:
     void prepare (float sampleRate)
     {
         rate = sampleRate;
-        for (auto& d : line) d.allocate ((size_t) (0.04f * rate) + 4);
+        clean = false;
         reset();
+        for (auto& d : line) d.allocate ((size_t) (0.04f * rate) + 4);
+        filled = true; // zeros: nothing stale to read
     }
+    // Silence: the lines cleared and the LFOs back at their start. Nothing to do if nothing ran since the last.
     void reset()
     {
+        if (clean) return;
         for (auto& d : line) d.clear();
+        filled = false;
         slow = fastPhase = 0.0f;
         primed = false;
+        clean = true;
+        ++resets;
     }
+    uint32_t resets = 0; // the resets that had something to clear (for the tests)
 
     // Once a tick: mix, depth (0..1) and the slow LFO's rate (Hz).
     void control (float mix, float depth, float hz)
     {
+        clean = false;
         wet = mix;
         dry = 1.0f - 0.4f * mix;
         const float tickSeconds = (float) tickSize / rate;
@@ -134,6 +163,25 @@ public:
 
     void process (float* l, float* r, int n)
     {
+        clean = false;
+        if (! filled)
+        {
+            if (wet > 0.0f) // the taps, as below: three a side after each push
+            {
+                float d[6];
+                std::memcpy (d, now, sizeof (d));
+                for (int i = 0; i < n; ++i)
+                    for (int v = 0; v < 6; ++v) line[v / 3].silenceStale (d[v], (uint32_t) i + 1), d[v] += step[v];
+            }
+            line[0].wrote ((uint32_t) n), line[1].wrote ((uint32_t) n);
+            filled = line[0].full() && line[1].full();
+        }
+        run (l, r, n);
+    }
+
+private:
+    void run (float* l, float* r, int n)
+    {
         if (wet <= 0.0f)
         {
             for (int i = 0; i < n; ++i)
@@ -155,12 +203,11 @@ public:
         }
     }
 
-private:
     float rate = 48000.0f;
     DelayLine line[2];
     float slow = 0.0f, fastPhase = 0.0f, wet = 0.0f, dry = 1.0f;
     float now[6] {}, step[6] {};
-    bool primed = false;
+    bool primed = false, clean = false, filled = true; // filled: every line written through since its clear
 };
 
 // --- Ping-pong delay --------------------------------------------------------------------------------------------
@@ -171,20 +218,28 @@ public:
     void prepare (float sampleRate)
     {
         rate = sampleRate;
+        clean = false;
+        reset();
         line[0].allocate ((size_t) (longest * rate) + 8);
         line[1].allocate ((size_t) (longest * rate) + 8);
+        filled = true;
         lowCoef = onePoleCoef (4200.0f, rate);
         highCoef = onePoleCoef (160.0f, rate);
-        reset();
     }
-    void reset()
+    void reset() // as the ensemble's
     {
+        if (clean) return;
         line[0].clear(), line[1].clear();
+        filled = false;
         lp[0] = lp[1] = hp[0] = hp[1] = 0.0f;
         primed = false;
+        clean = true;
+        ++resets;
     }
+    uint32_t resets = 0;
     void control (float mix, float seconds, float feedback)
     {
+        clean = false;
         wet = mix;
         fb = std::min (feedback, 0.95f) * 0.92f;
         const float target = std::clamp (seconds * rate, 16.0f, longest * rate);
@@ -195,6 +250,23 @@ public:
     }
     bool active() const { return wet > 0.0f; }
     void process (float* l, float* r, int n)
+    {
+        clean = false;
+        if (! filled)
+        {
+            if (wet > 0.0f) // both lines tapped at the time, before each push
+            {
+                float d = time;
+                for (int i = 0; i < n; ++i) line[0].silenceStale (d, (uint32_t) i), line[1].silenceStale (d, (uint32_t) i), d += step;
+            }
+            line[0].wrote ((uint32_t) n), line[1].wrote ((uint32_t) n);
+            filled = line[0].full() && line[1].full();
+        }
+        run (l, r, n);
+    }
+
+private:
+    void run (float* l, float* r, int n)
     {
         if (wet <= 0.0f)
         {
@@ -218,12 +290,11 @@ public:
         }
     }
 
-private:
     float rate = 48000.0f;
     DelayLine line[2];
     float time = 0.0f, step = 0.0f, wet = 0.0f, fb = 0.0f, lowCoef = 0.0f, highCoef = 0.0f;
     float lp[2] {}, hp[2] {};
-    bool primed = false;
+    bool primed = false, clean = false, filled = true;
 };
 
 // --- Reverb -----------------------------------------------------------------------------------------------------
@@ -234,6 +305,8 @@ public:
     void prepare (float sampleRate)
     {
         rate = sampleRate;
+        clean = false;
+        reset();
         const float scale = rate / 48000.0f;
         for (int i = 0; i < lines; ++i) fdn[i].allocate ((size_t) (baseLength[i] * maxSize * scale) + 64);
         for (int c = 0; c < 2; ++c)
@@ -246,22 +319,27 @@ public:
             }
         }
         shift.allocate ((size_t) (0.2f * rate) + 4);
+        filled = shiftFilled = true;
         window = 0.065f * rate;
         highCoef = onePoleCoef (140.0f, rate);
         shimLow = onePoleCoef (5200.0f, rate);
         shimHigh = onePoleCoef (380.0f, rate);
-        reset();
     }
-    void reset()
+    void reset() // as the ensemble's
     {
+        if (clean) return;
         clearLines();
         for (int i = 0; i < lines; ++i) mod[i] = 0.0f;
         mixNow = 0.0f;
         lastDecay = lastDamp = -1.0f;
         primed = false;
+        clean = true;
+        ++resets;
     }
+    uint32_t resets = 0;
     void clearLines()
     {
+        filled = shiftFilled = false;
         for (auto& d : fdn) d.clear();
         for (int c = 0; c < 2; ++c)
         {
@@ -278,6 +356,7 @@ public:
     // Once a tick. size 0..1, decay in seconds (to -60 dB), dampHz the lines' low-pass, predelay in ms.
     void control (float mix, float size, float decay, float dampHz, float predelayMs, float shimmer)
     {
+        clean = false;
         wetGain = std::sqrt (mix) * 0.62f;
         dryGain = std::sqrt (1.0f - mix);
         const float s = minSize + (maxSize - minSize) * size;
@@ -323,6 +402,58 @@ public:
     }
 
     void process (float* l, float* r, int n)
+    {
+        clean = false;
+        if (mixNow > 0.0f)
+        {
+            if (! filled) silenceStale (n);
+            if (shimmerGain > 0.0f && ! shiftFilled) silenceStaleShift (n); // the shimmer's line runs only with it
+        }
+        run (l, r, n);
+    }
+
+private:
+    // Ahead of a block while a line is not full: every place the block reads (as run does) that was not written
+    // since the clear, set to silence.
+    void silenceStale (int n)
+    {
+        float m[lines];
+        std::memcpy (m, mod, sizeof (m));
+        for (int i = 0; i < n; ++i)
+        {
+            const uint32_t before = (uint32_t) i, after = (uint32_t) i + 1;
+            for (int c = 0; c < 2; ++c)
+            {
+                if (predelay >= 1.0f) pre[c].silenceStale (predelay, after);
+                for (int k = 0; k < diffusers; ++k) diff[c][k].silenceStale ((float) (diffLength[c][k] - 1), before);
+            }
+            for (int j = 0; j < lines; ++j) fdn[j].silenceStale (m[j], before), m[j] += modStep[j];
+        }
+        filled = true;
+        for (auto& d : fdn) d.wrote ((uint32_t) n), filled &= d.full();
+        for (int c = 0; c < 2; ++c)
+        {
+            pre[c].wrote ((uint32_t) n), filled &= pre[c].full();
+            for (auto& d : diff[c]) d.wrote ((uint32_t) n), filled &= d.full();
+        }
+    }
+    void silenceStaleShift (int n)
+    {
+        float phase = shiftPhase;
+        for (int i = 0; i < n; ++i)
+        {
+            phase += 1.0f / window;
+            if (phase >= 1.0f) phase -= 1.0f;
+            float p2 = phase + 0.5f;
+            if (p2 >= 1.0f) p2 -= 1.0f;
+            shift.silenceStale (2.0f + window * (1.0f - phase), (uint32_t) i + 1);
+            shift.silenceStale (2.0f + window * (1.0f - p2), (uint32_t) i + 1);
+        }
+        shift.wrote ((uint32_t) n);
+        shiftFilled = shift.full();
+    }
+
+    void run (float* l, float* r, int n)
     {
         if (mixNow <= 0.0f)
         {
@@ -417,7 +548,6 @@ public:
             for (int k = 0; k < diffusers; ++k) diff[c][k].at = dat[c][k];
     }
 
-private:
     static constexpr int diffusers = 3;
     static constexpr float minSize = 0.3f, maxSize = 1.6f;
     static constexpr float baseLength[lines] = { 1693.0f, 1997.0f, 2333.0f, 2711.0f, 3109.0f, 3527.0f, 3967.0f, 4421.0f };
@@ -433,6 +563,6 @@ private:
     float shimmerGain = 0.0f, shimFeed = 0.0f, shimLp = 0.0f, shimHp = 0.0f, shimLow = 0.0f, shimHigh = 0.0f;
     float shiftPhase = 0.0f, window = 3000.0f;
     float lastDecay = -1.0f, lastDamp = -1.0f;
-    bool primed = false;
+    bool primed = false, clean = false, filled = true, shiftFilled = true;
 };
 } // namespace reverie

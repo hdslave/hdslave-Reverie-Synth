@@ -40,4 +40,10 @@ keys-octaves 7c7a24ce875e7e1b
 lp24-bp-hp f924258a77cbbe7d
 rate-44100 96fa2e8e6bb0aea8
 rate-96000 8b6ce14e49efbf3e
+sound-off bfd44c7522d8137f
+sound-off-96000 bcc47bb16fd70cab
+reset 4d0e46997221f136
+reverb-off-on 64f8bc84bbe9ae6d
+sleep-wake 23b473d9e94d4a5d
+steals 28994379d55e6a55
 blocks-128 1d12347497202111

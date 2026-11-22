@@ -72,8 +72,7 @@ private:
     void body (const Raster& r, uint32_t sounding, uint32_t held);
     void cell (const Raster& r, const Cell& c, bool focused, bool edited) const;
     void padGrid (const Raster& r, uint32_t held) const;
-    void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding);
-    void refreshVoicings();
+    void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
     void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
     static void well (const Raster& r, int x, int y, int w, int h);
     void scope (const Raster& r, int x0, int y0, int w, int h, int o) const;
@@ -96,7 +95,5 @@ private:
     uint64_t frameAt = 0;
     Host lastHost {};
     Ink accent = hdui::ink::foam;
-    VoicingSet cachedSet {};
-    int cachedProg = -1, cachedVoicing = -1, cachedKey = -1;
 };
 } // namespace reverie

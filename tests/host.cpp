@@ -1,8 +1,9 @@
 // Loads Reverie.clap as a host does and checks it: description and ports, parameters and their texts, state, the
 // sounds (and that they leave the chord section alone), the progressions (every one parses, every voicing in every
-// key is a sound chord), the pad map Melodee reads, notes and chords (the pads, the banks, Melodee's same-sample and
-// on-on-off strikes, latch, sustain, chokes and the channel modes), Chord Glide, the same output whatever the block
-// size, other rates and tuning, bounded output at extreme settings, sleeping when silent, and the screen page.
+// key is a sound chord, the table the plug-in reads is the search's), the pad map Melodee reads, notes and chords (the
+// pads, the banks, Melodee's same-sample and on-on-off strikes, latch, sustain, chokes, note ids, the channel modes,
+// stolen voices), Chord Glide, the effects cleared, the same output whatever the block size, other rates and tuning,
+// bounded output at extreme settings, sleeping when silent, and the screen page.
 // Writes demo renders (WAV) and the page's pictures (PNG) into the output folder.
 //   host Reverie.clap OUT_FOLDER
 #include "wav.h"
@@ -15,7 +16,6 @@
 #include <clap/clap.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <complex>
 #include <cstdio>
@@ -74,10 +74,10 @@ struct Events
         a.param = { { sizeof (clap_event_param_value), time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, id, nullptr, -1, -1, -1, -1, value };
         list.push_back (a);
     }
-    void note (uint32_t time, uint16_t type, int16_t key, double velocity)
+    void note (uint32_t time, uint16_t type, int16_t key, double velocity, int32_t id = -1)
     {
         Any a {};
-        a.note = { { sizeof (clap_event_note), time, CLAP_CORE_EVENT_SPACE_ID, type, 0 }, -1, 0, 0, key, velocity };
+        a.note = { { sizeof (clap_event_note), time, CLAP_CORE_EVENT_SPACE_ID, type, 0 }, id, 0, 0, key, velocity };
         list.push_back (a);
     }
     void midi (uint32_t time, uint8_t status, uint8_t d1, uint8_t d2)
@@ -97,12 +97,12 @@ struct Cue
     enum Kind { param, on, off, midi, choke } kind;
     uint32_t a = 0;   // parameter id, key, or MIDI status
     double b = 0.0;   // value, velocity, or MIDI data 1
-    int c = 0;        // MIDI data 2
+    int c = 0;        // MIDI data 2, or a note's CLAP note id (-1: none)
 };
 Cue P (uint64_t f, uint32_t id, double v) { return { f, Cue::param, id, v, 0 }; }
-Cue On (uint64_t f, int key, double vel = 0.8) { return { f, Cue::on, (uint32_t) key, vel, 0 }; }
-Cue Off (uint64_t f, int key) { return { f, Cue::off, (uint32_t) key, 0.0, 0 }; }
-Cue Choke (uint64_t f, int key) { return { f, Cue::choke, (uint32_t) key, 0.0, 0 }; }
+Cue On (uint64_t f, int key, double vel = 0.8, int noteId = -1) { return { f, Cue::on, (uint32_t) key, vel, noteId }; }
+Cue Off (uint64_t f, int key, int noteId = -1) { return { f, Cue::off, (uint32_t) key, 0.0, noteId }; }
+Cue Choke (uint64_t f, int key, int noteId = -1) { return { f, Cue::choke, (uint32_t) key, 0.0, noteId }; }
 Cue Midi (uint64_t f, int status, int d1, int d2) { return { f, Cue::midi, (uint32_t) status, (double) d1, d2 }; }
 
 struct Stereo { std::vector<float> l, r; };
@@ -179,9 +179,9 @@ struct Instance
                     switch (c.kind)
                     {
                         case Cue::param: e.param (time, c.a, c.b); break;
-                        case Cue::on: e.note (time, CLAP_EVENT_NOTE_ON, (int16_t) c.a, c.b); break;
-                        case Cue::off: e.note (time, CLAP_EVENT_NOTE_OFF, (int16_t) (int) c.a, 0.0); break;
-                        case Cue::choke: e.note (time, CLAP_EVENT_NOTE_CHOKE, (int16_t) (int) c.a, 0.0); break;
+                        case Cue::on: e.note (time, CLAP_EVENT_NOTE_ON, (int16_t) c.a, c.b, c.c); break;
+                        case Cue::off: e.note (time, CLAP_EVENT_NOTE_OFF, (int16_t) (int) c.a, 0.0, c.c); break;
+                        case Cue::choke: e.note (time, CLAP_EVENT_NOTE_CHOKE, (int16_t) (int) c.a, 0.0, c.c); break;
                         case Cue::midi: e.midi (time, (uint8_t) c.a, (uint8_t) c.b, (uint8_t) c.c); break;
                     }
                 }
@@ -387,14 +387,19 @@ void testProgressions()
     CHECK (std::strcmp (s, "C#dim7") == 0);
     chordText (parsedProgressions()[2].chords[2], 0, false, s, sizeof (s));
     CHECK (std::strcmp (s, "Cmaj9/G") == 0);
-    // every voicing of every progression in every key is a sound chord
-    int chords = 0, flat9 = 0;
+    // every voicing of every progression in every key is a sound chord, and the table the plug-in reads (voiced when
+    // it was built, src/voicings.h) holds exactly the chords the search gives
+    int chords = 0, flat9 = 0, differ = 0;
     for (int p = 0; p < progressionCount; ++p)
         for (int v = 0; v < Voicing::count; ++v)
             for (int k = 0; k < 12; ++k)
             {
-                VoicingSet set;
-                voiceProgression (p, v, k, set);
+                VoicingSet set, searched;
+                padChords (p, v, k, set);
+                voiceProgression (p, v, k, searched);
+                const bool same = std::memcmp (&set, &searched, sizeof (set)) == 0;
+                differ += ! same;
+                CHECK (same);
                 for (int slot = 0; slot < padSlots; ++slot)
                 {
                     const ChordNotes& c = set.slot[slot];
@@ -439,20 +444,16 @@ void testProgressions()
                             }
                 }
             }
-    std::printf ("  %d chords voiced, %d minor ninths (all in b9 chords)\n", chords, flat9);
+    std::printf ("  %d chords voiced, %d minor ninths (all in b9 chords), %d of %d sets unlike the table\n", chords, flat9, differ,
+                 progressionCount * Voicing::count * 12);
+    const ChordNotes odd = padChord (-5, 99, 14, 40), edge = padChord (0, Voicing::count - 1, 2, padSlots - 1); // out of range: clamped
+    CHECK (std::memcmp (&odd, &edge, sizeof (odd)) == 0);
     // the pads and the banks
     CHECK (padOf (36).slot == 0 && padOf (36).shift == 0);
     CHECK (padOf (51).slot == 15 && padOf (51).shift == 0);
     CHECK (padOf (52).slot == 0 && padOf (52).shift == 12);
     CHECK (padOf (35).slot == 15 && padOf (35).shift == -12);
     CHECK (padOf (127).shift == 24 && padOf (0).shift == -24);
-    // a progression voices quickly (it is done on the audio thread when one is picked)
-    const auto t0 = std::chrono::steady_clock::now();
-    VoicingSet set;
-    for (int i = 0; i < 20; ++i) voiceProgression (i % progressionCount, Voicing::open, i % 12, set);
-    const double ms = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - t0).count() / 20.0;
-    std::printf ("  an Open progression voices in %.3f ms here\n", ms);
-    CHECK (ms < 2.0);
 }
 
 void testPadMap (const char* path)
@@ -625,6 +626,39 @@ struct Bench
         return n;
     }
 };
+
+// The sound for the stealing tests: one sine oscillator, the chords four octaves down (notes of a few to seventy
+// hertz, so their own bends are tiny next to a step), no effects, unison, drift, LFO or Motion, a slow attack, held
+// at full sustain, quiet enough that the limiter never bends the sum.
+void slowSines (Bench& b, float volume)
+{
+    using namespace ParamId;
+    for (auto [id, v] : std::vector<std::pair<uint32_t, float>> {
+             { osc1Wave, 11 }, { osc1Pos, 0 }, { osc1Unison, 1 }, { osc1Detune, 0 }, { osc1Octave, -2 }, { osc2Level, 0 }, { air, 0 },
+             { drift, 0 }, { cutoff, 1 }, { filterEnv, 0 }, { keyTrack, 0 }, { velCutoff, 0 }, { lfoPitch, 0 }, { lfoCutoff, 0 },
+             { lfoWave, 0 }, { motionShape, 0 }, { ensMix, 0 }, { dlyMix, 0 }, { revMix, 0 }, { strum, 0 }, { humanize, 0 },
+             { ampAttack, envKnob (300.0f) }, { ampSustain, 1 }, { width, 0 }, { octave, -2 }, { voicing, (float) Voicing::open },
+             { velocity, 1 }, { ParamId::volume, volume } })
+        b.e.set (id, v);
+}
+
+// `x` and `ref` the same until `x` steals; then 128 samples of each: the sharpest bend (second difference) of x less
+// ref (the stolen notes' fade, as nothing else differs), against the stolen notes' level after it.
+double stealBend (Bench& x, Bench& ref, const char* what)
+{
+    x.run (128), ref.run (128);
+    double bend = 0.0, level = 0.0, d1 = 0.0, d2 = 0.0;
+    for (int i = 0; i < 128; ++i)
+    {
+        const double d = (double) x.l[i] - (double) ref.l[i];
+        bend = std::max (bend, std::fabs (d - 2.0 * d1 + d2));
+        if (i >= 32) level = std::max (level, std::fabs (d));
+        d2 = d1, d1 = d;
+    }
+    std::printf ("  %s: the sharpest bend %.3f of the stolen notes' level (%.4f)\n", what, bend / std::max (level, 1e-12), level);
+    CHECK (level > 1e-3);
+    return bend / std::max (level, 1e-12);
+}
 
 void testNotes()
 {
@@ -901,6 +935,169 @@ void testNotes()
         CHECK (b.voices() >= 20);
         for (float x : b.l) CHECK (std::isfinite (x));
     }
+    {   // (review) A voice stolen on a tick's first sample (a block's start, its tick yet to run) fades over the whole
+        // ramp, as one stolen mid-tick does: no step. A loud chord and three near silent ones hold the 24 voices; a
+        // fifth, near silent, takes five of the loud one's. Their fade is a ramp: its bends stay at its corners, a
+        // 32nd of their level (a step of half of it before).
+        for (int at : { 0, 8 })
+        {
+            Bench x, ref;
+            for (Bench* b : { &x, &ref })
+            {
+                slowSines (*b, 0.1f);
+                b->e.noteOn (39, 1.0f), b->run (16);
+                for (int k : { 47, 55, 63 }) b->e.noteOn (k, 0.05f), b->run (16);
+                b->run (48000 - 64 + at);
+            }
+            CHECK (x.voices() == maxVoices);
+            x.e.noteOn (36, 0.05f);
+            CHECK (stealBend (x, ref, at == 0 ? "stolen on a tick's first sample" : "stolen mid-tick") < 1.0 / 16.0);
+        }
+    }
+    {   // (review) Ten sounding voices stolen on one sample (more than the eight fade slots there were): each fades,
+        // none is cut
+        Bench x, ref;
+        for (Bench* b : { &x, &ref })
+        {
+            slowSines (*b, 0.03f);
+            for (int k : { 39, 47, 55, 63 }) b->e.noteOn (k, 1.0f), b->run (16);
+            b->run (48000 - 64 + 8);
+        }
+        CHECK (x.voices() == maxVoices);
+        x.e.noteOn (36, 0.05f), x.e.noteOn (38, 0.05f);
+        CHECK (stealBend (x, ref, "ten stolen at once") < 1.0 / 16.0);
+    }
+    {   // (review) Five chords struck on one sample (26 notes for 24 voices): the last takes the first one's notes,
+        // never its own
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::voicing, (float) Voicing::open);
+        for (int k : { 44, 45, 46, 47, 48 }) b.e.noteOn (k, 0.8f);
+        b.run (480);
+        const VoicingSet& set = b.e.voicings();
+        std::vector<int> want;
+        for (int slot = 8; slot <= 12; ++slot)
+            for (int i = slot == 8 ? 2 : 0; i < set.slot[slot].count; ++i) want.push_back (set.slot[slot].note[i]);
+        std::sort (want.begin(), want.end());
+        CHECK (want.size() == (size_t) maxVoices);
+        CHECK (b.notes() == want);
+    }
+    {   // (review) Reset All Controllers (CC 121 at 0) lifts the sustain pedal (RP-015): the chords it held let go, and
+        // the next lets go with its pad
+        Bench b;
+        b.e.controller (64, 127);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        b.e.noteOff (36);
+        b.run (480);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        b.e.controller (121, 0);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+        b.e.noteOn (37, 0.8f);
+        b.run (480);
+        b.e.noteOff (37);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
+    {   // (review) A note-off or a choke naming only a note id (key -1) lets go of that note's chord alone; one naming
+        // an id never played does nothing
+        auto two = [] (const std::vector<Cue>& more) { return std::vector<Cue> { On (0, 36, 0.8, 7), On (0, 40, 0.8, 8) } + more; };
+        Instance a, b2, c2, d2, e3, f3;
+        CHECK (same (a.render (36000, two ({ Off (12000, -1, 7) })), b2.render (36000, two ({ Off (12000, 36) }))));
+        CHECK (same (c2.render (36000, two ({ Off (12000, -1, 99), Choke (12000, -1, 99) })), d2.render (36000, two ({}))));
+        CHECK (same (e3.render (36000, two ({ Choke (12000, -1, 8) })), f3.render (36000, two ({ Choke (12000, 40) }))));
+    }
+    {   // (review) A value sent with a note while asleep is the note's from its first sample (no glide in from the
+        // value before it): as if sent well before the note
+        Instance a, c;
+        CHECK (same (a.render (12000, { P (1000, ParamId::cutoff, 0.05), On (1000, 36) }),
+                     c.render (12000, { P (744, ParamId::cutoff, 0.05), On (1000, 36) })));
+    }
+}
+
+// The effects cleared (All Sound Off, the host's reset, falling asleep) do no work on their lines, yet sound exactly
+// as if their lines had been wiped; with nothing to clear, a clear does nothing at all. `used` plays noise, `quiet`
+// (the same controls) silence; both are cleared, then must give the same output to the bit while their lines fill
+// again: the places `used` has not written since read as silence. (Not a new effect: a reset keeps the reverb's
+// modulation where it is.)
+template <class Fx, class Control> bool clearedSoundsWiped (Control control)
+{
+    Fx used, quiet;
+    used.prepare (48000.0f), quiet.prepare (48000.0f);
+    float l[tickSize], r[tickSize], l2[tickSize], r2[tickSize];
+    uint32_t noise = 1;
+    auto fill = [&] (bool loud) {
+        for (int i = 0; i < tickSize; ++i)
+        {
+            noise = noise * 1664525u + 1013904223u;
+            l[i] = loud ? (float) (int32_t) noise * 4.6e-10f : 0.0f, r[i] = -0.5f * l[i];
+        }
+    };
+    for (int t = 0; t < 3000 * 4; ++t)
+    {
+        control (used, t + 30000), control (quiet, t + 30000);
+        fill (false);
+        quiet.process (l, r, tickSize);
+        fill (true);
+        used.process (l, r, tickSize);
+    }
+    used.reset(), quiet.reset();
+    bool same = true;
+    for (int t = 0; t < 3000 * 7; ++t) // past the longest line's refill (5.5 s), a sound for its first second
+    {
+        control (used, t), control (quiet, t);
+        fill (t < 3000);
+        std::memcpy (l2, l, sizeof (l)), std::memcpy (r2, r, sizeof (r));
+        used.process (l, r, tickSize), quiet.process (l2, r2, tickSize);
+        same &= std::memcmp (l, l2, sizeof (l)) == 0 && std::memcmp (r, r2, sizeof (r)) == 0;
+    }
+    return same;
+}
+
+void testEffects()
+{
+    // each effect cleared after its lines are full of sound, then played (its times and sizes moving while the lines
+    // fill again): as if wiped, to the bit
+    CHECK (clearedSoundsWiped<Ensemble> ([] (Ensemble& e, int) { e.control (0.7f, 0.8f, 0.5f); }));
+    CHECK (clearedSoundsWiped<PingPong> ([] (PingPong& d, int t) { d.control (0.6f, t < 9000 ? 0.3f : 3.1f, 0.8f); }));
+    CHECK (clearedSoundsWiped<Reverb> ([] (Reverb& v, int t) { v.control (0.6f, t < 6000 ? 0.2f : 1.0f, 8.0f, 9000.0f, 120.0f, 0.7f); }));
+    // All Sound Off on all sixteen channels (as Melodee sends it) costs what one does: each effect reset once, and it
+    // sounds as one
+    {
+        Bench one, all;
+        for (Bench* b : { &one, &all }) b->e.noteOn (36, 0.8f), b->run (24000);
+        const uint32_t before = one.e.fxResets();
+        CHECK (all.e.fxResets() == before);
+        one.e.controller (120, 0);
+        for (int ch = 0; ch < 16; ++ch) all.e.controller (120, 0);
+        CHECK (one.e.fxResets() == before + 3); // the ensemble, the delay and the reverb, once each
+        CHECK (all.e.fxResets() == before + 3);
+        one.run (24000), all.run (24000);
+        CHECK (one.l == all.l && one.r == all.r);
+        Instance a, c;
+        std::vector<Cue> sixteen = { On (0, 36) };
+        for (int ch = 0; ch < 16; ++ch) sixteen.push_back (Midi (24000, 0xb0 | ch, 120, 0));
+        CHECK (same (a.render (48000, sixteen), c.render (48000, { On (0, 36), Midi (24000, 0xb0, 120, 0) })));
+    }
+    // asleep, the tails were cleared as it fell asleep: All Sound Off and the host's reset find nothing to clear
+    {
+        Bench b;
+        b.e.set (ParamId::revDecay, 0.0f), b.e.set (ParamId::dlyFeedback, 0.0f), b.e.set (ParamId::ampRelease, envKnob (200.0f));
+        b.e.noteOn (36, 0.8f);
+        b.run (4800);
+        b.e.noteOff (36);
+        const uint32_t awake = b.e.fxResets();
+        for (int i = 0; i < 20 && ! b.e.quiet(); ++i) b.run (48000);
+        CHECK (b.e.quiet());
+        CHECK (b.e.fxResets() == awake + 3); // falling asleep
+        for (int ch = 0; ch < 16; ++ch) b.e.controller (120, 0);
+        b.e.reset();
+        CHECK (b.e.fxResets() == awake + 3);
+        // and wakes as usual
+        b.e.noteOn (40, 0.8f);
+        b.run (4800);
+        CHECK (rms (b.l) > 1e-3);
+    }
 }
 
 void testTiming()
@@ -1094,6 +1291,7 @@ int main (int argc, char** argv)
     testState();
     testPresets();
     testNotes();
+    testEffects();
     testTiming();
     testTuning();
     testExtremes();

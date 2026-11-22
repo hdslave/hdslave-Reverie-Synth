@@ -10,7 +10,7 @@ The idea comes from Korg's M3 workstation: its X / Y MOTION pad (a recorded path
 two-oscillator programs, and its pads that play chords. Reverie is its own design, not a model of the M3. Korg and
 M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.1.0). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.1.1). Not yet run on the MPC itself.
 
 ## Install
 
@@ -59,7 +59,9 @@ Each chord is a bass note (the root, or a slash chord's bass) and an upper struc
 the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds
 or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or
 root on top, and moves least from the chord before it. The progression is voiced in order twice round, so the
-eighth chord leads back into the first.
+eighth chord leads back into the first. Every progression is voiced in every style and key when Reverie is built
+(a table of 3,312 sets of sixteen pads), so picking one, or automating it on the same step as a chord, costs the
+audio thread nothing.
 
 | Voicing | Sound |
 |---|---|
@@ -215,16 +217,19 @@ the MPC's 1.8 GHz Cortex-A55):
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
-| silent | 4,772 | 0.10 % |
-| one chord held, default sound | 252,217 | 5.3 % |
-| the progression played, releases overlapping | 327,240 | 6.8 % |
-| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 704,257 | 14.7 % |
+| silent | 4,319 | 0.09 % |
+| one chord held, default sound | 252,422 | 5.3 % |
+| the progression played, releases overlapping | 327,794 | 6.8 % |
+| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 688,586 | 14.3 % |
 
 The page costs about 71,000 instructions a frame on CHORDS and 114,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
 channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
-smoothing) runs every 16 samples and only while something moves; silent, Reverie sleeps.
+smoothing) runs every 16 samples and only while something moves; silent, Reverie sleeps. Clearing the effects (All
+Sound Off, which Melodee sends on all 16 channels at once, the host's reset, falling asleep) does no work on their
+lines: a cleared line only forgets what it held, and until it has been written through again the few places each
+block reads that were not written since are zeroed first.
 
 ## Building and testing
 
@@ -234,10 +239,13 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
 - `tests/host.cpp` loads the plug-in as a host does: ports, every parameter and its text, state, the sounds (and
   that they leave the chord section alone), every progression in every voicing and key (52,992 chords: each a sound
   chord, the third there, no stray minor ninths), the pad map Melodee reads, chords from the pads and banks,
-  Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes,
-  tuning at 44.1, 48 and 96 kHz, bounded output at every extreme, sleeping, and the page (it writes
-  `build/screen-*.png`).
-- `tests/fingerprint.cpp` hashes every output sample over 43 scenes (`tests/fingerprint.txt`), including one in
+  Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes
+  (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step
+  (at a block's start, ten at once, a chord never taking its own notes), the effects cleared sounding exactly as
+  wiped ones (and All Sound Off on 16 channels costing what one does), tuning at 44.1, 48 and 96 kHz, bounded output
+  at every extreme, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
+  against the search, set by set.
+- `tests/fingerprint.cpp` hashes every output sample over 49 scenes (`tests/fingerprint.txt`), including one in
   blocks of 1, 37, 128 and 4096 frames that must hash the same: the output does not depend on the host's blocks. A
   change meant to keep the sound must keep the hashes; `make fingerprint-update` records a change meant to change it.
 - `./build.sh sanitize`: the host tests against an AddressSanitizer and UBSan build.

@@ -356,7 +356,7 @@ void Screen::padGrid (const Raster& r, uint32_t held) const
 }
 
 // Notes C1 to C7; the sounding ones lit (the bass gold), else the last chord's, dim.
-void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding)
+void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const
 {
     using namespace hdui;
     constexpr int low = 24, high = 96;
@@ -376,8 +376,8 @@ void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t s
         const int slot = tel.lastSlot.load (std::memory_order_relaxed);
         if (slot >= 0 && slot < padSlots)
         {
-            refreshVoicings();
-            const ChordNotes& c = cachedSet.slot[slot];
+            // the chord the pad plays, read from the same table as the engine (never searched for)
+            const ChordNotes c = padChord (choice (ParamId::progression), choice (ParamId::voicing), choice (ParamId::key), slot);
             const int shift = 12 * choice (ParamId::octave);
             for (int i = 0; i < c.count; ++i)
             {
@@ -408,14 +408,6 @@ void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t s
         r.box (x, y0, 4, h * 3 / 5, lit[n] > 0.0f ? mix (ink::deep, lightInk, (int) (115 + 140 * lit[n])) : ink::deep);
     }
 
-}
-
-void Screen::refreshVoicings()
-{
-    const int p = choice (ParamId::progression), v = choice (ParamId::voicing), k = choice (ParamId::key);
-    if (p == cachedProg && v == cachedVoicing && k == cachedKey) return;
-    voiceProgression (p, v, k, cachedSet);
-    cachedProg = p, cachedVoicing = v, cachedKey = k;
 }
 
 // The X / Y field: its grid, the path around (X, Y), the notes on it.

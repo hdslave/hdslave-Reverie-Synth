@@ -4,8 +4,10 @@
 // are. A change meant to change the sound updates the file with `make fingerprint-update`.
 //   fingerprint PLUGIN.clap [EXPECTED.txt]
 // Scenarios: every sound playing a progression, every voicing, Strum, Latch, Chord Glide, each Motion path, other
-// rates, and the same scene in blocks of 1, 37 and 4096 frames, which must hash as in blocks of 128. Hashes hold for
-// this toolchain and these flags (Melodee's build image, -O3 -mcpu=cortex-a55 -ffp-contract=fast).
+// rates, the effects cleared (All Sound Off on every channel, the host's reset, falling asleep and waking, the reverb
+// off and on again, while their tails ring), voices stolen, and the same scene in blocks of 1, 37 and 4096 frames,
+// which must hash as in blocks of 128. Hashes hold for this toolchain and these flags (Melodee's build image, -O3
+// -mcpu=cortex-a55 -ffp-contract=fast).
 #include "../src/params.h"
 #include "../src/presets.h"
 
@@ -27,10 +29,14 @@ const clap_plugin_factory* factory = nullptr;
 const clap_host host { CLAP_VERSION, nullptr, "fingerprint", "", "", "1", [] (const clap_host*, const char*) -> const void* { return nullptr; },
                        [] (const clap_host*) {}, [] (const clap_host*) {}, [] (const clap_host*) {} };
 
-struct Event { uint64_t frame; int kind; int key; double value; uint32_t id = 0; }; // kind 0 on, 1 off, 2 param
+// kind 0 on, 1 off, 2 param, 3 MIDI (key: the status, id and value: the data bytes), 4 the host's reset (before the
+// block that holds the frame)
+struct Event { uint64_t frame; int kind; int key; double value; uint32_t id = 0; };
 Event On (uint64_t f, int key, double vel = 0.8) { return { f, 0, key, vel }; }
 Event Off (uint64_t f, int key) { return { f, 1, key, 0.0 }; }
 Event P (uint64_t f, uint32_t id, double v) { Event e { f, 2, 0, v }; e.id = id; return e; }
+Event Midi (uint64_t f, int status, int d1, int d2) { Event e { f, 3, status, (double) d2 }; e.id = (uint32_t) d1; return e; }
+Event Reset (uint64_t f) { return { f, 4, 0, 0.0 }; }
 
 struct Scenario
 {
@@ -59,7 +65,7 @@ uint64_t render (const Scenario& s)
     }
     plugin->activate (plugin, s.rate, 1, 4096);
     plugin->start_processing (plugin);
-    struct Any { union { clap_event_header header; clap_event_note note; clap_event_param_value param; }; };
+    struct Any { union { clap_event_header header; clap_event_note note; clap_event_param_value param; clap_event_midi midi; }; };
     std::vector<Any> list;
     clap_input_events in { &list, [] (const clap_input_events* e) { return (uint32_t) static_cast<std::vector<Any>*> (e->ctx)->size(); },
                            [] (const clap_input_events* e, uint32_t i) -> const clap_event_header* { return &(*static_cast<std::vector<Any>*> (e->ctx))[i].header; } };
@@ -72,11 +78,18 @@ uint64_t render (const Scenario& s)
         const uint32_t n = (uint32_t) std::min<uint64_t> (s.block, frames - at);
         list.clear();
         for (const auto& e : s.events)
-            if (e.frame >= at && e.frame < at + n)
+            if (e.kind == 4 && e.frame >= at && e.frame < at + n) plugin->reset (plugin);
+        for (const auto& e : s.events)
+            if (e.kind != 4 && e.frame >= at && e.frame < at + n)
             {
                 Any a {};
                 const uint32_t t = (uint32_t) (e.frame - at);
-                if (e.kind == 2)
+                if (e.kind == 3)
+                {
+                    a.midi.header = { sizeof (clap_event_midi), t, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 };
+                    a.midi.data[0] = (uint8_t) e.key, a.midi.data[1] = (uint8_t) e.id, a.midi.data[2] = (uint8_t) e.value;
+                }
+                else if (e.kind == 2)
                     a.param = { { sizeof (clap_event_param_value), t, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, e.id, nullptr, -1, -1, -1, -1, e.value };
                 else
                     a.note = { { sizeof (clap_event_note), t, CLAP_CORE_EVENT_SPACE_ID, (uint16_t) (e.kind == 0 ? CLAP_EVENT_NOTE_ON : CLAP_EVENT_NOTE_OFF), 0 },
@@ -144,6 +157,29 @@ std::vector<Scenario> scenarios()
     Scenario rate96 { "rate-96000", "", phrase() };
     rate96.rate = 96000.0, rate96.seconds = 3.0;
     list.push_back (rate96);
+    // The effects cleared while their tails ring, then played again (the lines fill up again): All Sound Off on all
+    // sixteen channels at once (as Melodee sends it), at 48 and 96 kHz; the host's reset; the reverb turned off and on
+    // again; the engine falling asleep and woken.
+    auto soundOff = [] (uint64_t f, uint64_t again) {
+        std::vector<Event> e = { P (0, dlyMix, 0.4), P (0, dlyFeedback, 0.7), P (0, shimmer, 0.6), On (64, 36), Off (f / 2, 36) };
+        for (int ch = 0; ch < 16; ++ch) e.push_back (Midi (f, 0xb0 | ch, 120, 0));
+        e.push_back (On (again, 37)), e.push_back (Off (again + 3 * f / 4, 37));
+        return e;
+    };
+    list.push_back ({ "sound-off", "", soundOff (96000, 120000), 48000.0, 7.0 });
+    list.push_back ({ "sound-off-96000", "", soundOff (192000, 240000), 96000.0, 4.0 });
+    list.push_back ({ "reset", "", { P (0, dlyMix, 0.4), On (64, 36), Off (48000, 36), Reset (96000), On (100000, 38), Off (180000, 38) }, 48000.0, 7.0 });
+    list.push_back ({ "reverb-off-on", "", { On (64, 36), P (60000, revMix, 0), P (90000, revMix, 0.6), Off (150000, 36), P (200000, revMix, 0), P (200016, revMix, 0.5) } });
+    list.push_back ({ "sleep-wake", "", { P (0, revDecay, 0), P (0, dlyMix, 0.3), P (0, dlyFeedback, 0), P (0, ampRelease, envKnob (300.0f)), On (64, 36),
+                                          Off (24000, 36), On (432000, 40), Off (460000, 40) }, 48000.0, 12.0 });
+    // Voices stolen: five lifted Open chords struck on one sample (26 notes for 24 voices), then chords struck at a
+    // block's start and in a tick's middle while every voice rings.
+    {
+        std::vector<Event> e = { P (0, voicing, Voicing::open), P (0, ampRelease, 0.9), P (0, strum, 0) };
+        for (int k : { 44, 45, 46, 47, 48 }) e.push_back (On (0, k));
+        for (int c = 0; c < 12; ++c) e.push_back (On (24064 + 12000 * (uint64_t) c + (c & 1) * 8, 36 + c % 8)), e.push_back (Off (30000 + 12000 * (uint64_t) c, 36 + c % 8));
+        list.push_back ({ "steals", "", e });
+    }
     // the same scene in other blocks must hash as in blocks of 128 (fingerprint.txt has one line for all four)
     const std::vector<Event> scene = { P (0, motionShape, Motion::star), P (0, strum, 0.4), On (100, 36), On (7777, 44, 0.6), P (9000, cutoff, 0.4),
                                        Off (30000, 36), On (30001, 37), P (31000, glide, 0.4), On (40000, 38), Off (50000, 44), Off (60000, 37), Off (61000, 38) };

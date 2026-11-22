@@ -11,6 +11,7 @@
 #include "chords.h"
 #include "fx.h"
 #include "params.h"
+#include "voicings.h"
 #include "waves.h"
 
 #include <algorithm>
@@ -189,7 +190,8 @@ public:
         lastStrikeKey = -1, lastStrikeAt = ~0ull, lastStrikeGroup = 0, lastStrikeVelocity = 0.0f;
         volumePrimed = false;
         for (auto& f : fading) f.ticks = 0;
-        voicedProgression = voicedVoicing = voicedKey = -1;
+        fadingSlots = 0;
+        wokeAt = ~0ull;
         dirty = true, smoothing = false;
         derive();
         running = true;
@@ -212,7 +214,15 @@ public:
     {
         if (key < 0 || key > 127) return;
         velocity = std::clamp (velocity, 0.0f, 1.0f);
-        ensureVoicings();
+        // Asleep (or woken on this sample, nothing yet heard), a value sent with the note is the note's from its
+        // first sample: no glide in from the one before.
+        if ((dirty || smoothing) && ((! fxAwake && activeCount == 0) || wokeAt == now))
+        {
+            std::memcpy (smooth, target, sizeof (smooth));
+            dirty = smoothing = false;
+            stale = true;
+            volumeNow = target[ParamId::volume], volumeStep = 0.0f;
+        }
         if (stale) derive(), stale = false; // asleep, the ticks only kept the knobs
         // Two strikes of one key on one sample: the louder plays once.
         if (lastStrikeKey == key && lastStrikeAt == now)
@@ -231,9 +241,9 @@ public:
             return;
         }
         const PadKey pad = padOf (key);
-        const ChordNotes& chord = voiced.slot[pad.slot];
-        if (chord.count == 0) return;
         const float* chordSet = target; // the chord section as set: a value sent with the note applies to it
+        const ChordNotes chord = padChord ((int) chordSet[ParamId::progression], (int) chordSet[ParamId::voicing], (int) chordSet[ParamId::key], pad.slot);
+        if (chord.count == 0) return;
         const bool latching = chordSet[ParamId::latch] >= 0.5f;
         const float glideTime = glideMs (chordSet[ParamId::glide]);
 
@@ -303,7 +313,7 @@ public:
                 v.panAt = -9.0f; // its place in the chord moved
                 continue;
             }
-            Voice& v = allocate();
+            Voice& v = allocate (group);
             int wait = (int) std::lround (strumTicks * (float) i);
             if (human > 0.0f) wait += (int) (human * human * 0.02f * tickRate * rng.unit()); // up to 20 ms late
             start (v, key, group, notes[i], vel, gain, i, count, isBass, wait, latching);
@@ -312,6 +322,7 @@ public:
         lastStrikeKey = key, lastStrikeAt = now, lastStrikeGroup = group, lastStrikeVelocity = velocity;
         tel->lastSlot.store (pad.slot, std::memory_order_relaxed);
         tel->strikes.fetch_add (1, std::memory_order_relaxed);
+        if (! fxAwake && activeCount == 0) wokeAt = now;
         fxAwake = true;
         silentTicks = 0;
     }
@@ -343,12 +354,15 @@ public:
         else if (key < 128) keyDown[key] = false;
     }
 
-    // All Sound Off (CC 120): every voice choked and the effects' tails gone.
+    // All Sound Off (CC 120): every voice choked and the effects' tails gone. The effects' resets do no work on their
+    // lines, and none at all when they are already silent (Melodee sends it on all 16 channels at once).
     void silence()
     {
         choke (-1);
         ensemble.reset(), delay.reset(), reverb.reset();
     }
+    // The effects' resets that had something to clear (for the tests).
+    uint32_t fxResets() const { return ensemble.resets + delay.resets + reverb.resets; }
 
     void allNotesOff() // CC 123 and the like: every chord lets go, latched ones too (notes yet to strum never start)
     {
@@ -365,13 +379,13 @@ public:
         {
             case 1: wheel = (float) value / 127.0f, dirty = true; break;
             case 64:
-                sustain = value >= 64;
-                if (! sustain)
-                    for (auto& v : voices)
-                        if (v.active && v.sustained) v.releaseNow();
+                if (value >= 64) sustain = true;
+                else liftSustain();
                 break;
             case 120: if (value == 0) silence(); break;
-            case 121: if (value == 0) { bend = 0.0f, wheel = 0.0f, dirty = true; } break;
+            case 121: // Reset All Controllers (RP-015): the bend, the wheel and the pedal
+                if (value == 0) bend = 0.0f, wheel = 0.0f, dirty = true, liftSustain();
+                break;
             case 123: if (value == 0) allNotesOff(); break;
             default: break;
         }
@@ -395,12 +409,12 @@ public:
                     breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
                     renderVoice (v, left, right, air, n);
                 }
-            for (auto& f : fading)
-                if (f.ticks > 0)
-                {
-                    breathing |= f.voice.airNow > 0.0f;
-                    renderVoice (f.voice, left, right, air, n);
-                }
+            for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
+            {
+                Fading& f = fading[__builtin_ctz (m)];
+                breathing |= f.voice.airNow > 0.0f;
+                renderVoice (f.voice, left, right, air, n);
+            }
             // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
             // a voice, for a twentieth of the work).
             if (breathing)
@@ -446,8 +460,12 @@ public:
 
     bool quiet() const { return ! fxAwake && activeCount == 0; }
 
-    // The chords the pads play now (for the page and the tests).
-    const VoicingSet& voicings() { ensureVoicings(); return voiced; }
+    // The chords the pads play now (for the tests).
+    const VoicingSet& voicings()
+    {
+        padChords ((int) target[ParamId::progression], (int) target[ParamId::voicing], (int) target[ParamId::key], shown);
+        return shown;
+    }
 
 private:
     struct Voice
@@ -527,9 +545,9 @@ private:
     uint64_t lastStrikeAt = ~0ull;
     uint32_t lastStrikeGroup = 0;
     float lastStrikeVelocity = 0.0f;
-    VoicingSet voiced {};
-    int voicedProgression = -1, voicedVoicing = -1, voicedKey = -1;
+    VoicingSet shown {};
     bool fxAwake = false;
+    uint64_t wokeAt = ~0ull; // the sample a note woke the engine on
     uint32_t silentTicks = 0;
     float tickPeak = 0.0f;
     int activeCount = 0;
@@ -537,7 +555,9 @@ private:
     bool volumePrimed = false;
     const Voice* newestVoice = nullptr;
     struct Fading { Voice voice; int ticks = 0; };
-    Fading fading[maxChordNotes]; // a strike steals at most a chord's notes
+    Fading fading[maxVoices];
+    uint32_t fadingSlots = 0; // a bit a slot fading
+    static_assert (maxVoices <= 32, "a bit a slot");
     uint32_t noise = 0x1234567u;
     float airLp[2] {}, airHp[2] {};
 
@@ -563,14 +583,6 @@ private:
         float volume = 0.7f, ensHz = 0.35f, decay = 5.0f, damp = 5500.0f, predelay = 20.0f;
     } sh;
 
-    void ensureVoicings()
-    {
-        const int p = (int) target[ParamId::progression], v = (int) target[ParamId::voicing], k = (int) target[ParamId::key];
-        if (p == voicedProgression && v == voicedVoicing && k == voicedKey) return;
-        voiceProgression (p, v, k, voiced);
-        voicedProgression = p, voicedVoicing = v, voicedKey = k;
-    }
-
     // A pad let go (its strummed notes still play their turn), or struck again (`restrike`: its chord is replaced,
     // notes yet to strum never start).
     void releaseKey (int key, bool restrike)
@@ -585,6 +597,14 @@ private:
             }
     }
 
+    // The sustain pedal up: the notes it held let go.
+    void liftSustain()
+    {
+        sustain = false;
+        for (auto& v : voices)
+            if (v.active && v.sustained) v.releaseNow();
+    }
+
     // A new chord replaces the latched ones (but `keep`, the chord now sounding).
     void releaseLatched (uint32_t keep = 0)
     {
@@ -592,36 +612,45 @@ private:
             if (v.active && v.gated && v.latched && v.group != keep) v.replaceNow();
     }
 
-    Voice& allocate()
+    // A voice for a note of chord `group`: a free one, else the quietest letting go, else the oldest held, each
+    // taken from another chord first (a chord struck when every voice began on this sample never takes its own
+    // notes). The stolen voice's sound fades out apart (no click) and it starts clean.
+    Voice& allocate (uint32_t group)
     {
         for (auto& v : voices)
             if (! v.active) return v;
-        // The quietest voice letting go, else the oldest; its sound fades out apart (no click) and it starts clean.
+        auto rather = [group] (const Voice& v, const Voice* best, bool quieter) {
+            if (best == nullptr) return true;
+            if ((v.group == group) != (best->group == group)) return best->group == group;
+            return quieter ? v.amp.level < best->amp.level : v.born < best->born;
+        };
         Voice* best = nullptr;
         for (auto& v : voices)
-            if (! v.gated && (best == nullptr || v.amp.level < best->amp.level)) best = &v;
+            if (! v.gated && rather (v, best, true)) best = &v;
         if (best == nullptr)
             for (auto& v : voices)
-                if (best == nullptr || v.born < best->born) best = &v;
+                if (rather (v, best, false)) best = &v;
         fadeOut (*best);
         best->active = false;
         return *best;
     }
 
-    // A stolen voice's sound, ramped to silence by the end of the next tick.
+    // A stolen voice's sound, ramped to silence by the end of the next tick, in a free slot (a busy one is never
+    // taken: with all of them fading, the voice stops at once). On a tick's first sample that tick has yet to run and
+    // count down: the ramp is 32 samples, over it and the next.
     void fadeOut (const Voice& v)
     {
-        if (v.waitTicks > 0 || (v.ampNow <= 1e-6f && v.airNow <= 1e-6f)) return;
-        Fading* slot = &fading[0];
-        for (auto& f : fading)
-            if (f.ticks == 0) { slot = &f; break; }
-            else if (f.voice.ampNow < slot->voice.ampNow) slot = &f;
-        slot->voice = v;
+        constexpr uint32_t all = maxVoices == 32 ? ~0u : (1u << maxVoices) - 1u;
+        if (v.waitTicks > 0 || (v.ampNow <= 1e-6f && v.airNow <= 1e-6f) || fadingSlots == all) return;
+        const int slot = __builtin_ctz (~fadingSlots);
+        Fading& f = fading[slot];
+        f.voice = v;
         const float samples = (float) (2 * tickSize - tickPos);
-        slot->voice.ampStep = -v.ampNow / samples;
-        slot->voice.airStep = -v.airNow / samples;
-        slot->voice.morphStep[0] = slot->voice.morphStep[1] = 0.0f;
-        slot->ticks = 2;
+        f.voice.ampStep = -v.ampNow / samples;
+        f.voice.airStep = -v.airNow / samples;
+        f.voice.morphStep[0] = f.voice.morphStep[1] = 0.0f;
+        f.ticks = tickPos == 0 ? 3 : 2;
+        fadingSlots |= 1u << slot;
     }
 
     void start (Voice& v, int key, uint32_t group, int note, float vel, float gain, int index, int size, bool isBass, int wait, bool latching)
@@ -668,8 +697,11 @@ private:
     // --- The control tick ------------------------------------------------------------------------------------------
     void tick()
     {
-        for (auto& f : fading)
-            if (f.ticks > 0) --f.ticks;
+        for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
+        {
+            const int slot = __builtin_ctz (m);
+            if (--fading[slot].ticks == 0) fadingSlots &= ~(1u << slot);
+        }
         // Asleep (nothing sounds, the tails are gone): the knobs go straight to their values and the clocks run on.
         if (! fxAwake && activeCount == 0)
         {
@@ -696,7 +728,6 @@ private:
                 else moving = true;
             }
             dirty = false, smoothing = moving;
-            ensureVoicings();
             derive();
             stale = false;
         }

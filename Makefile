@@ -6,22 +6,31 @@
 #   make bench      build/bench: renders busy scenes; tools/bench.sh counts their instructions
 #   make sanitize   the host tests against a build with AddressSanitizer and UBSan (any error stops it)
 #   make render     build/render: renders progressions and sounds to WAV (tests/render.cpp), for listening
+# Each needs build/voicings.inc, the chords every pad plays (tools/voicings.cpp writes it; src/voicings.h reads it).
 CXX ?= g++
 OUT := build
 WARN := -Wall -Wextra -Werror
 # The MPC's cores. -ffp-contract=fast lets the compiler fuse multiply-adds; nothing here relies on IEEE errno, traps or
 # exceptions.
 OPT := -O3 -mcpu=cortex-a55 -ffp-contract=fast -fno-math-errno -fno-trapping-math
-BASE := -std=c++17 -fno-exceptions -fno-rtti -fvisibility=hidden -fPIC -Ithird_party/clap/include -Isrc
+BASE := -std=c++17 -fno-exceptions -fno-rtti -fvisibility=hidden -fPIC -Ithird_party/clap/include -Isrc -I$(OUT)
 CXXFLAGS := $(BASE) $(OPT)
 # Only clap_entry is exported; libstdc++ and libgcc are linked in so the MPC needs nothing beyond libc and libm. -s leaves
 # out the symbol table.
 LDFLAGS := -shared -s -static-libgcc -static-libstdc++ -Wl,--gc-sections -Wl,-z,now -Wl,-O1 -Wl,--version-script=src/exports.map
 PLUGIN_SOURCES := src/reverie.cpp src/screen.cpp
-HEADERS := $(wildcard src/*.h src/ui/*.h)
+HEADERS := $(wildcard src/*.h src/ui/*.h) $(OUT)/voicings.inc
 
 .PHONY: all test bench clean fingerprint-update sanitize render
 all: $(OUT)/Reverie.clap
+
+# Every pad's chord in every progression, voicing and key, voiced here with the plug-in's flags (the search's fused
+# multiply-adds decide a few near ties), so the plug-in only reads them.
+$(OUT)/voicings.inc: tools/voicings.cpp src/chords.h src/params.h src/progressions.h Makefile
+	@mkdir -p $(OUT)
+	$(CXX) $(CXXFLAGS) $(WARN) tools/voicings.cpp -o $(OUT)/voicings
+	$(OUT)/voicings > $@.tmp
+	mv $@.tmp $@
 
 $(OUT)/Reverie.clap: $(PLUGIN_SOURCES) $(HEADERS) src/exports.map Makefile
 	@mkdir -p $(OUT)
@@ -29,7 +38,7 @@ $(OUT)/Reverie.clap: $(PLUGIN_SOURCES) $(HEADERS) src/exports.map Makefile
 
 $(OUT)/host: tests/host.cpp tests/wav.h tests/png.h $(HEADERS) Makefile
 	@mkdir -p $(OUT)
-	$(CXX) -std=c++17 -O2 $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include tests/host.cpp -ldl -o $@
+	$(CXX) -std=c++17 -O2 $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include -I$(OUT) tests/host.cpp -ldl -o $@
 
 $(OUT)/fingerprint: tests/fingerprint.cpp $(HEADERS) Makefile
 	@mkdir -p $(OUT)
@@ -49,11 +58,13 @@ test: $(OUT)/Reverie.clap $(OUT)/host $(OUT)/fingerprint
 fingerprint-update: $(OUT)/Reverie.clap $(OUT)/fingerprint
 	$(OUT)/fingerprint $(OUT)/Reverie.clap > tests/fingerprint.txt
 
-SAN := -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g -O1
+# -fexpensive-optimizations: the host's own voicing search (checked against the table) fuses multiply-adds as the
+# plug-in's build does.
+SAN := -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g -O1 -fexpensive-optimizations
 sanitize: $(HEADERS) $(PLUGIN_SOURCES) tests/host.cpp tests/wav.h tests/png.h Makefile
 	@mkdir -p $(OUT)/san
 	$(CXX) $(BASE) $(SAN) -mcpu=cortex-a55 -shared $(PLUGIN_SOURCES) -o $(OUT)/san/Reverie.clap
-	$(CXX) -std=c++17 $(SAN) $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include tests/host.cpp -ldl -o $(OUT)/san/host
+	$(CXX) -std=c++17 $(SAN) $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include -I$(OUT) tests/host.cpp -ldl -o $(OUT)/san/host
 	ASAN_OPTIONS=abort_on_error=1:detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1 \
 	    $(OUT)/san/host $(OUT)/san/Reverie.clap $(OUT)/san
 
