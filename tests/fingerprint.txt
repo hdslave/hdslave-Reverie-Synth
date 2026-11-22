@@ -35,7 +35,7 @@ motion-8 e4d797a04fc04525
 strum-humanize c374100d9d6863eb
 latch c1d2e05a64ec3027
 glide ea8c33b1eecf79d7
-retrig-sync 99cee41da921c086
+retrig-sync ed4e065fb4017e1c
 keys-octaves 7c7a24ce875e7e1b
 lp24-bp-hp f924258a77cbbe7d
 rate-44100 96fa2e8e6bb0aea8

@@ -185,6 +185,10 @@ public:
         silentTicks = 0;
         bend = 0.0f;
         wheel = 0.0f;
+        beatClock = hostBeats = 0.0, hostAt = 0;
+        lastStrikeKey = -1, lastStrikeAt = ~0ull, lastStrikeGroup = 0, lastStrikeVelocity = 0.0f;
+        volumePrimed = false;
+        for (auto& f : fading) f.ticks = 0;
         voicedProgression = voicedVoicing = voicedKey = -1;
         dirty = true, smoothing = false;
         derive();
@@ -195,11 +199,11 @@ public:
 
     void deactivate() { running = false; }
 
-    // The host's transport, at the start of a block.
+    // The host's transport, at the start of a block: where the song is at this sample.
     void transport (bool playing, double beats, double bpm)
     {
         tempo = bpm;
-        if (playing) songBeats = beats;
+        if (playing) hostBeats = beats, hostAt = now;
         songPlaying = playing;
     }
 
@@ -252,26 +256,32 @@ public:
         const uint32_t group = ++groups;
 
         // Chord Glide: the chord held before (or latched) slides into this one, note by note, without striking again.
+        // Only its notes that sound and are still held slide; the rest of it (notes yet to strum, notes let go) is
+        // replaced. With Latch, every other latched chord lets go.
         int reused = 0;
         Voice* glideFrom[maxChordNotes] {};
         if (glideTime > 0.0f)
         {
             uint32_t held = 0;
             for (auto& v : voices)
-                if (v.active && v.gated && v.waitTicks == 0 && v.group > held) held = v.group;
+                if (v.active && v.gated && v.waitTicks == 0 && v.releaseIn < 0 && v.group > held) held = v.group;
             if (held != 0)
             {
                 int n = 0;
                 for (auto& v : voices)
-                    if (v.active && v.gated && v.group == held && n < maxChordNotes) glideFrom[n++] = &v;
+                    if (v.active && v.group == held)
+                    {
+                        if (v.gated && v.waitTicks == 0 && v.releaseIn < 0 && n < maxChordNotes) glideFrom[n++] = &v;
+                        else v.replaceNow();
+                    }
                 for (int i = 1; i < n; ++i) // by pitch (insertion: at most eight)
                     for (int j = i; j > 0 && glideFrom[j - 1]->target > glideFrom[j]->target; --j) std::swap (glideFrom[j - 1], glideFrom[j]);
                 reused = std::min (n, count);
                 for (int i = reused; i < n; ++i) glideFrom[i]->releaseNow();
+                for (int i = 0; i < reused; ++i) glideFrom[i]->group = group; // spared by releaseLatched below
             }
         }
-        else if (latching)
-            releaseLatched();
+        if (latching) releaseLatched (group);
 
         const float strumTicks = strumMs (chordSet[ParamId::strum]) * 0.001f * tickRate;
         const float human = chordSet[ParamId::humanize];
@@ -385,6 +395,12 @@ public:
                     breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
                     renderVoice (v, left, right, air, n);
                 }
+            for (auto& f : fading)
+                if (f.ticks > 0)
+                {
+                    breathing |= f.voice.airNow > 0.0f;
+                    renderVoice (f.voice, left, right, air, n);
+                }
             // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
             // a voice, for a twentieth of the work).
             if (breathing)
@@ -449,6 +465,7 @@ private:
         uint32_t shift[2] {};
         float wobble[maxStreams] {}, panL[maxStreams] {}, panR[maxStreams] {}, oscGain[2] {};
         float panAt = -9.0f;
+        int panUnison[2] {};
         float morphNow[2] {}, morphStep[2] {};
         int frame[2] { -1, -1 };
         Envelope amp, flt;
@@ -474,6 +491,12 @@ private:
             gated = false, releaseIn = -1;
             amp.off(), flt.off();
         }
+        // Replaced by another chord: a note yet to strum never starts; one sounding lets go.
+        void replaceNow()
+        {
+            if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; }
+            releaseNow();
+        }
         void chokeNow()
         {
             if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; } // never sounded
@@ -493,7 +516,8 @@ private:
     bool running = false, dirty = true, smoothing = false, stale = true;
     int tickPos = 0;
     uint64_t now = 0;
-    double motionPhase = 0.0, tempo = 120.0, songBeats = 0.0;
+    double motionPhase = 0.0, tempo = 120.0, beatClock = 0.0, hostBeats = 0.0;
+    uint64_t hostAt = 0;
     bool songPlaying = false;
     uint32_t groups = 0;
     bool keyDown[128] {};
@@ -512,6 +536,8 @@ private:
     float volumeNow = 0.0f, volumeStep = 0.0f;
     bool volumePrimed = false;
     const Voice* newestVoice = nullptr;
+    struct Fading { Voice voice; int ticks = 0; };
+    Fading fading[maxChordNotes]; // a strike steals at most a chord's notes
     uint32_t noise = 0x1234567u;
     float airLp[2] {}, airHp[2] {};
 
@@ -545,40 +571,61 @@ private:
         voicedProgression = p, voicedVoicing = v, voicedKey = k;
     }
 
+    // A pad let go (its strummed notes still play their turn), or struck again (`restrike`: its chord is replaced,
+    // notes yet to strum never start).
     void releaseKey (int key, bool restrike)
     {
         for (auto& v : voices)
             if (v.active && v.gated && v.key == key)
             {
-                if (v.latched && ! restrike) continue;
-                if (sustain && ! restrike) { v.sustained = true; continue; }
+                if (restrike) { v.replaceNow(); continue; }
+                if (v.latched) continue;
+                if (sustain) { v.sustained = true; continue; }
                 v.releaseNow();
             }
     }
 
-    void releaseLatched()
+    // A new chord replaces the latched ones (but `keep`, the chord now sounding).
+    void releaseLatched (uint32_t keep = 0)
     {
         for (auto& v : voices)
-            if (v.active && v.gated && v.latched) v.releaseNow();
+            if (v.active && v.gated && v.latched && v.group != keep) v.replaceNow();
     }
 
     Voice& allocate()
     {
         for (auto& v : voices)
             if (! v.active) return v;
-        // The quietest voice letting go, else the oldest.
+        // The quietest voice letting go, else the oldest; its sound fades out apart (no click) and it starts clean.
         Voice* best = nullptr;
         for (auto& v : voices)
             if (! v.gated && (best == nullptr || v.amp.level < best->amp.level)) best = &v;
-        if (best != nullptr) return *best;
-        for (auto& v : voices)
-            if (best == nullptr || v.born < best->born) best = &v;
+        if (best == nullptr)
+            for (auto& v : voices)
+                if (best == nullptr || v.born < best->born) best = &v;
+        fadeOut (*best);
+        best->active = false;
         return *best;
+    }
+
+    // A stolen voice's sound, ramped to silence by the end of the next tick.
+    void fadeOut (const Voice& v)
+    {
+        if (v.waitTicks > 0 || (v.ampNow <= 1e-6f && v.airNow <= 1e-6f)) return;
+        Fading* slot = &fading[0];
+        for (auto& f : fading)
+            if (f.ticks == 0) { slot = &f; break; }
+            else if (f.voice.ampNow < slot->voice.ampNow) slot = &f;
+        slot->voice = v;
+        const float samples = (float) (2 * tickSize - tickPos);
+        slot->voice.ampStep = -v.ampNow / samples;
+        slot->voice.airStep = -v.airNow / samples;
+        slot->voice.morphStep[0] = slot->voice.morphStep[1] = 0.0f;
+        slot->ticks = 2;
     }
 
     void start (Voice& v, int key, uint32_t group, int note, float vel, float gain, int index, int size, bool isBass, int wait, bool latching)
     {
-        const bool reuse = v.active; // a stolen voice keeps its filter's state, so its tail does not click
         v.active = true, v.gated = true, v.latched = latching, v.sustained = false, v.choking = false;
         v.key = key, v.group = group, v.index = index, v.size = size, v.isBass = isBass;
         v.waitTicks = wait;
@@ -587,12 +634,9 @@ private:
         v.pitch = v.target = (float) note;
         v.born = now;
         v.amp = Envelope {}, v.flt = Envelope {};
-        if (! reuse)
-        {
-            v.ampNow = 0.0f, v.airNow = 0.0f;
-            for (auto& f : v.fl) f.clear();
-            for (auto& f : v.fr) f.clear();
-        }
+        v.ampNow = 0.0f, v.airNow = 0.0f, v.airStep = 0.0f;
+        for (auto& f : v.fl) f.clear();
+        for (auto& f : v.fr) f.clear();
         v.ampStep = 0.0f;
         v.amp.level = 0.0f;
         v.frame[0] = v.frame[1] = -1;
@@ -601,11 +645,10 @@ private:
         v.lfoRandom = v.lfoRandomTarget = rng.bipolar();
         v.lfoTicks = 0, v.ticks = 0;
         v.drift[0] = rng.bipolar() * 0.5f, v.drift[1] = rng.bipolar() * 0.5f;
-        v.startBeat = songBeats;
+        v.startBeat = beatClock;
         for (int s = 0; s < maxStreams; ++s)
         {
-            const uint32_t r = rng.next();
-            if (! reuse) v.phase[s] = r; // a stolen voice runs on from its phase: no step in its wave
+            v.phase[s] = rng.next();
             v.wobble[s] = rng.bipolar();
         }
         if (wait == 0)
@@ -625,6 +668,8 @@ private:
     // --- The control tick ------------------------------------------------------------------------------------------
     void tick()
     {
+        for (auto& f : fading)
+            if (f.ticks > 0) --f.ticks;
         // Asleep (nothing sounds, the tails are gone): the knobs go straight to their values and the clocks run on.
         if (! fxAwake && activeCount == 0)
         {
@@ -634,6 +679,7 @@ private:
                 dirty = smoothing = false;
                 stale = true;
             }
+            volumeNow = target[ParamId::volume], volumeStep = 0.0f;
             advanceClocks();
             return;
         }
@@ -723,20 +769,17 @@ private:
         tickPeak = 0.0f;
     }
 
-    // Motion's own clock (free, or the song's beats when synced and playing) and the song's.
+    // The beat clock (the song's place while it plays, worked out for this tick's sample from the host's last
+    // position; running on at the tempo while it is stopped) and Motion's own (free, or the beats when synced).
     void advanceClocks()
     {
+        if (songPlaying) beatClock = hostBeats + (double) (now - hostAt) * tempo / 60.0 / (double) rate;
+        else beatClock += tempo / 60.0 * (double) tickSize / (double) rate;
         const bool sync = target[ParamId::motionSync] >= 0.5f;
         const double div = motionDivBeats[std::clamp ((int) target[ParamId::motionDiv], 0, 6)];
-        if (sync)
-        {
-            if (songPlaying) motionPhase = songBeats / div;
-            else motionPhase += tempo / 60.0 / (double) tickRate / div;
-        }
-        else
-            motionPhase += (double) (motionHz (smooth[ParamId::motionRate]) / tickRate);
+        if (sync) motionPhase = beatClock / div;
+        else motionPhase += (double) (motionHz (smooth[ParamId::motionRate]) / tickRate);
         if (motionPhase > 1e6) motionPhase -= std::floor (motionPhase);
-        if (songPlaying) songBeats += tempo / 60.0 * (double) tickSize / (double) rate;
     }
 
     void derive()
@@ -845,7 +888,7 @@ private:
         {
             double t;
             if (sh.retrig)
-                t = sh.sync ? (songBeats - v.startBeat) / sh.divBeats : (double) v.ticks * (double) sh.motionRate / (double) tickRate;
+                t = sh.sync ? (beatClock - v.startBeat) / sh.divBeats : (double) v.ticks * (double) sh.motionRate / (double) tickRate;
             else
                 t = motionPhase;
             const float place = v.size > 1 ? sh.spreadPath * (float) v.index / (float) v.size : 0.0f;
@@ -868,9 +911,9 @@ private:
         const float oscGain[2] = { sh.level[0] * (1.0f - std::max (0.0f, mix)), sh.level[1] * (1.0f + std::min (0.0f, mix)) };
         const float pitchMod = v.pitch + bend + lfo * sh.lfoPitch + mod[Dest::pitch] * 2.0f;
         float width = std::clamp (sh.width + mod[Dest::width], 0.0f, 1.0f) * (v.isBass ? 0.2f : 1.0f);
-        if (std::fabs (width - v.panAt) > 1e-4f)
+        if (std::fabs (width - v.panAt) > 1e-4f || v.panUnison[0] != sh.unison[0] || v.panUnison[1] != sh.unison[1])
         {
-            v.panAt = width;
+            v.panAt = width, v.panUnison[0] = sh.unison[0], v.panUnison[1] = sh.unison[1];
             // the voice's own place (upper notes alternate sides), then its unison across the width
             const float home = v.isBass ? 0.0f : 0.3f * width * ((v.index & 1) ? 1.0f : -1.0f);
             for (int o = 0; o < 2; ++o)
@@ -1102,7 +1145,7 @@ private:
             const Voice& v = voices[i];
             const bool on = v.active && v.waitTicks == 0;
             if (on) sounding |= 1u << i;
-            if (v.active && v.gated)
+            if (v.active && v.gated && v.releaseIn < 0)
             {
                 const PadKey pad = padOf (v.key);
                 held |= 1u << pad.slot;

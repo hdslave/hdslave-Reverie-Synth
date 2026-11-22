@@ -178,7 +178,7 @@ into it). VOLUME sets the level; a soft limiter keeps the output under 0 dBFS.
 
 ## The page
 
-Use Minus and Plus to move through the six pages. The wheel moves between controls. Push edits one; turn the
+Use Minus and Plus to move through the six pages. [Watch the screen tour in hdslaveOS](docs/reverie-pages.gif). The wheel moves between controls. Push edits one; turn the
 wheel to change it (Shift + wheel for fine steps, Minus and Plus for coarse) and Push again when done. On a switch,
 Push flips it at once. K1-K3 hold the control picked and the next two. Hold Shift to see the controls.
 
@@ -211,10 +211,10 @@ the MPC's 1.8 GHz Cortex-A55):
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
-| silent | 4,079 | 0.08 % |
-| one chord held, default sound | 251,125 | 5.2 % |
-| the progression played, releases overlapping | 325,945 | 6.8 % |
-| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 705,971 | 14.7 % |
+| silent | 4,772 | 0.10 % |
+| one chord held, default sound | 252,217 | 5.3 % |
+| the progression played, releases overlapping | 327,240 | 6.8 % |
+| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 704,257 | 14.7 % |
 
 The page costs about 275,000 instructions a frame on CHORDS and 228,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample

@@ -708,6 +708,76 @@ void testNotes()
         c.run (48000 * 6);
         CHECK (c.voices() == 0);
     }
+    {   // (review) Latch + Glide: a chord struck on the same sample as a latched one whose notes have not begun
+        // replaces it; nothing stays latched behind
+        Bench b;
+        b.e.set (ParamId::latch, 1.0f), b.e.set (ParamId::glide, glideKnob (300.0f)), b.e.set (ParamId::humanize, 1.0f);
+        b.e.noteOn (36, 0.8f), b.e.noteOn (37, 0.8f);
+        b.e.noteOff (36), b.e.noteOff (37);
+        b.run (48000 * 2);
+        CHECK (b.tel.padsHeld.load() == (1u << 1));
+        b.e.noteOn (38, 0.8f);
+        b.run (48000 * 6);
+        CHECK (b.tel.padsHeld.load() == (1u << 2));
+        CHECK (b.voices() == (int) b.e.voicings().slot[2].count);
+    }
+    {   // (review) Glide takes only notes that sound and are held: a chord let go mid-strum does not shrink the one
+        // that glides from it
+        Bench b;
+        b.e.set (ParamId::strum, strumKnob (60.0f)), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::glide, glideKnob (200.0f));
+        b.e.noteOn (36, 0.8f);
+        b.run (48 * 30);
+        b.e.noteOff (36);
+        b.run (48 * 40);
+        b.e.noteOn (37, 0.8f);
+        b.run (48000 * 4);
+        std::vector<int> want (b.e.voicings().slot[1].note, b.e.voicings().slot[1].note + b.e.voicings().slot[1].count);
+        CHECK (b.notes() == want);
+    }
+    {   // (review) A pad struck again mid-strum: the old chord's notes yet to strum never start (no doubled strum)
+        Bench b;
+        b.e.set (ParamId::strum, strumKnob (60.0f)), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (48 * 100);
+        const int started = b.voices();
+        b.e.noteOn (36, 0.8f);
+        b.run (48 * 400);
+        CHECK (b.voices() <= started + (int) b.e.voicings().slot[0].count);
+    }
+    {   // (review) Sync + Retrig with the transport stopped: Motion still moves (at the tempo)
+        Bench b;
+        b.e.set (ParamId::motionSync, 1.0f), b.e.set (ParamId::motionRetrig, 1.0f), b.e.set (ParamId::motionDiv, 6.0f), b.e.set (ParamId::strum, 0.0f);
+        b.e.transport (false, 0.0, 120.0);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        const float x0 = b.tel.x[0].load(), y0 = b.tel.y[0].load();
+        b.run (12000);
+        CHECK (std::fabs (b.tel.x[0].load() - x0) + std::fabs (b.tel.y[0].load() - y0) > 0.05f);
+    }
+    {   // (review) A reset forgets the last strike: the same pad on the first sample after it plays
+        Instance a;
+        a.render (2048, { On (0, 36) });
+        a.plugin->reset (a.plugin);
+        const Stereo s = a.render (12000, { On (0, 36) });
+        CHECK (rms (s.l) > 1e-3);
+    }
+    {   // (review) Stealing a sounding voice fades it out: no step in the output, even with every voice busy
+        Instance a;
+        std::vector<Cue> cues = dry() + std::vector<Cue> { P (0, ParamId::strum, strumKnob (25.0f)), P (0, ParamId::ampRelease, envKnob (4000.0f)),
+                                                           P (0, ParamId::osc1Wave, 11), P (0, ParamId::voicing, Voicing::open),
+                                                           P (0, ParamId::ampAttack, envKnob (20.0f)) };
+        for (int k = 0; k < 24; ++k) cues.push_back (On (100 + 4000 * (uint64_t) k, 44 + (k % 8), 0.9)), cues.push_back (Off (2100 + 4000 * (uint64_t) k, 44 + (k % 8)));
+        const Stereo s = a.render (48000 * 3, cues);
+        double worst = 0.0, typical = 0.0;
+        for (size_t i = 2; i < s.l.size(); ++i)
+        {
+            const double d2 = std::fabs ((double) s.l[i] - 2.0 * s.l[i - 1] + s.l[i - 2]);
+            worst = std::max (worst, d2), typical += d2;
+        }
+        typical /= (double) s.l.size();
+        std::printf ("  voices stolen: the sharpest bend %.1f times the typical\n", worst / typical);
+        CHECK (worst < 40.0 * typical);
+    }
     {   // Melodee: a key struck again while held (on, on, off): one chord sounding, the first letting go
         Bench b;
         b.e.set (ParamId::strum, 0.0f);
