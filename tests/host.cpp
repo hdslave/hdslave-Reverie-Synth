@@ -12,6 +12,7 @@
 #include "../src/melodee_screen.h"
 #include "../src/params.h"
 #include "../src/presets.h"
+#include "../src/ui/page.h"
 
 #include <clap/clap.h>
 
@@ -380,16 +381,20 @@ void testProgressions()
     // a few spellings
     char s[24];
     chordText (parsedProgressions()[0].chords[0], 0, false, s, sizeof (s));
-    CHECK (std::strcmp (s, "Fmaj9") == 0);
+    CHECK (std::strcmp (s, "C") == 0);
     chordText (parsedProgressions()[0].chords[0], 3, false, s, sizeof (s));
-    CHECK (std::strcmp (s, "Abmaj9") == 0);
-    chordText (parsedProgressions()[2].chords[1], 7, false, s, sizeof (s)); // F#dim7 in G: C#dim7
-    CHECK (std::strcmp (s, "C#dim7") == 0);
+    CHECK (std::strcmp (s, "Eb") == 0);
+    chordText (parsedProgressions()[4].chords[6], 7, false, s, sizeof (s)); // Frost Dawn's D7/F# in G: A7/C#
+    CHECK (std::strcmp (s, "A7/C#") == 0);
     chordText (parsedProgressions()[2].chords[2], 0, false, s, sizeof (s));
-    CHECK (std::strcmp (s, "Cmaj9/G") == 0);
+    CHECK (std::strcmp (s, "Gm7(11)") == 0);
+    // every quality a progression names fits its pad on the page (40 pixels less the 4 in front, at size 10)
+    for (int p = 0; p < progressionCount; ++p)
+        for (const ChordSymbol& c : parsedProgressions()[p].chords)
+            CHECK (hdui::Raster::measure (chordQualityText (c), 10) <= 36);
     // every voicing of every progression in every key is a sound chord, and the table the plug-in reads (voiced when
     // it was built, src/voicings.h) holds exactly the chords the search gives
-    int chords = 0, flat9 = 0, differ = 0;
+    int chords = 0, flat9 = 0, differ = 0, lifted = 0, withColour = 0;
     for (int p = 0; p < progressionCount; ++p)
         for (int v = 0; v < Voicing::count; ++v)
             for (int k = 0; k < 12; ++k)
@@ -404,6 +409,7 @@ void testProgressions()
                 {
                     const ChordNotes& c = set.slot[slot];
                     const ChordSymbol& sym = parsedProgressions()[p].chords[slot % 8];
+                    const int colour = slot >= 8 ? liftTone (sym, parsedProgressions()[p].pitches) : -1;
                     ++chords;
                     CHECK (c.count >= 3 && c.count <= maxChordNotes);
                     CHECK (c.hasBass == (v != Voicing::rootless));
@@ -416,16 +422,26 @@ void testProgressions()
                         CHECK (c.note[0] >= bassLow && c.note[0] <= bassHigh);
                         CHECK (c.note[1] - c.note[0] >= 3);
                     }
-                    // every tone is the chord's
+                    // every tone is the chord's (a lifted pad's colour tone aside); Rootless never plays the root of a
+                    // chord of four tones or more
                     const Quality& q = qualities[sym.quality];
+                    bool coloured = false;
                     for (int i = c.hasBass ? 1 : 0; i < c.count; ++i)
                     {
                         const int rel = ((c.note[i] - sym.rootPc - k) % 12 + 12) % 12;
                         bool in = false;
                         for (int t = 0; t < q.count; ++t) in |= rel == q.tones[t];
-                        if (sym.bassPc >= 0) in |= rel == 0;
-                        CHECK (in);
+                        if (sym.bassPc >= 0) in |= rel == 0 || rel == (sym.bassPc - sym.rootPc + 12) % 12;
+                        coloured |= colour >= 0 && rel == colour;
+                        CHECK (in || (colour >= 0 && rel == colour));
+                        if (v == Voicing::rootless && sym.bassPc < 0 && q.count > 3) CHECK (rel != 0);
                     }
+                    if (colour >= 0)
+                    {
+                        ++withColour;
+                        CHECK (coloured);
+                    }
+                    if (slot >= 8) ++lifted;
                     // the third (or the sus) is there
                     bool third = false;
                     for (int i = c.hasBass ? 1 : 0; i < c.count; ++i)
@@ -440,29 +456,34 @@ void testProgressions()
                             if ((c.note[j] - c.note[i]) > 12 && (c.note[j] - c.note[i]) % 12 == 1)
                             {
                                 ++flat9;
-                                CHECK (q.flat9);
+                                CHECK (minorNinthsAllowed (sym, colour));
                             }
                 }
             }
-    std::printf ("  %d chords voiced, %d minor ninths (all in b9 chords), %d of %d sets unlike the table\n", chords, flat9, differ,
-                 progressionCount * Voicing::count * 12);
-    // Voice-led bass: Halo Ballad (#11, idx 10) descends cleanly C-B-A-G-F-E-D; Phantom Waltz (#44, idx 43) descends C-B-Bb-A-Ab
-    {
-        VoicingSet halo, waltz, cliche;
-        padChords (10, Voicing::neoSoul, 0, halo);
-        for (int i = 0; i < 6; ++i) CHECK (halo.slot[i].note[0] > halo.slot[i + 1].note[0] && halo.slot[i].note[0] - halo.slot[i + 1].note[0] <= 2);
-        padChords (43, Voicing::neoSoul, 0, waltz);
-        for (int i = 0; i < 4; ++i) CHECK (waltz.slot[i].note[0] - waltz.slot[i + 1].note[0] == 1);
-        // Line Cliche (#37, idx 36): Cmadd9 keeps C in its upper structure so C->B->Bb->A plays whole
-        padChords (36, Voicing::neoSoul, 0, cliche);
-        bool hasC = false;
-        for (int i = 1; i < cliche.slot[0].count; ++i) hasC |= (cliche.slot[0].note[i] % 12) == 0;
-        CHECK (hasC);
-        // Lift adds a 5th upper tone on maj9/m9 chords (e.g. Velvet Night pad 1 Fmaj9 -> Lift 1)
-        VoicingSet velvet;
-        padChords (0, Voicing::neoSoul, 0, velvet);
-        CHECK (velvet.slot[8].count == velvet.slot[0].count + 1);
-    }
+    std::printf ("  %d chords voiced, %d minor ninths (all where the chord allows them), %d of %d sets unlike the table\n", chords,
+                 flat9, differ, progressionCount * Voicing::count * 12);
+    std::printf ("  %d of %d lifted pads add a colour tone the progression uses\n", withColour, lifted);
+    // the bass, chosen for the whole progression: a bass that stays stays on its note, one that moves a step or a
+    // semitone moves just that far, not by an octave. Only a line that runs further than G1-C3 holds breaks, once.
+    int broken = 0;
+    for (int p = 0; p < progressionCount; ++p)
+        for (int k = 0; k < 12; ++k)
+        {
+            VoicingSet set;
+            padChords (p, Voicing::neoSoul, k, set);
+            const ParsedProgression& pp = parsedProgressions()[p];
+            int breaks = 0;
+            for (int i = 0; i + 1 < chordsPerProgression; ++i)
+            {
+                const auto bassPc = [&] (int c) { return pp.chords[c].bassPc >= 0 ? pp.chords[c].bassPc : pp.chords[c].rootPc; };
+                int step = ((bassPc (i + 1) - bassPc (i)) % 12 + 12) % 12;
+                if (step > 6) step -= 12;
+                if (std::abs (step) <= 2) breaks += set.slot[i + 1].note[0] - set.slot[i].note[0] != step;
+            }
+            CHECK (breaks <= 1);
+            broken += breaks;
+        }
+    std::printf ("  bass lines broken by the range: %d of %d progressions in a key\n", broken, progressionCount * 12);
     const ChordNotes odd = padChord (-5, 99, 14, 40), edge = padChord (0, Voicing::count - 1, 2, padSlots - 1); // out of range: clamped
     CHECK (std::memcmp (&odd, &edge, sizeof (odd)) == 0);
     // the pads and the banks
@@ -532,6 +553,16 @@ void testState()
         std::vector<uint8_t> bad = saved;
         bad[0] = 'X';
         CHECK (! load (b, bad));
+    }
+    {   // a state from 0.1-0.2 (version 1) chose among the retired progressions: it keeps every value but that one
+        std::vector<uint8_t> old = saved;
+        old[4] = 1;
+        Instance b;
+        CHECK (load (b, old));
+        CHECK_NEAR (b.value (ParamId::progression), paramTable[ParamId::progression].def, 0);
+        CHECK_NEAR (b.value (ParamId::key), 5, 0);
+        CHECK_NEAR (b.value (ParamId::cutoff), 0.42, 1e-6);
+        CHECK_NEAR (b.value (ParamId::latch), 1, 0);
     }
     {   // loaded while inactive, it plays as loaded
         Instance b (48000.0, 4096, false);
@@ -647,9 +678,19 @@ struct Bench
 // The sound for the stealing tests: one sine oscillator, the chords four octaves down (notes of a few to seventy
 // hertz, so their own bends are tiny next to a step), no effects, unison, drift, LFO or Motion, a slow attack, held
 // at full sustain, quiet enough that the limiter never bends the sum.
+// The progression the stealing tests play: its pad 2 (F13) is six notes in Open, lifted too (a 13 chord has no colour
+// tone left to add), so four strikes of it hold all 24 voices; its pads 1 and 3 (C13sus, Bb13sus) are six notes each.
+int sixNoteProgression()
+{
+    for (int p = 0; p < progressionCount; ++p)
+        if (std::strcmp (progressionTable[p].name, "Velvet Quartet") == 0) return p;
+    return 0;
+}
+
 void slowSines (Bench& b, float volume)
 {
     using namespace ParamId;
+    b.e.set (progression, (float) sixNoteProgression());
     for (auto [id, v] : std::vector<std::pair<uint32_t, float>> {
              { osc1Wave, 11 }, { osc1Pos, 0 }, { osc1Unison, 1 }, { osc1Detune, 0 }, { osc1Octave, -2 }, { osc2Level, 0 }, { air, 0 },
              { drift, 0 }, { cutoff, 1 }, { filterEnv, 0 }, { keyTrack, 0 }, { velCutoff, 0 }, { lfoPitch, 0 }, { lfoCutoff, 0 },
@@ -954,16 +995,16 @@ void testNotes()
     }
     {   // (review) A voice stolen on a tick's first sample (a block's start, its tick yet to run) fades over the whole
         // ramp, as one stolen mid-tick does: no step. A loud chord and three near silent ones hold the 24 voices; a
-        // fifth, near silent, takes five of the loud one's. Their fade is a ramp: its bends stay at its corners, a
-        // 32nd of their level (a step of half of it before).
+        // fifth, near silent, takes the loud one's six. Their fade is a ramp: its bends stay at its corners, a 32nd
+        // of their level (a step of half of it before).
         for (int at : { 0, 8 })
         {
             Bench x, ref;
             for (Bench* b : { &x, &ref })
             {
                 slowSines (*b, 0.1f);
-                b->e.noteOn (39, 1.0f), b->run (16);
-                for (int k : { 47, 55, 63 }) b->e.noteOn (k, 0.05f), b->run (16);
+                b->e.noteOn (37, 1.0f), b->run (16);
+                for (int k : { 45, 53, 61 }) b->e.noteOn (k, 0.05f), b->run (16);
                 b->run (48000 - 64 + at);
             }
             CHECK (x.voices() == maxVoices);
@@ -971,28 +1012,28 @@ void testNotes()
             CHECK (stealBend (x, ref, at == 0 ? "stolen on a tick's first sample" : "stolen mid-tick") < 1.0 / 16.0);
         }
     }
-    {   // (review) Ten sounding voices stolen on one sample (more than the eight fade slots there were): each fades,
+    {   // (review) Twelve sounding voices stolen on one sample (more than the eight fade slots there were): each fades,
         // none is cut
         Bench x, ref;
         for (Bench* b : { &x, &ref })
         {
             slowSines (*b, 0.03f);
-            for (int k : { 39, 47, 55, 63 }) b->e.noteOn (k, 1.0f), b->run (16);
+            for (int k : { 37, 45, 53, 61 }) b->e.noteOn (k, 1.0f), b->run (16);
             b->run (48000 - 64 + 8);
         }
         CHECK (x.voices() == maxVoices);
         x.e.noteOn (36, 0.05f), x.e.noteOn (38, 0.05f);
-        CHECK (stealBend (x, ref, "ten stolen at once") < 1.0 / 16.0);
+        CHECK (stealBend (x, ref, "twelve stolen at once") < 1.0 / 16.0);
     }
-    {   // (review) Four chords struck on one sample (28 notes for 24 voices): the last takes the first one's notes,
-        // never its own
+    {   // (review) Five chords struck on one sample (more notes than the 24 voices): each takes the earliest chords'
+        // notes, never its own, and never those of a chord struck after them on that sample
         Bench b;
         b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::voicing, (float) Voicing::open);
-        for (int k : { 44, 45, 46, 47 }) b.e.noteOn (k, 0.8f);
+        for (int k : { 44, 45, 46, 47, 48 }) b.e.noteOn (k, 0.8f);
         b.run (480);
         const VoicingSet& set = b.e.voicings();
         std::vector<int> all;
-        for (int slot = 8; slot <= 11; ++slot)
+        for (int slot = 8; slot <= 12; ++slot)
             for (int i = 0; i < set.slot[slot].count; ++i) all.push_back (set.slot[slot].note[i]);
         CHECK (all.size() > (size_t) maxVoices);
         std::vector<int> want (all.end() - maxVoices, all.end());

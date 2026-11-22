@@ -2,7 +2,7 @@
 // tools/bench.sh runs it under callgrind for instruction counts (exact and repeatable, unlike timings on a computer
 // that is not the MPC).
 //   bench [worst|pad|typical|silent|paint|motion] [SECONDS]   (REVERIE_BENCH_RATE=44100 for another host rate)
-// worst: every voice busy (three Open-voiced lifted chords struck over each other and held: 24 voices), unison 4 + 4,
+// worst: every voice busy (five Open-voiced lifted chords struck together and held: all 24 voices), unison 4 + 4,
 // LP 24, Motion on every destination, every effect up; pad: the default sound holding one chord; typical: the
 // default sound playing its progression, a chord every two seconds, the releases overlapping; silent: no notes;
 // paint / motion: the CHORDS / MOTION page painted 25 times a second while the pad plays.
@@ -38,7 +38,7 @@ int main (int argc, char** argv)
         param (resonance, 0.5), param (air, 0.4), param (ensMix, 1.0), param (dlyMix, 0.5), param (dlyFeedback, 0.7);
         param (revMix, 0.8), param (shimmer, 0.8), param (revDecay, 1.0), param (strum, 0.0);
         param (xDest1, reverie::Dest::waves), param (xDest2, reverie::Dest::detune), param (yDest1, reverie::Dest::cutoff), param (yDest2, reverie::Dest::width);
-        for (int k : { 44, 45, 46 }) note (first, 0, 0x90, (uint8_t) k, 110);
+        for (int k : { 44, 45, 46, 47, 48 }) note (first, 0, 0x90, (uint8_t) k, 110);
     }
     if (mode == "pad" || mode == "paint" || mode == "motion") note (first, 0, 0x90, 36, 100);
 

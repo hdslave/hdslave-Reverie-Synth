@@ -281,9 +281,10 @@ void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const 
 const clap_plugin_params paramsExtension { paramsCount, paramsInfo, paramsValue, paramsToText, paramsFromText, paramsFlush };
 
 // State: "RVRE", a version, the number of values, then (id, value) pairs; unknown ids are skipped, missing ones keep
-// their defaults, so a state saved by another version still loads.
+// their defaults, so a state saved by another version still loads. Version 1 (Reverie 0.1-0.2) chose among the
+// progressions 0.3.0 retired: such a state keeps every value but the progression, which starts at the first.
 constexpr char stateTag[4] = { 'R', 'V', 'R', 'E' };
-constexpr uint32_t stateVersion = 1;
+constexpr uint32_t stateVersion = 2;
 
 bool writeAll (const clap_ostream* s, const void* data, uint64_t size)
 {
@@ -362,6 +363,8 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
         if (index >= 0)
             loaded[index] = clampParam (paramTable[index], pair.value);
     }
+    if (const int prog = paramIndex (ParamId::progression); header[0] < 2 && prog >= 0)
+        loaded[prog] = paramTable[prog].def;
     setAll (p, loaded);
     return true;
 }

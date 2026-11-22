@@ -2,11 +2,12 @@
 // pads play.
 //
 // A voicing is a bass note (the chord's root, or the slash's bass) and an upper structure: the chord's most telling
-// tones (third, seventh, then the colour tones; the root left to the bass) placed in the style's register. Of every
-// way to place them, the one chosen keeps the intervals open in the low register, avoids minor ninths, keeps the
-// style's spacing and moves least from the chord before it (the progression is voiced in order, twice round, so the
-// eighth chord also leads into the first). Pads 1-8 play the progression; pads 9-16 the same chords lifted: one
-// colour tone more, a fifth or so higher.
+// tones (third, seventh, then the colour tones; the root left to the bass, except in a triad) placed in the style's
+// register. Of every way to place them, the one chosen keeps the intervals open in the low register, avoids minor
+// ninths, keeps the style's spacing and moves least from the chord before it (the progression is voiced in order,
+// twice round, so the eighth chord also leads into the first). Pads 1-8 play the progression's chords and only their
+// tones; pads 9-16 the same chords lifted: a fifth or so higher, with one colour tone more where the chord has room for
+// one that the progression itself uses (Quality::lift). Rootless never plays the root of a chord of four tones or more.
 #pragma once
 
 #include "params.h"
@@ -23,52 +24,71 @@ struct Quality
     int8_t tones[6]; // above the root, most telling first
     uint8_t count;
     bool flat9;      // minor ninths belong to it (b9 chords)
+    int8_t lift[2];  // the colour tone Lift adds: the first of these the progression uses (-1: none)
 };
 
+// A chord's tones are exactly the ones its name says (the fifth may be left out); Lift's colour tone is never one of
+// them. tools/m3_progressions.py reads this table to name the progressions' chords, so a name always means its notes.
 inline constexpr Quality qualities[] = {
-    { "", { 4, 7, 0 }, 3, false },
-    { "maj7", { 4, 11, 7, 0, 2 }, 5, false },
-    { "maj9", { 4, 11, 2, 7, 9, 0 }, 6, false },
-    { "maj13", { 4, 11, 2, 9, 7, 0 }, 6, false },
-    { "maj9#11", { 4, 11, 2, 6, 7, 0 }, 6, false },
-    { "maj7#11", { 4, 11, 6, 7, 2, 0 }, 6, false },
-    { "maj7#5", { 4, 11, 8, 2, 0 }, 5, false },
-    { "6/9", { 4, 9, 2, 7, 0 }, 5, false },
-    { "add9", { 4, 2, 7, 0, 9 }, 5, false },
-    { "sus2", { 2, 7, 0 }, 3, false },
-    { "m", { 3, 7, 0 }, 3, false },
-    { "m7", { 3, 10, 7, 0, 2 }, 5, false },
-    { "m9", { 3, 10, 2, 7, 5, 0 }, 6, false },
-    { "m11", { 3, 10, 5, 2, 7, 0 }, 6, false },
-    { "m13", { 3, 10, 2, 9, 7, 5 }, 6, false },
-    { "m6/9", { 3, 9, 2, 7, 0 }, 5, false },
-    { "mMaj7", { 3, 11, 7, 0, 2 }, 5, false },
-    { "mMaj9", { 3, 11, 2, 7, 0 }, 5, false },
-    { "mMaj11", { 3, 11, 5, 2, 7, 0 }, 6, false },
-    { "madd9", { 3, 2, 7, 0, 5 }, 5, false },
-    { "m7b5", { 3, 10, 6, 0, 5 }, 5, false },
-    { "m9b5", { 3, 10, 6, 2, 5, 0 }, 6, false },
-    { "m11b5", { 3, 10, 6, 5, 0 }, 5, false },
-    { "7", { 4, 10, 7, 0, 2 }, 5, false },
-    { "9", { 4, 10, 2, 7, 9, 0 }, 6, false },
-    { "13", { 4, 10, 2, 9, 7, 0 }, 6, false },
-    { "7#9", { 4, 10, 3, 7, 0 }, 5, false },
-    { "13#9", { 4, 10, 3, 9, 7, 0 }, 6, false },
-    { "7b9", { 4, 10, 1, 7, 9 }, 5, true },
-    { "7b9b13", { 4, 10, 1, 8, 3 }, 5, true },
-    { "7b9#11", { 4, 10, 1, 6, 9 }, 5, true },
-    { "7b13", { 4, 10, 8, 2, 0 }, 5, false },
-    { "9b13", { 4, 10, 2, 8, 0 }, 5, false },
-    { "7alt", { 4, 10, 3, 8, 0 }, 5, false },
-    { "13b9", { 4, 10, 1, 9, 7 }, 5, true },
-    { "9#11", { 4, 10, 2, 6, 9, 0 }, 6, false },
-    { "13#11", { 4, 10, 2, 6, 9, 0 }, 6, false },
-    { "7sus", { 5, 10, 7, 2, 0 }, 5, false },
-    { "9sus", { 5, 10, 2, 7, 9, 0 }, 6, false },
-    { "13sus", { 5, 10, 2, 9, 7, 0 }, 6, false },
-    { "dim7", { 3, 6, 9, 0 }, 4, false },
-    { "dim", { 3, 6, 0 }, 3, false },
-    { "aug", { 4, 8, 0 }, 3, false },
+    { "", { 4, 7, 0 }, 3, false, { 2, 9 } },
+    { "6", { 4, 9, 7, 0 }, 4, false, { 2, -1 } },
+    { "6/9", { 4, 9, 2, 7, 0 }, 5, false, { 11, 6 } },
+    { "add9", { 4, 2, 7, 0 }, 4, false, { 9, 11 } },
+    { "add11", { 4, 5, 7, 0 }, 4, false, { 2, 9 } },
+    { "add#11", { 4, 6, 7, 0 }, 4, false, { 2, 11 } },
+    { "addb9", { 4, 1, 7, 0 }, 4, true, { 10, -1 } },
+    { "maj7", { 4, 11, 7, 0 }, 4, false, { 2, 9 } },
+    { "maj9", { 4, 11, 2, 7, 0 }, 5, false, { 9, 6 } },
+    { "maj13", { 4, 11, 2, 9, 7 }, 5, false, { 6, -1 } },
+    { "maj7#11", { 4, 11, 6, 7, 0 }, 5, false, { 2, 9 } },
+    { "maj9#11", { 4, 11, 2, 6, 7 }, 5, false, { 9, -1 } },
+    { "maj7#5", { 4, 11, 8, 0 }, 4, false, { 2, -1 } },
+    { "maj7b13", { 4, 11, 8, 7, 0 }, 5, false, { 2, -1 } },
+    { "maj7sus", { 5, 11, 7, 0 }, 4, false, { 2, 9 } },
+    { "maj9sus", { 5, 11, 2, 7, 0 }, 5, false, { 9, -1 } },
+    { "sus2", { 2, 7, 0 }, 3, false, { 5, 9 } },
+    { "sus2#11", { 2, 6, 7, 0 }, 4, false, { 11, 9 } },
+    { "sus4", { 5, 7, 0 }, 3, false, { 2, 9 } },
+    { "sus#4", { 6, 7, 0 }, 3, false, { 2, 11 } },
+    { "m", { 3, 7, 0 }, 3, false, { 5, 2 } },
+    { "m6", { 3, 9, 7, 0 }, 4, false, { 2, 5 } },
+    { "m7", { 3, 10, 7, 0 }, 4, false, { 5, 2 } },
+    { "m7(11)", { 3, 10, 5, 7, 0 }, 5, false, { 2, -1 } },
+    { "m9", { 3, 10, 2, 7, 0 }, 5, false, { 5, -1 } },
+    { "m11", { 3, 10, 5, 2, 7 }, 5, false, { 9, -1 } },
+    { "m13", { 3, 10, 2, 9, 7 }, 5, false, { 5, -1 } },
+    { "m6/9", { 3, 9, 2, 7, 0 }, 5, false, { 5, -1 } },
+    { "madd9", { 3, 2, 7, 0 }, 4, false, { 5, 10 } },
+    { "madd11", { 3, 5, 7, 0 }, 4, false, { 2, 10 } },
+    { "mMaj7", { 3, 11, 7, 0 }, 4, false, { 2, 5 } },
+    { "mMaj9", { 3, 11, 2, 7 }, 4, false, { 5, -1 } },
+    { "mMaj11", { 3, 11, 5, 2, 7 }, 5, false, { -1, -1 } },
+    { "m7b5", { 3, 10, 6, 0 }, 4, false, { 5, 2 } },
+    { "m9b5", { 3, 10, 6, 2 }, 4, false, { 5, -1 } },
+    { "m11b5", { 3, 10, 6, 5 }, 4, false, { 2, -1 } },
+    { "dim", { 3, 6, 0 }, 3, false, { 9, 2 } },
+    { "dim7", { 3, 6, 9, 0 }, 4, false, { 2, 5 } },
+    { "aug", { 4, 8, 0 }, 3, false, { 11, 10 } },
+    { "7", { 4, 10, 7, 0 }, 4, false, { 2, 9 } },
+    { "7/6", { 4, 10, 9, 7, 0 }, 5, false, { 2, -1 } },
+    { "9", { 4, 10, 2, 7, 0 }, 5, false, { 9, -1 } },
+    { "11", { 4, 10, 5, 2, 7, 0 }, 6, false, { 9, -1 } },
+    { "13", { 4, 10, 2, 9, 7 }, 5, false, { -1, -1 } },
+    { "7b5", { 4, 10, 6, 0 }, 4, false, { 2, 9 } },
+    { "7#9", { 4, 10, 3, 7 }, 4, false, { 8, -1 } },
+    { "13#9", { 4, 10, 3, 9, 7 }, 5, false, { -1, -1 } },
+    { "7b9", { 4, 10, 1, 7 }, 4, true, { 8, 9 } },
+    { "7b9b13", { 4, 10, 1, 8 }, 4, true, { 3, -1 } },
+    { "7b9#11", { 4, 10, 1, 6, 7 }, 5, true, { 9, -1 } },
+    { "13b9", { 4, 10, 1, 9 }, 4, true, { -1, -1 } },
+    { "7b13", { 4, 10, 8, 0 }, 4, false, { 2, 1 } },
+    { "9b13", { 4, 10, 2, 8 }, 4, false, { -1, -1 } },
+    { "7alt", { 4, 10, 3, 8 }, 4, false, { 6, 1 } },
+    { "9#11", { 4, 10, 2, 6, 7 }, 5, false, { 9, -1 } },
+    { "13#11", { 4, 10, 2, 6, 9, 7 }, 6, false, { -1, -1 } },
+    { "7sus", { 5, 10, 7, 0 }, 4, false, { 2, 9 } },
+    { "9sus", { 5, 10, 2, 7, 0 }, 5, false, { 9, -1 } },
+    { "13sus", { 5, 10, 2, 9, 7 }, 5, false, { -1, -1 } },
 };
 constexpr int qualityCount = (int) (sizeof (qualities) / sizeof (qualities[0]));
 
@@ -122,6 +142,7 @@ inline bool parseChord (const char* s, size_t len, ChordSymbol& out)
 struct ParsedProgression
 {
     ChordSymbol chords[chordsPerProgression];
+    uint16_t pitches = 0; // every pitch class its chords hold (bit 0 = C, as written): where Lift finds its colour
     bool ok = false;
 };
 
@@ -146,10 +167,50 @@ inline const ParsedProgression* parsedProgressions()
                 s = e;
             }
             t[p].ok = ok && n == chordsPerProgression;
+            for (const ChordSymbol& c : t[p].chords)
+            {
+                const Quality& q = qualities[c.quality];
+                t[p].pitches |= (uint16_t) (1u << c.rootPc);
+                if (c.bassPc >= 0) t[p].pitches |= (uint16_t) (1u << c.bassPc);
+                for (int i = 0; i < q.count; ++i) t[p].pitches |= (uint16_t) (1u << ((c.rootPc + q.tones[i]) % 12));
+            }
         }
         return t;
     }();
     return table.data();
+}
+
+// The colour tone a lifted pad adds to chord `c` (above its root, 0-11), or -1: the first of the quality's lift tones
+// that is not already the chord's (nor its slash bass) and that the progression itself uses (`pitches`, as written),
+// so the colour belongs to the progression's own scale.
+inline int liftTone (const ChordSymbol& c, uint16_t pitches)
+{
+    const Quality& q = qualities[c.quality];
+    for (int8_t t : q.lift)
+    {
+        if (t < 0) continue;
+        const int pc = (c.rootPc + t) % 12;
+        bool own = t == 0 || pc == c.bassPc;
+        for (int i = 0; i < q.count; ++i) own |= q.tones[i] == t;
+        if (! own && ((pitches >> pc) & 1u)) return t;
+    }
+    return -1;
+}
+
+// Whether a minor ninth may sound in chord `c` (lifted with colour tone `lift`, or -1): in b9 chords, and where the
+// colour is a semitone from one of the chord's tones.
+inline bool minorNinthsAllowed (const ChordSymbol& c, int lift)
+{
+    const Quality& q = qualities[c.quality];
+    if (q.flat9) return true;
+    if (lift < 0) return false;
+    bool near = lift == 1 || lift == 11;
+    for (int i = 0; i < q.count; ++i)
+    {
+        const int d = ((q.tones[i] - lift) % 12 + 12) % 12;
+        near |= d == 1 || d == 11;
+    }
+    return near;
 }
 
 // --- Names ------------------------------------------------------------------------------------------------------------
@@ -437,39 +498,42 @@ inline void chooseBassLine (const ChordSymbol* chords, int key, int* out)
     std::memcpy (out, best, sizeof (best));
 }
 
-// One chord voiced; `prev` (the upper structure before it) may be empty.
-inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool lift, const ChordNotes* prev, int chosenBass = -1)
+// One chord voiced; `prev` (the upper structure before it) may be empty. `colour` is the tone a lifted pad adds above
+// the root (liftTone), or -1.
+inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool lift, const ChordNotes* prev, int chosenBass = -1,
+                              int colour = -1)
 {
     const Quality& q = qualities[c.quality];
     const Style st = styleOf (voicing, lift);
     const int root = mod12 (c.rootPc + key);
     const int bass = c.bassPc >= 0 ? mod12 (c.bassPc + key) : root;
     const bool slash = bass != root;
-    int list[8] {}, n = 0;
+    int list[maxChordNotes + 2] {}, n = 0;
+    auto insert = [&] (int at, int pc) {
+        for (int i = n; i > at; --i) list[i] = list[i - 1];
+        list[at] = pc;
+        ++n;
+    };
     for (int i = 0; i < q.count; ++i)
     {
         const int pc = mod12 (root + q.tones[i]);
-        if (st.bass && slash && pc == bass) continue; // the bass has it
+        if (! slash && q.count > 3 && pc == root) continue; // the root is the bass's (Rootless leaves it out)
+        if (st.bass && slash && pc == bass) continue;       // the bass has it
         list[n++] = pc;
     }
     if (slash)
     {
         bool hasRoot = false;
         for (int i = 0; i < n; ++i) hasRoot |= list[i] == root;
-        if (! hasRoot)
-        {
-            const int at = std::min (n, 2);
-            for (int i = n; i > at; --i) list[i] = list[i - 1];
-            list[at] = root;
-            ++n;
-        }
+        if (! hasRoot) insert (std::min (n, 2), root);
     }
+    if (lift && colour >= 0) insert (std::min (n, 2), mod12 (root + colour)); // after the third and seventh: it always sounds
     Search s;
     s.style = &st;
     s.voicing = voicing;
     s.k = std::min (st.upper, n);
     s.root = root;
-    s.flat9 = q.flat9;
+    s.flat9 = minorNinthsAllowed (c, lift ? colour : -1);
     for (int i = 0; i < s.k; ++i) s.pcs[i] = list[i];
     const int bassNote = chosenBass >= 0 ? chosenBass : (34 + mod12 (bass - 34));
     s.bassNote = st.bass ? bassNote : -1;
@@ -517,7 +581,8 @@ inline void voiceProgression (int progression, int voicing, int key, VoicingSet&
         for (int pass = 0; pass < 2; ++pass)
             for (int i = 0; i < chordsPerProgression; ++i)
             {
-                chain[i] = detail::voiceChord (p.chords[i], voicing, key, lift != 0, prev, bassNotes[i]);
+                const int colour = lift != 0 ? liftTone (p.chords[i], p.pitches) : -1;
+                chain[i] = detail::voiceChord (p.chords[i], voicing, key, lift != 0, prev, bassNotes[i], colour);
                 prev = &chain[i];
             }
         for (int i = 0; i < chordsPerProgression; ++i) out.slot[8 * lift + i] = chain[i];
