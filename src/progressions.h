@@ -101,6 +101,27 @@ inline constexpr ProgressionText progressionTable[] = {
     { "Neon Noir", true, "CmMaj11 Ebmaj7#5 Abmaj9#11 D7b9#11 G7b9b13 C7#9 Fm11 Db13#11" },
     { "Basement Tape", true, "Dm9b5 G7b9b13 Cm11 B13#9 Bbm11 Eb13#9 Abmaj7#5 A7b9#11" },
     { "Shadow Gospel", true, "Cm11 C7b9#11/E Fm11 F#dim7 Cm9/G A7b9b13 Dm9b5 G7b9b13" },
+    // Motion-synth preset chord sets (20 sets extracted from classic workstation Motion Synth pads, transposed to C)
+    { "Watchful Horizon", false, "Cmaj7 Fm7 Gm11 Abmaj13 Am7 Cmaj7/E G9sus/F G9sus" },
+    { "Kinetic Drift", true, "Cm9 Fm9/Ab Ebmadd9/Gb Ebm11 Emaj9#11 Bsus2 Amaj9#11 Gb7sus" },
+    { "Starbound Voyage", true, "Cm Ab/C Bm7 Gm/Bb F/A Ab7b9#11 G G7/F" },
+    { "Spectral Prism", true, "Cm7 Gm7 Dbsus2 Fm7 Eb9sus/Db Abmaj9/C Fm11 Ebadd9/G" },
+    { "Frost Dawn", false, "C Em/B Am Bm7/A C/G Cm/G D7/F# G13sus" },
+    { "Tender Embrace", false, "C Cmaj7/G Am A7/E Dm F7 Cadd9/E G7/D" },
+    { "Ringed Orbit", false, "C D Fadd9 A7sus Cm7/Eb Eb9sus/Db Abm/B Bb13sus" },
+    { "Prismatic Turn", false, "Dm7 Cadd9/E Fadd9 Csus2/G Am Em7/G Fmaj9 G9sus" },
+    { "Horizon Fade", true, "Cm Bb/D Eb Ebadd9/G Abadd9 Ebmaj9/G Dbadd9 Absus2" },
+    { "Hidden Passage", true, "Csus2 Fm11 Ebadd9/G Absus2 Dbadd9/F Abmaj9/Eb Dbadd9 Bbm7" },
+    { "Timeless Expanse", true, "Cm11 Ebm11 Bbm11 Dbm11 Abm11 Bm11 Gbm11 Am11" },
+    { "Zephyr Cascade", false, "Dbm11 Amaj9 Gbm11 Dmaj9 Bm11 Gmaj9 Em11 Cmaj9" },
+    { "Dream Weaver", false, "G9sus C9sus F9sus Bb9sus Eb9sus Ab9sus Db9sus Gb9sus" },
+    { "Chrono Shift", false, "Dbm11 Em11 Cmaj9 G6/9/B Fadd9/A Fmaj9 Dmaj9/E Cmaj9/D" },
+    { "Skyward Glider", true, "Cm Eb6/9 Abmaj13 Gb6/9 Ebm11 Bmaj9#11 Bbm11 Gm11" },
+    { "Resonant Pulse", true, "Cm9 Ab6/9 Gm7 Cm9/Eb F7sus G9sus Ab7sus Bb9sus" },
+    { "Sparkle Veil", true, "Dbm7b5/E Cmaj7/G Cmaj7#11/Gb Bb6/9/F Dbmaj9 Gmaj7#5/D Cm7 B7" },
+    { "Metamorphosis", true, "Cm11 Eb6/9 Abmaj9 Cm7/Bb F7sus Abmaj9 Bb9sus Fm11" },
+    { "Tidal Formant", true, "Cm Bbm Abmaj7 Gbsus2 Abadd9 Db6/9 Fm9 Gbmaj9" },
+    { "Lunar Capsule", false, "Fm7 Bb9sus Cm11 G9sus Abadd9 Fm11 Dm7 C" },
 };
 constexpr int progressionCount = (int) (sizeof (progressionTable) / sizeof (progressionTable[0]));
 constexpr int chordsPerProgression = 8;

@@ -445,11 +445,11 @@ inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool l
     const int root = mod12 (c.rootPc + key);
     const int bass = c.bassPc >= 0 ? mod12 (c.bassPc + key) : root;
     const bool slash = bass != root;
-    int list[8], n = 0;
+    int list[8] {}, n = 0;
     for (int i = 0; i < q.count; ++i)
     {
         const int pc = mod12 (root + q.tones[i]);
-        if (slash && pc == bass) continue; // the bass has it
+        if (st.bass && slash && pc == bass) continue; // the bass has it
         list[n++] = pc;
     }
     if (slash)
