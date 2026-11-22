@@ -1,14 +1,12 @@
 # hdslave Reverie
 
-A pad and chord synthesizer as a CLAP plug-in for the Akai MPC Sample (Melodee and hdslaveOS). The MPC's pads play
-chords from progressions written to show pads off: jazzy, soulful, R&B and neo-soul changes, voiced the way a
-keyboard player would voice them and voice-led from chord to chord. The sound is built for huge, slow, shimmering
-pads: two morphing wavetable oscillators with unison and drift, and Motion, an X / Y path that moves the sound.
-Ensemble, a tempo delay and a big modulated reverb with shimmer finish it.
+**A chord-progression and X/Y Motion pad synthesizer as a CLAP plug-in for the Akai MPC Sample.**
 
-The idea comes from Korg's M3 workstation: its X / Y MOTION pad (a recorded path that animates a sound), its
-two-oscillator programs, and its pads that play chords. Reverie is its own design, not a model of the M3. Korg and
-M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
+![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
+
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 46 jazzy, soulful, R&B, and neo-soul chord progressions — voiced and voice-led across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+
+Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
 
 Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.1.1). Not yet run on the MPC itself.
 
