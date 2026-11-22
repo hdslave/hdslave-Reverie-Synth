@@ -4,7 +4,7 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 64 jazzy, soulful, R&B, neo-soul, gospel, city-pop, modal, and cinematic chord progressions — voiced with smooth voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 80 jazzy, moody, dirty-chord, soulful, R&B, neo-soul, gospel, city-pop, modal, and cinematic chord progressions — voiced with smooth voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
 
@@ -39,7 +39,7 @@ the progressions.
 
 | Control | What it does |
 |---|---|
-| PROG | the progression (64, listed below) |
+| PROG | the progression (80, listed below) |
 | VOICING | how the chords are spread (below) |
 | KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass is voice-led between G1 and C3 in every key |
 | OCT | the whole chord up or down, -2 to +2 octaves |
@@ -52,7 +52,7 @@ the progressions.
 
 ### Voicings
 
-Each chord is a voice-led bass note (the root, or a slash chord's bass, optimized across the 8-chord contour between G1 and C3 so descending, chromatic, and pedal bass lines never jump octaves mid-phrase) and an upper structure: the chord's most telling tones (third and seventh first, then the ninth, eleventh or thirteenth and the fifth) placed in the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or root on top, and moves least from the chord before it. Pads A09–A16 (**Lift**) voice each chord higher and bloom with an extra colour tone (13th on maj9, 11th on m9/m7b5, etc.). The progression is voiced in order twice round, so the eighth chord leads back into the first. Every progression is voiced in every style and key when Reverie is built (a table of 4,608 sets of sixteen pads — 73,728 chords), so picking one, or automating it on the same step as a chord, costs the audio thread nothing.
+Each chord is a voice-led bass note (the root, or a slash chord's bass, optimized across the 8-chord contour between G1 and C3 so descending, chromatic, and pedal bass lines never jump octaves mid-phrase) and an upper structure: the chord's most telling tones (third and seventh first, then the ninth, eleventh or thirteenth and the fifth) placed in the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or root on top, and moves least from the chord before it. Pads A09–A16 (**Lift**) voice each chord higher and bloom with an extra colour tone (13th on maj9, 11th on m9/m7b5, etc.). The progression is voiced in order twice round, so the eighth chord leads back into the first. Every progression is voiced in every style and key when Reverie is built (a table of 5,760 sets of sixteen pads — 92,160 chords), so picking one, or automating it on the same step as a chord, costs the audio thread nothing.
 
 | Voicing | Sound |
 |---|---|
@@ -134,6 +134,22 @@ Dm9 = D2 | F3 A3 C4 E4, G13 = G2 | F3 A3 B3 E4.
 | 62 | Cobalt Pulse | minor | Cm11 Cm9/Bb Abmaj13 G9b13 Fm11 F#dim7 Cm9/G G7alt |
 | 63 | Mirage | minor | Cm11 F13#11 Bmaj9#11 E13#11 Abmaj9#11 Db13#11 Dm11b5 G7alt |
 | 64 | Starlit Requiem | minor | Cmadd9 Abmaj13/C Ebmaj9/Bb F9#11/A Abmaj9#11 Fm11 Dm11b5 G7b9 |
+| 65 | Smoky Backroom | minor | CmMaj11 Am9b5 D7b9b13 G7alt Cm9 F13#9 Dm9b5 G7b9#11 |
+| 66 | Velvet Grit | minor | Cm11 B13#9 Bbm11 A7b9#11 Abmaj7#5 G7b9b13 Fm11 G7alt |
+| 67 | Midnight Alley | minor | CmMaj9 Fm11 Bb13#9 Ebmaj7#5 Am9b5 D7b9b13 Dm9b5 G7b9#11 |
+| 68 | Blue Smoke | minor | Cm13 F13#9 Cm11 Gb13#11 Fm11 B13#11 Dm9b5 G7b9b13 |
+| 69 | Ash and Gold | minor | Cm11 Dbmaj7#5 Cm9/Bb Am9b5 Abmaj9#11 G7b9b13 F#m9b5 G7alt |
+| 70 | Broken Halo | minor | Cm11 E7b9#11 Fm11 A7b9b13 Dbmaj9#11 G7b9#11 CmMaj11 G7alt |
+| 71 | After Hours | minor | Cm13 Eb13#9 Abmaj7#5 G7b9b13 Fm13 Db13#11 Dm9b5 G7alt |
+| 72 | Obsidian Rain | minor | Cm11 Db7b9#11/C CmMaj11 B7b9b13/C Bbm11 Eb13#9 Abmaj7#5 G7b9b13 |
+| 73 | Crushed Velvet | minor | Cm9 F13#9 Fm9 Bb13#9 Ebmaj7#5 Ab13#11 Dm9b5 G7b9b13 |
+| 74 | Subway Nocturne | minor | Cm11 F#m9b5 B7b9b13 Emaj7#5 Ebm11 Ab13#9 Dbmaj9#11 G7b9#11 |
+| 75 | Bitter Honey | major | Cmaj13 B7b9b13 Em11 A13#9 Dm11 Db13#11 Cmaj7#5 G7b9#11 |
+| 76 | Rust and Silk | major | Fmaj9#11 E7b9b13 Am11 Ab13#9 Gm11 Gb13#11 Fmaj7#5 C13#9 |
+| 77 | Dirty Martini | major | Dm11 G13#9 Cmaj13 F#m9b5 B7b9b13 Em11 Eb13#11 A7b9#11 |
+| 78 | Neon Noir | minor | CmMaj11 Ebmaj7#5 Abmaj9#11 D7b9#11 G7b9b13 C7#9 Fm11 Db13#11 |
+| 79 | Basement Tape | minor | Dm9b5 G7b9b13 Cm11 B13#9 Bbm11 Eb13#9 Abmaj7#5 A7b9#11 |
+| 80 | Shadow Gospel | minor | Cm11 C7b9#11/E Fm11 F#dim7 Cm9/G A7b9b13 Dm9b5 G7b9b13 |
 
 ## Sound and parameters
 
@@ -246,7 +262,7 @@ block reads that were not written since are zeroed first.
 image in the `colima-melodee` Docker context; start it with `colima start melodee`).
 
 - `tests/host.cpp` loads the plug-in as a host does: ports, every parameter and its text, state, the sounds (and
-  that they leave the chord section alone), every progression in every voicing and key (73,728 chords: each a sound
+  that they leave the chord section alone), every progression in every voicing and key (92,160 chords: each a sound
   chord, the third there, no stray minor ninths), the pad map Melodee reads, chords from the pads and banks,
   Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes
   (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step

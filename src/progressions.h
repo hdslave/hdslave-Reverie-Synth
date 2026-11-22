@@ -84,6 +84,23 @@ inline constexpr ProgressionText progressionTable[] = {
     { "Cobalt Pulse", true, "Cm11 Cm9/Bb Abmaj13 G9b13 Fm11 F#dim7 Cm9/G G7alt" },
     { "Mirage", true, "Cm11 F13#11 Bmaj9#11 E13#11 Abmaj9#11 Db13#11 Dm11b5 G7alt" },
     { "Starlit Requiem", true, "Cmadd9 Abmaj13/C Ebmaj9/Bb F9#11/A Abmaj9#11 Fm11 Dm11b5 G7b9" },
+    // Moody, jazzy & dirty chord bank: altered dominants, tritone chains, noir mMaj11, m9b5 & maj7#5
+    { "Smoky Backroom", true, "CmMaj11 Am9b5 D7b9b13 G7alt Cm9 F13#9 Dm9b5 G7b9#11" },
+    { "Velvet Grit", true, "Cm11 B13#9 Bbm11 A7b9#11 Abmaj7#5 G7b9b13 Fm11 G7alt" },
+    { "Midnight Alley", true, "CmMaj9 Fm11 Bb13#9 Ebmaj7#5 Am9b5 D7b9b13 Dm9b5 G7b9#11" },
+    { "Blue Smoke", true, "Cm13 F13#9 Cm11 Gb13#11 Fm11 B13#11 Dm9b5 G7b9b13" },
+    { "Ash and Gold", true, "Cm11 Dbmaj7#5 Cm9/Bb Am9b5 Abmaj9#11 G7b9b13 F#m9b5 G7alt" },
+    { "Broken Halo", true, "Cm11 E7b9#11 Fm11 A7b9b13 Dbmaj9#11 G7b9#11 CmMaj11 G7alt" },
+    { "After Hours", true, "Cm13 Eb13#9 Abmaj7#5 G7b9b13 Fm13 Db13#11 Dm9b5 G7alt" },
+    { "Obsidian Rain", true, "Cm11 Db7b9#11/C CmMaj11 B7b9b13/C Bbm11 Eb13#9 Abmaj7#5 G7b9b13" },
+    { "Crushed Velvet", true, "Cm9 F13#9 Fm9 Bb13#9 Ebmaj7#5 Ab13#11 Dm9b5 G7b9b13" },
+    { "Subway Nocturne", true, "Cm11 F#m9b5 B7b9b13 Emaj7#5 Ebm11 Ab13#9 Dbmaj9#11 G7b9#11" },
+    { "Bitter Honey", false, "Cmaj13 B7b9b13 Em11 A13#9 Dm11 Db13#11 Cmaj7#5 G7b9#11" },
+    { "Rust and Silk", false, "Fmaj9#11 E7b9b13 Am11 Ab13#9 Gm11 Gb13#11 Fmaj7#5 C13#9" },
+    { "Dirty Martini", false, "Dm11 G13#9 Cmaj13 F#m9b5 B7b9b13 Em11 Eb13#11 A7b9#11" },
+    { "Neon Noir", true, "CmMaj11 Ebmaj7#5 Abmaj9#11 D7b9#11 G7b9b13 C7#9 Fm11 Db13#11" },
+    { "Basement Tape", true, "Dm9b5 G7b9b13 Cm11 B13#9 Bbm11 Eb13#9 Abmaj7#5 A7b9#11" },
+    { "Shadow Gospel", true, "Cm11 C7b9#11/E Fm11 F#dim7 Cm9/G A7b9b13 Dm9b5 G7b9b13" },
 };
 constexpr int progressionCount = (int) (sizeof (progressionTable) / sizeof (progressionTable[0]));
 constexpr int chordsPerProgression = 8;
