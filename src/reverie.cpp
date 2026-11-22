@@ -71,6 +71,9 @@ struct Plugin
     // state or a sound is loaded or the page edits. The engine notices those at the next block.
     std::atomic<float> values[paramCount];
     std::atomic<bool> mainChanged { false };
+    // The Key's text follows the progression's mode (Db in a major one, C# in a minor one): set when the host moved
+    // the progression to the other mode, so the main thread tells the host to read the text again.
+    std::atomic<bool> keyTextMoved { false };
     float applied[paramCount] {};
     Telemetry telemetry;
     Engine engine { &telemetry };
@@ -95,6 +98,16 @@ void requestPaint (const Plugin& p)
 {
     if (p.hostScreen != nullptr && p.hostScreen->request_paint != nullptr)
         p.hostScreen->request_paint (p.host);
+}
+
+// [main thread] The host reads the Key's text again when the progression moved to the other mode.
+void keyTextRescan (Plugin& p, float progressionBefore = -1.0f)
+{
+    if (progressionBefore >= 0.0f
+        && progressionMinor (progressionBefore) != progressionMinor (p.values[ParamId::progression].load (std::memory_order_relaxed)))
+        p.keyTextMoved.store (true, std::memory_order_relaxed);
+    if (p.keyTextMoved.exchange (false, std::memory_order_acquire) && p.hostParams != nullptr && p.hostParams->rescan != nullptr)
+        p.hostParams->rescan (p.host, CLAP_PARAM_RESCAN_TEXT);
 }
 
 bool pushValue (const clap_output_events* out, uint32_t time, clap_id id, double value)
@@ -158,11 +171,17 @@ bool paramsValue (const clap_plugin* plugin, clap_id id, double* value)
     return true;
 }
 
-bool paramsToText (const clap_plugin*, clap_id id, double value, char* text, uint32_t size)
+bool paramsToText (const clap_plugin* plugin, clap_id id, double value, char* text, uint32_t size)
 {
     const int index = paramIndex (id);
     if (index < 0 || size == 0)
         return false;
+    if (id == ParamId::key) // as the page shows it: in the progression's mode
+    {
+        const bool minor = progressionMinor (of (plugin).values[ParamId::progression].load (std::memory_order_relaxed));
+        std::snprintf (text, size, "%s", keyTonic ((int) clampParam (paramTable[index], (float) value), minor));
+        return true;
+    }
     formatParam (paramTable[index], (float) value, text, size);
     return true;
 }
@@ -226,6 +245,11 @@ void handle (Plugin& p, const clap_event_header* e)
                 break;
             const float value = clampParam (paramTable[index], (float) v->value);
             const bool moved = p.applied[index] != value;
+            if (index == (int) ParamId::progression && progressionMinor (p.applied[index]) != progressionMinor (value))
+            {
+                p.keyTextMoved.store (true, std::memory_order_release);
+                if (p.host->request_callback != nullptr) p.host->request_callback (p.host);
+            }
             p.values[index].store (value, std::memory_order_relaxed);
             p.applied[index] = value;
             p.engine.set ((uint32_t) index, value);
@@ -318,6 +342,7 @@ bool readAll (const clap_istream* s, void* data, uint64_t size)
 // dropped: the loaded values win.
 void setAll (Plugin& p, const float* values)
 {
+    const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
     p.outgoing.clear();
     for (int i = 0; i < paramCount; ++i)
         p.values[i].store (values[i], std::memory_order_relaxed);
@@ -325,6 +350,7 @@ void setAll (Plugin& p, const float* values)
     if (! p.active)
         for (int i = 0; i < paramCount; ++i)
             p.applied[i] = values[i], p.engine.set ((uint32_t) i, values[i]);
+    keyTextRescan (p, progressionBefore);
     requestPaint (p);
 }
 
@@ -592,6 +618,7 @@ bool screenInput (const clap_plugin* plugin, const melodee_screen_input_t* e)
     auto& p = of (plugin);
     hdui::Edits edits;
     const bool used = p.screen.input ((hdui::Key) e->kind, e->value, e->shift, edits);
+    const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
     bool changed = false;
     for (int i = 0; i < edits.count; ++i)
     {
@@ -610,6 +637,7 @@ bool screenInput (const clap_plugin* plugin, const melodee_screen_input_t* e)
     {
         if (p.hostParams->rescan != nullptr)
             p.hostParams->rescan (p.host, CLAP_PARAM_RESCAN_VALUES);
+        keyTextRescan (p, progressionBefore);
         if (p.hostParams->request_flush != nullptr)
             p.hostParams->request_flush (p.host);
     }
@@ -641,7 +669,7 @@ const void* pluginExtension (const clap_plugin*, const char* id)
     return nullptr;
 }
 
-void pluginMainThread (const clap_plugin*) {}
+void pluginMainThread (const clap_plugin* plugin) { keyTextRescan (of (plugin)); }
 
 // Factory -----------------------------------------------------------------------------------------------------
 

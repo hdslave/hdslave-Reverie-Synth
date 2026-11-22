@@ -193,9 +193,7 @@ void Screen::formatted (uint32_t id, char* s, uint32_t n) const
 {
     if (id == ParamId::key)
     {
-        const bool minor = progressionTable[choice (ParamId::progression)].minor;
-        const char* key = keyName (choice (id), minor);
-        std::snprintf (s, n, "%.*s", (int) std::strlen (key) - (minor ? 1 : 0), key);
+        std::snprintf (s, n, "%s", keyTonic (choice (id), progressionMinor (live (ParamId::progression))));
         return;
     }
     formatParam (paramTable[id], live (id), s, n);

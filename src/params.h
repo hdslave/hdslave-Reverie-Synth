@@ -15,7 +15,7 @@
 #include "progressions.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.4.0"
+#define REVERIE_VERSION "0.4.1"
 #endif
 
 namespace reverie
@@ -74,6 +74,9 @@ struct Param
 
 inline const char* const offOn[] = { "Off", "On" };
 inline const char* const keyChoices[] = { "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
+// The key's tonic when the progression is minor, as minor keys are written (C#m and G#m, not Dbm and Abm): the host
+// and the page show these then (chords.h keyTonic), and text in either spelling reads back.
+inline const char* const keyMinorChoices[] = { "C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B" };
 inline const char* const voicingChoices[] = { "Neo Soul", "Open", "Close", "Air", "Quartal", "Rootless" };
 namespace Voicing { enum : int { neoSoul, open, close, air, quartal, rootless, count }; }
 inline const char* const waveChoices[] = { "Velvet Saw", "Hollow Pulse", "Choir", "Strings", "Drawbar", "Crystal",
@@ -319,6 +322,10 @@ inline bool parseParam (const Param& p, const char* text, float& v)
         for (int i = 0; i < n; ++i)
             if (std::strlen (p.choices[i]) == len && strncasecmp (text, p.choices[i], len) == 0)
                 return v = p.min + (float) i, true;
+        if (p.choices == keyChoices)
+            for (int i = 0; i < n; ++i)
+                if (std::strlen (keyMinorChoices[i]) == len && strncasecmp (text, keyMinorChoices[i], len) == 0)
+                    return v = p.min + (float) i, true;
     }
     if (p.unit == Unit::gain && strncasecmp (text, "-inf", 4) == 0) return v = 0.0f, true;
     if (p.unit == Unit::glideTime && strncasecmp (text, "off", 3) == 0) return v = 0.0f, true;

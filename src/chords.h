@@ -215,14 +215,20 @@ inline bool minorNinthsAllowed (const ChordSymbol& c, int lift)
 
 // --- Names ------------------------------------------------------------------------------------------------------------
 
-// The Key parameter's tonic as a letter: a major key as the parameter names it (C, Db, D, Eb, E, F, F#, G, Ab, A,
-// Bb, B); a minor key as it is usually written (C#m and G#m, not Dbm and Abm).
+// The key's tonic as a letter: a major key's as the Key parameter names it (C, Db, D, Eb, E, F, F#, G, Ab, A, Bb,
+// B); a minor key's as minor keys are written (C#m and G#m, not Dbm and Abm).
 constexpr int8_t keyLetter[2][12] = { { 0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6 }, { 0, 0, 1, 2, 2, 3, 3, 4, 4, 5, 6, 6 } };
-inline const char* keyName (int key, bool minor)
+
+// The Key parameter as the page and the host show it: the tonic of the key the progression is in (Db in a major
+// progression, C# in a minor one), spelled with the letter keyLetter gives.
+inline const char* keyTonic (int key, bool minor)
 {
-    static const char* const major[] = { "C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" };
-    static const char* const minorNames[] = { "Cm", "C#m", "Dm", "Ebm", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "Bbm", "Bm" };
-    return minor ? minorNames[((key % 12) + 12) % 12] : major[((key % 12) + 12) % 12];
+    key = ((key % 12) + 12) % 12;
+    return minor ? keyMinorChoices[key] : keyChoices[key];
+}
+inline bool progressionMinor (float progression)
+{
+    return progressionTable[std::clamp ((int) std::lround (progression), 0, progressionCount - 1)].minor;
 }
 
 // A note written in C as `letter` / `pc`, spelled in the key: its letter moved as far as the key's, its accidental

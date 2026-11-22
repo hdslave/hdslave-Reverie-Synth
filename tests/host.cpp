@@ -42,10 +42,12 @@ const clap_plugin_entry* entry = nullptr;
 const clap_plugin_factory* factory = nullptr;
 std::string outDir;
 
-int rescans = 0, paints = 0, processRequests = 0, presetsLoaded = 0, presetErrors = 0, flushes = 0;
+int rescans = 0, textRescans = 0, callbacks = 0, paints = 0, processRequests = 0, presetsLoaded = 0, presetErrors = 0, flushes = 0;
 const void* hostExtension (const clap_host*, const char* id)
 {
-    static const clap_host_params params { [] (const clap_host*, clap_param_rescan_flags f) { rescans += (f & CLAP_PARAM_RESCAN_VALUES) != 0; },
+    static const clap_host_params params { [] (const clap_host*, clap_param_rescan_flags f) {
+                                              rescans += (f & CLAP_PARAM_RESCAN_VALUES) != 0;
+                                              textRescans += (f & CLAP_PARAM_RESCAN_TEXT) != 0; },
                                            [] (const clap_host*, clap_id, clap_param_clear_flags) {}, [] (const clap_host*) { ++flushes; } };
     static const clap_host_melodee_screen screen { [] (const clap_host*) { ++paints; } };
     static const clap_host_preset_load presetLoad {
@@ -60,7 +62,7 @@ const void* hostExtension (const clap_host*, const char* id)
 
 clap_host host {
     CLAP_VERSION, nullptr, "Reverie test host", "tests", "", "1",
-    hostExtension, [] (const clap_host*) {}, [] (const clap_host*) { ++processRequests; }, [] (const clap_host*) {},
+    hostExtension, [] (const clap_host*) {}, [] (const clap_host*) { ++processRequests; }, [] (const clap_host*) { ++callbacks; },
 };
 
 struct Events
@@ -345,6 +347,41 @@ void testParams()
         CHECK (! inst.params->text_to_value (inst.plugin, info.id, "nan", &nope));
     }
     CHECK (ids.size() == (size_t) paramCount);
+    {   // the Key reads as the page shows it: in the progression's mode (Db and Ab in a major one, C# and G# in a minor
+        // one), either spelling reading back; moving to the other mode has the host read the text again
+        auto keyText = [&] (double key) {
+            static char text[16];
+            CHECK (inst.params->value_to_text (inst.plugin, ParamId::key, key, text, sizeof (text)));
+            return std::string (text);
+        };
+        auto keyValue = [&] (const char* text) {
+            double v = -1.0;
+            CHECK (inst.params->text_to_value (inst.plugin, ParamId::key, text, &v));
+            return v;
+        };
+        int minorProgression = -1;
+        for (int p = 0; p < progressionCount && minorProgression < 0; ++p)
+            if (progressionTable[p].minor) minorProgression = p;
+        CHECK (! progressionTable[0].minor && minorProgression > 0);
+        CHECK (keyText (1) == "Db" && keyText (8) == "Ab" && keyText (6) == "F#");
+        const int callbacksBefore = callbacks, textBefore = textRescans;
+        inst.flush ({ { ParamId::progression, (double) minorProgression } });
+        CHECK (callbacks > callbacksBefore);
+        inst.plugin->on_main_thread (inst.plugin);
+        CHECK (textRescans == textBefore + 1);
+        CHECK (keyText (1) == "C#" && keyText (8) == "G#" && keyText (3) == "Eb");
+        CHECK_NEAR (keyValue ("C#"), 1, 0);
+        CHECK_NEAR (keyValue ("Db"), 1, 0);
+        CHECK_NEAR (keyValue ("g#"), 8, 0);
+        CHECK_NEAR (keyValue ("Ab"), 8, 0);
+        inst.flush ({ { ParamId::progression, (double) minorProgression } }); // the same mode: nothing to read again
+        inst.plugin->on_main_thread (inst.plugin);
+        CHECK (textRescans == textBefore + 1);
+        inst.flush ({ { ParamId::progression, 0.0 } });
+        inst.plugin->on_main_thread (inst.plugin);
+        CHECK (textRescans == textBefore + 2);
+        CHECK (keyText (1) == "Db");
+    }
     CHECK (! inst.params->get_info (inst.plugin, (uint32_t) paramCount, nullptr) || true);
     double v = 0.0;
     CHECK (! inst.params->get_value (inst.plugin, 9999, &v));

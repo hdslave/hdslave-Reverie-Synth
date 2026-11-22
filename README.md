@@ -8,14 +8,15 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.0). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.1). Not yet run on the MPC itself.
 
 ## Install
 
-Copy the folder `hdslave Reverie` (the `.clap`, this README and `licenses/`) to `Melodee/Plugins/` on the card. Pick
-it on a PLUGIN track (SYNTH on Stage). Reverie tells Melodee to play the track's pads as a kit (as drum plug-ins
-do): pad A01 is note 36, A16 note 51, whatever the key or the octave, and the Keys page names them Chord 1-8 and
-Lift 1-8. Its page needs hdslaveOS; in stock Melodee you get the list of its parameters instead.
+Copy `build/Reverie.clap` to the card as `Melodee/Plugins/hdslave/hdslave Reverie.clap`, with this README and the
+licence files from `licenses/` beside it (as the staged card holds them: `hdslave Reverie - README.md` and so on).
+Pick it on a PLUGIN track (SYNTH on Stage): Plugin, hdslave, hdslave Reverie. Reverie tells Melodee to play the
+track's pads as a kit (as drum plug-ins do): pad A01 is note 36, A16 note 51, whatever the key or the octave, and the
+Keys page names them Chord 1-8 and Lift 1-8. Its page needs hdslaveOS; in stock Melodee you get the list of its parameters instead.
 
 ## The pads
 
@@ -41,7 +42,7 @@ the progressions.
 |---|---|
 | PROG | the progression (208, listed below) |
 | VOICING | how the chords are spread (below) |
-| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass is voice-led between G1 and C3 in every key |
+| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). KEY itself reads that way too, on the page and in the host: Ab with a major progression, G# with a minor one. The bass is voice-led between G1 and C3 in every key |
 | OCT | the whole chord up or down, -2 to +2 octaves |
 | STRUM | the notes enter one after another, bass first, 0 to 150 ms apart. Let go of the pad before the strum is through and the late notes still play their turn, as long as the pad was held |
 | HUMAN | a little velocity and timing jitter per note (up to about 20 ms late) |
@@ -71,12 +72,16 @@ nothing.
 
 | Voicing | Sound |
 |---|---|
-| Neo Soul | bass, then four tones close around middle C (the default) |
-| Open | five tones spread wide, often in fourths and fifths (cinematic) |
-| Close | four tones packed within an octave |
-| Air | the upper structure high above the bass, a wide gap between |
-| Quartal | prefers fourths between the tones |
-| Rootless | no bass note: five upper tones, for playing over a bass line |
+| Neo Soul | bass, then up to four tones close around middle C (the default) |
+| Open | up to five tones spread wide, often in fourths and fifths (cinematic) |
+| Close | up to four tones packed within an octave |
+| Air | up to four tones high above the bass, a wide gap between |
+| Quartal | up to four tones, preferring fourths between them |
+| Rootless | no bass note: three to five tones, for playing over a bass line |
+
+A chord plays only the tones its name holds (above the bass, the root only in a triad), so two pads in three play
+three tones over the bass and a ninth or an eleventh four or five; the lifted pads add one more where the chord has
+room.
 
 For example, the first progression's first four chords in Neo Soul are: C = C2 | C4 E4 G4, D = D2 | D4 F#4 A4,
 Fadd9 = F2 | C4 G4 A4, A7sus = A2 | D4 E4 G4; lifted: C2 | C4 G4 D5 E5, D2 | D4 F#4 A4 E5, F2 | C4 G4 A4 D5,
