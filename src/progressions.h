@@ -1,7 +1,8 @@
 // Reverie's chord progressions: eight chords each, written in C (major or minor) as chord symbols, moved to the Key
 // parameter when they play. Pads A01-A08 play them in order; A09-A16 play the same chords lifted (chords.h). Each
-// loops: the eighth chord leads back to the first. The order is fixed (a project saves the progression by its
-// place): new progressions go at the end.
+// loops: the eighth chord leads back to the first. The order and the count are fixed once released: a project saves the
+// progression by its place, and hdslaveOS keeps its motion and bindings as a share of the range, so even one added
+// at the end would move them. More progressions go in a new parameter.
 //
 // Since 0.3.0 every progression is one of the M3 workstation's factory pad chord sets (its Motion Synth, Pad, SlowSynth
 // and Vocal presets), each chord named from the pad's own notes so the name holds exactly its pitch classes, moved so

@@ -336,11 +336,17 @@ void Screen::padGrid (const Raster& r, uint32_t held) const
         const ChordSymbol& c = pp.chords[slot % 8];
         chordRootText (c, key, minor, root, sizeof (root));
         const char* q = chordQualityText (c);
-        r.text (x + 4, y + 1, root, ink::text, r.measure (root, 12) > 25 ? 10 : 12);
-        r.text (x + 4, y + 12, q[0] ? q : "maj", ink::text, 10);
+        const int rootSize = r.measure (root, 12) > 25 ? 10 : 12;
+        const char* quality = q[0] ? q : "maj";
+        r.text (x + 4, y + 1, root, ink::text, rootSize);
+        r.text (x + 4, y + 12, quality, ink::text, 10);
         if (slot == last)
             r.box (x + 15, y + 21, 10, 2, on ? 0xff7d470f : ink::blue);
-        // The two-digit pad index has its own space even on a transposed slash chord.
+        // The two-digit pad index sits top right, clear of the chord. A slash chord too long for that (Eb/Db) puts
+        // it bottom right, beside a short quality; when both lines are long it gives way (the grid tells the pad).
+        int indexY = y + 4;
+        if (r.measure (root, rootSize) > 25) indexY = r.measure (quality, 10) > 25 ? -1 : y + 15;
+        if (indexY < 0) continue;
         static constexpr uint16_t digits[] = {
             0b111101101101111, 0b010110010010111, 0b111001111100111, 0b111001111001111, 0b101101111001001,
             0b111100111001111, 0b111100111101111, 0b111001010010010, 0b111101111101111, 0b111101111001111
@@ -350,7 +356,7 @@ void Screen::padGrid (const Raster& r, uint32_t held) const
             const int value = digit == 0 ? (slot + 1) / 10 : (slot + 1) % 10;
             for (int bit = 0; bit < 15; ++bit)
                 if (digits[value] & (1 << (14 - bit)))
-                    r.dot (x + 30 + digit * 4 + bit % 3, y + 4 + bit / 3, lift ? 0xff427361 : 0xff3a697d);
+                    r.dot (x + 30 + digit * 4 + bit % 3, indexY + bit / 3, lift ? 0xff427361 : 0xff3a697d);
         }
     }
 }
