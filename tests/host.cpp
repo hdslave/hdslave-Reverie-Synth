@@ -1,0 +1,1018 @@
+// Loads Reverie.clap as a host does and checks it: description and ports, parameters and their texts, state, the
+// sounds (and that they leave the chord section alone), the progressions (every one parses, every voicing in every
+// key is a sound chord), the pad map Melodee reads, notes and chords (the pads, the banks, Melodee's same-sample and
+// on-on-off strikes, latch, sustain, chokes and the channel modes), Chord Glide, the same output whatever the block
+// size, other rates and tuning, bounded output at extreme settings, sleeping when silent, and the screen page.
+// Writes demo renders (WAV) and the page's pictures (PNG) into the output folder.
+//   host Reverie.clap OUT_FOLDER
+#include "wav.h"
+#include "png.h"
+#include "../src/engine.h"
+#include "../src/melodee_screen.h"
+#include "../src/params.h"
+#include "../src/presets.h"
+
+#include <clap/clap.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <complex>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <dlfcn.h>
+#include <fstream>
+#include <iterator>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
+namespace
+{
+int failures = 0, checks = 0;
+#define CHECK(c) do { ++checks; if (! (c)) { ++failures; std::printf ("FAIL %s:%d  %s\n", __FILE__, __LINE__, #c); } } while (0)
+#define CHECK_NEAR(a, b, tol) do { ++checks; const double va = (a), vb = (b); if (! (std::fabs (va - vb) <= (tol))) { ++failures; \
+    std::printf ("FAIL %s:%d  %s = %g, %s = %g (tolerance %g)\n", __FILE__, __LINE__, #a, va, #b, vb, (double) (tol)); } } while (0)
+
+using namespace reverie;
+const clap_plugin_entry* entry = nullptr;
+const clap_plugin_factory* factory = nullptr;
+std::string outDir;
+
+int rescans = 0, paints = 0, processRequests = 0, presetsLoaded = 0, presetErrors = 0, flushes = 0;
+const void* hostExtension (const clap_host*, const char* id)
+{
+    static const clap_host_params params { [] (const clap_host*, clap_param_rescan_flags f) { rescans += (f & CLAP_PARAM_RESCAN_VALUES) != 0; },
+                                           [] (const clap_host*, clap_id, clap_param_clear_flags) {}, [] (const clap_host*) { ++flushes; } };
+    static const clap_host_melodee_screen screen { [] (const clap_host*) { ++paints; } };
+    static const clap_host_preset_load presetLoad {
+        [] (const clap_host*, uint32_t, const char*, const char*, int32_t, const char*) { ++presetErrors; },
+        [] (const clap_host*, uint32_t, const char*, const char*) { ++presetsLoaded; },
+    };
+    if (std::strcmp (id, CLAP_EXT_MELODEE_SCREEN_HOST) == 0) return &screen;
+    if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &params;
+    if (std::strcmp (id, CLAP_EXT_PRESET_LOAD) == 0) return &presetLoad;
+    return nullptr;
+}
+
+clap_host host {
+    CLAP_VERSION, nullptr, "Reverie test host", "tests", "", "1",
+    hostExtension, [] (const clap_host*) {}, [] (const clap_host*) { ++processRequests; }, [] (const clap_host*) {},
+};
+
+struct Events
+{
+    struct Any { union { clap_event_header header; clap_event_param_value param; clap_event_note note; clap_event_midi midi; }; };
+    std::vector<Any> list;
+    clap_input_events in { this, [] (const clap_input_events* e) { return (uint32_t) static_cast<const Events*> (e->ctx)->list.size(); },
+                           [] (const clap_input_events* e, uint32_t i) { return &static_cast<const Events*> (e->ctx)->list[i].header; } };
+    void param (uint32_t time, clap_id id, double value)
+    {
+        Any a {};
+        a.param = { { sizeof (clap_event_param_value), time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, id, nullptr, -1, -1, -1, -1, value };
+        list.push_back (a);
+    }
+    void note (uint32_t time, uint16_t type, int16_t key, double velocity)
+    {
+        Any a {};
+        a.note = { { sizeof (clap_event_note), time, CLAP_CORE_EVENT_SPACE_ID, type, 0 }, -1, 0, 0, key, velocity };
+        list.push_back (a);
+    }
+    void midi (uint32_t time, uint8_t status, uint8_t d1, uint8_t d2)
+    {
+        Any a {};
+        a.midi.header = { sizeof (clap_event_midi), time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 };
+        a.midi.port_index = 0, a.midi.data[0] = status, a.midi.data[1] = d1, a.midi.data[2] = d2;
+        list.push_back (a);
+    }
+    void sort() { std::stable_sort (list.begin(), list.end(), [] (const Any& a, const Any& b) { return a.header.time < b.header.time; }); }
+};
+
+// What a test plays: at a frame, a parameter (plain value), a note, a choke or MIDI bytes.
+struct Cue
+{
+    uint64_t frame;
+    enum Kind { param, on, off, midi, choke } kind;
+    uint32_t a = 0;   // parameter id, key, or MIDI status
+    double b = 0.0;   // value, velocity, or MIDI data 1
+    int c = 0;        // MIDI data 2
+};
+Cue P (uint64_t f, uint32_t id, double v) { return { f, Cue::param, id, v, 0 }; }
+Cue On (uint64_t f, int key, double vel = 0.8) { return { f, Cue::on, (uint32_t) key, vel, 0 }; }
+Cue Off (uint64_t f, int key) { return { f, Cue::off, (uint32_t) key, 0.0, 0 }; }
+Cue Choke (uint64_t f, int key) { return { f, Cue::choke, (uint32_t) key, 0.0, 0 }; }
+Cue Midi (uint64_t f, int status, int d1, int d2) { return { f, Cue::midi, (uint32_t) status, (double) d1, d2 }; }
+
+struct Stereo { std::vector<float> l, r; };
+
+struct Instance
+{
+    const clap_plugin* plugin = nullptr;
+    const clap_plugin_params* params = nullptr;
+    const clap_plugin_state* state = nullptr;
+    const clap_plugin_preset_load* presets = nullptr;
+    const clap_plugin_melodee_screen* screen = nullptr;
+    double rate;
+    std::vector<clap_process_status> statuses;
+    std::vector<std::pair<clap_id, double>> told; // the output param events
+
+    explicit Instance (double sampleRate = 48000.0, uint32_t maxFrames = 4096, bool activate = true) : rate (sampleRate)
+    {
+        const auto* d = factory->get_plugin_descriptor (factory, 0);
+        plugin = factory->create_plugin (factory, &host, d->id);
+        CHECK (plugin != nullptr && plugin->init (plugin));
+        params = static_cast<const clap_plugin_params*> (plugin->get_extension (plugin, CLAP_EXT_PARAMS));
+        state = static_cast<const clap_plugin_state*> (plugin->get_extension (plugin, CLAP_EXT_STATE));
+        presets = static_cast<const clap_plugin_preset_load*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
+        screen = static_cast<const clap_plugin_melodee_screen*> (plugin->get_extension (plugin, CLAP_EXT_MELODEE_SCREEN));
+        if (activate)
+        {
+            CHECK (plugin->activate (plugin, rate, 1, maxFrames));
+            CHECK (plugin->start_processing (plugin));
+        }
+    }
+    ~Instance()
+    {
+        plugin->stop_processing (plugin);
+        plugin->deactivate (plugin);
+        plugin->destroy (plugin);
+    }
+    double value (uint32_t id)
+    {
+        double v = 0.0;
+        params->get_value (plugin, id, &v);
+        return v;
+    }
+    bool preset (const char* key) { return presets->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, key); }
+    void flush (std::vector<std::pair<uint32_t, double>> values)
+    {
+        Events e;
+        for (auto& [id, v] : values) e.param (0, id, v);
+        clap_output_events out { this, [] (const clap_output_events*, const clap_event_header*) { return true; } };
+        params->flush (plugin, &e.in, &out);
+    }
+
+    Stereo render (uint64_t frames, const std::vector<Cue>& cues = {}, uint32_t block = 128, bool playing = false, double bpm = 120.0)
+    {
+        Stereo s;
+        s.l.resize (frames), s.r.resize (frames);
+        statuses.clear();
+        clap_event_transport t {};
+        t.header = { sizeof (t), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_TRANSPORT, 0 };
+        clap_output_events out { this, [] (const clap_output_events* o, const clap_event_header* h) {
+                                     if (h->type == CLAP_EVENT_PARAM_VALUE)
+                                     {
+                                         const auto* v = reinterpret_cast<const clap_event_param_value*> (h);
+                                         static_cast<Instance*> (o->ctx)->told.push_back ({ v->param_id, v->value });
+                                     }
+                                     return true; } };
+        for (uint64_t at = 0; at < frames; at += block)
+        {
+            const uint32_t n = (uint32_t) std::min<uint64_t> (block, frames - at);
+            Events e;
+            for (const auto& c : cues)
+                if (c.frame >= at && c.frame < at + n)
+                {
+                    const uint32_t time = (uint32_t) (c.frame - at);
+                    switch (c.kind)
+                    {
+                        case Cue::param: e.param (time, c.a, c.b); break;
+                        case Cue::on: e.note (time, CLAP_EVENT_NOTE_ON, (int16_t) c.a, c.b); break;
+                        case Cue::off: e.note (time, CLAP_EVENT_NOTE_OFF, (int16_t) (int) c.a, 0.0); break;
+                        case Cue::choke: e.note (time, CLAP_EVENT_NOTE_CHOKE, (int16_t) (int) c.a, 0.0); break;
+                        case Cue::midi: e.midi (time, (uint8_t) c.a, (uint8_t) c.b, (uint8_t) c.c); break;
+                    }
+                }
+            e.sort();
+            float* ch[2] = { s.l.data() + at, s.r.data() + at };
+            clap_audio_buffer buffer { ch, nullptr, 2, 0, 0 };
+            t.flags = CLAP_TRANSPORT_HAS_TEMPO | CLAP_TRANSPORT_HAS_BEATS_TIMELINE | (playing ? CLAP_TRANSPORT_IS_PLAYING : 0);
+            t.tempo = bpm;
+            t.song_pos_beats = (clap_beattime) std::llround ((double) at / rate * bpm / 60.0 * (double) CLAP_BEATTIME_FACTOR);
+            clap_process p {};
+            p.frames_count = n;
+            p.audio_outputs = &buffer;
+            p.audio_outputs_count = 1;
+            p.in_events = &e.in;
+            p.out_events = &out;
+            p.transport = &t;
+            statuses.push_back (plugin->process (plugin, &p));
+        }
+        return s;
+    }
+};
+
+double rms (const std::vector<float>& x, size_t from = 0, size_t to = SIZE_MAX)
+{
+    to = std::min (to, x.size());
+    double s = 0.0;
+    for (size_t i = from; i < to; ++i) s += (double) x[i] * x[i];
+    return to > from ? std::sqrt (s / (double) (to - from)) : 0.0;
+}
+double peak (const Stereo& s, size_t from = 0, size_t to = SIZE_MAX)
+{
+    double p = 0.0;
+    to = std::min (to, s.l.size());
+    for (size_t i = from; i < to; ++i) p = std::max (p, (double) std::max (std::fabs (s.l[i]), std::fabs (s.r[i])));
+    return p;
+}
+bool finite (const Stereo& s)
+{
+    for (size_t i = 0; i < s.l.size(); ++i)
+        if (! std::isfinite (s.l[i]) || ! std::isfinite (s.r[i])) return false;
+    return true;
+}
+bool same (const Stereo& a, const Stereo& b)
+{
+    return a.l.size() == b.l.size() && std::memcmp (a.l.data(), b.l.data(), a.l.size() * 4) == 0 && std::memcmp (a.r.data(), b.r.data(), a.r.size() * 4) == 0;
+}
+
+// The strongest frequency between lo and hi Hz in x (a Hann-windowed FFT, interpolated between bins).
+double strongest (const std::vector<float>& x, size_t from, size_t n, double rate, double lo, double hi)
+{
+    size_t size = 1;
+    while (size < n) size <<= 1;
+    std::vector<std::complex<double>> a (size);
+    for (size_t i = 0; i < n && from + i < x.size(); ++i) a[i] = x[from + i] * (0.5 - 0.5 * std::cos (2.0 * M_PI * (double) i / (double) n));
+    for (size_t i = 1, j = 0; i < size; ++i)
+    {
+        size_t bit = size >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) std::swap (a[i], a[j]);
+    }
+    for (size_t len = 2; len <= size; len <<= 1)
+    {
+        const std::complex<double> step = std::polar (1.0, -2.0 * M_PI / (double) len);
+        for (size_t i = 0; i < size; i += len)
+        {
+            std::complex<double> w (1.0);
+            for (size_t k = 0; k < len / 2; ++k, w *= step)
+            {
+                const auto u = a[i + k], v = a[i + k + len / 2] * w;
+                a[i + k] = u + v, a[i + k + len / 2] = u - v;
+            }
+        }
+    }
+    const double bin = rate / (double) size;
+    size_t best = 1;
+    for (size_t k = (size_t) (lo / bin); k < std::min (size / 2 - 1, (size_t) (hi / bin)); ++k)
+        if (std::abs (a[k]) > std::abs (a[best])) best = k;
+    const double l = std::abs (a[best - 1]), c = std::abs (a[best]), r = std::abs (a[best + 1]);
+    const double off = 0.5 * (l - r) / (l - 2.0 * c + r);
+    return ((double) best + off) * bin;
+}
+
+// The dry sound: one oscillator, no unison, drift, motion, LFO or effects, the filter open (for pitch and voicing).
+std::vector<Cue> dry()
+{
+    using namespace ParamId;
+    std::vector<Cue> c;
+    for (auto [id, v] : std::vector<std::pair<uint32_t, double>> {
+             { osc1Wave, 11 }, { osc1Pos, 0 }, { osc1Unison, 1 }, { osc1Detune, 0 }, { osc2Level, 0 }, { air, 0 }, { drift, 0 },
+             { cutoff, 1 }, { filterEnv, 0 }, { keyTrack, 0 }, { velCutoff, 0 }, { lfoPitch, 0 }, { lfoCutoff, 0 }, { lfoWave, 0 },
+             { motionShape, 0 }, { ensMix, 0 }, { dlyMix, 0 }, { revMix, 0 }, { strum, 0 }, { humanize, 0 }, { ampAttack, 0 },
+             { ampSustain, 1 }, { width, 0 } })
+        c.push_back (P (0, id, v));
+    return c;
+}
+
+std::vector<Cue> operator+ (std::vector<Cue> a, const std::vector<Cue>& b)
+{
+    a.insert (a.end(), b.begin(), b.end());
+    return a;
+}
+
+// --- Tests -----------------------------------------------------------------------------------------------------------
+
+void testDescriptor()
+{
+    CHECK (factory->get_plugin_count (factory) == 1);
+    const auto* d = factory->get_plugin_descriptor (factory, 0);
+    CHECK (std::strcmp (d->id, "com.hdslave.reverie") == 0);
+    CHECK (std::strcmp (d->name, "hdslave Reverie") == 0);
+    bool instrument = false, stereo = false;
+    for (auto f = d->features; *f; ++f) instrument |= std::strcmp (*f, CLAP_PLUGIN_FEATURE_INSTRUMENT) == 0, stereo |= std::strcmp (*f, CLAP_PLUGIN_FEATURE_STEREO) == 0;
+    CHECK (instrument && stereo);
+    Instance inst;
+    const auto* audio = static_cast<const clap_plugin_audio_ports*> (inst.plugin->get_extension (inst.plugin, CLAP_EXT_AUDIO_PORTS));
+    const auto* notes = static_cast<const clap_plugin_note_ports*> (inst.plugin->get_extension (inst.plugin, CLAP_EXT_NOTE_PORTS));
+    CHECK (audio->count (inst.plugin, false) == 1 && audio->count (inst.plugin, true) == 0);
+    clap_audio_port_info ai {};
+    CHECK (audio->get (inst.plugin, 0, false, &ai) && ai.channel_count == 2);
+    clap_note_port_info ni {};
+    CHECK (notes->count (inst.plugin, true) == 1 && notes->get (inst.plugin, 0, true, &ni));
+    CHECK ((ni.supported_dialects & CLAP_NOTE_DIALECT_MIDI) && (ni.supported_dialects & CLAP_NOTE_DIALECT_CLAP));
+    CHECK (inst.screen != nullptr);
+}
+
+void testParams()
+{
+    Instance inst;
+    CHECK (inst.params->count (inst.plugin) == (uint32_t) paramCount);
+    std::set<clap_id> ids;
+    for (uint32_t i = 0; i < (uint32_t) paramCount; ++i)
+    {
+        clap_param_info info {};
+        CHECK (inst.params->get_info (inst.plugin, i, &info));
+        CHECK (info.id == i);                          // ids are the table's indices
+        CHECK (paramTable[i].id == i);
+        ids.insert (info.id);
+        CHECK (info.min_value < info.max_value);
+        CHECK (info.default_value >= info.min_value && info.default_value <= info.max_value);
+        CHECK (std::strlen (paramTable[i].label) <= 6);
+        CHECK_NEAR (inst.value (info.id), info.default_value, 0.0);
+        if (paramTable[i].kind == Kind::choice)
+            for (int c = 0; c <= (int) (paramTable[i].max - paramTable[i].min); ++c) CHECK (paramTable[i].choices[c] != nullptr && paramTable[i].choices[c][0]);
+        // text round trips (to the value as shown)
+        for (int s = 0; s <= 8; ++s)
+        {
+            const double v = paramTable[i].kind == Kind::continuous ? info.min_value + (info.max_value - info.min_value) * s / 8.0
+                                                                   : std::round (info.min_value + (info.max_value - info.min_value) * s / 8.0);
+            char text[64];
+            CHECK (inst.params->value_to_text (inst.plugin, info.id, v, text, sizeof (text)));
+            double back = 0.0;
+            CHECK (inst.params->text_to_value (inst.plugin, info.id, text, &back));
+            char again[64];
+            inst.params->value_to_text (inst.plugin, info.id, back, again, sizeof (again));
+            if (std::strcmp (text, again) != 0) std::printf ("  text %s: %s -> %g -> %s\n", info.name, text, back, again);
+            CHECK (std::strcmp (text, again) == 0);
+        }
+        double nope = 0.0;
+        CHECK (! inst.params->text_to_value (inst.plugin, info.id, "nan", &nope));
+    }
+    CHECK (ids.size() == (size_t) paramCount);
+    CHECK (! inst.params->get_info (inst.plugin, (uint32_t) paramCount, nullptr) || true);
+    double v = 0.0;
+    CHECK (! inst.params->get_value (inst.plugin, 9999, &v));
+    // a flush while active sets values (and is told)
+    inst.flush ({ { ParamId::cutoff, 0.3 }, { ParamId::progression, 7 } });
+    CHECK_NEAR (inst.value (ParamId::cutoff), 0.3, 1e-6);
+    CHECK_NEAR (inst.value (ParamId::progression), 7, 0);
+    // out of range and non-finite values are clamped, steps rounded
+    inst.flush ({ { ParamId::resonance, 7.0 }, { ParamId::osc1Unison, 2.6 }, { ParamId::volume, NAN } });
+    CHECK_NEAR (inst.value (ParamId::resonance), 1.0, 0);
+    CHECK_NEAR (inst.value (ParamId::osc1Unison), 3.0, 0);
+    CHECK_NEAR (inst.value (ParamId::volume), paramTable[ParamId::volume].def, 1e-6);
+}
+
+void testProgressions()
+{
+    for (int p = 0; p < progressionCount; ++p)
+    {
+        CHECK (parsedProgressions()[p].ok);
+        if (! parsedProgressions()[p].ok) std::printf ("  progression %s does not parse\n", progressionTable[p].name);
+        CHECK (std::strlen (progressionTable[p].name) <= 18);
+    }
+    // names: no doubled accidentals or the odd ones in any key
+    for (int p = 0; p < progressionCount; ++p)
+        for (int k = 0; k < 12; ++k)
+            for (int c = 0; c < chordsPerProgression; ++c)
+            {
+                char root[16];
+                chordRootText (parsedProgressions()[p].chords[c], k, progressionTable[p].minor, root, sizeof (root));
+                CHECK (std::strstr (root, "bb") == nullptr && std::strstr (root, "##") == nullptr);
+                CHECK (std::strstr (root, "Cb") == nullptr && std::strstr (root, "Fb") == nullptr && std::strstr (root, "E#") == nullptr && std::strstr (root, "B#") == nullptr);
+                CHECK (std::strlen (root) <= 6);
+            }
+    // a few spellings
+    char s[24];
+    chordText (parsedProgressions()[0].chords[0], 0, false, s, sizeof (s));
+    CHECK (std::strcmp (s, "Fmaj9") == 0);
+    chordText (parsedProgressions()[0].chords[0], 3, false, s, sizeof (s));
+    CHECK (std::strcmp (s, "Abmaj9") == 0);
+    chordText (parsedProgressions()[2].chords[1], 7, false, s, sizeof (s)); // F#dim7 in G: C#dim7
+    CHECK (std::strcmp (s, "C#dim7") == 0);
+    chordText (parsedProgressions()[2].chords[2], 0, false, s, sizeof (s));
+    CHECK (std::strcmp (s, "Cmaj9/G") == 0);
+    // every voicing of every progression in every key is a sound chord
+    int chords = 0, flat9 = 0;
+    for (int p = 0; p < progressionCount; ++p)
+        for (int v = 0; v < Voicing::count; ++v)
+            for (int k = 0; k < 12; ++k)
+            {
+                VoicingSet set;
+                voiceProgression (p, v, k, set);
+                for (int slot = 0; slot < padSlots; ++slot)
+                {
+                    const ChordNotes& c = set.slot[slot];
+                    const ChordSymbol& sym = parsedProgressions()[p].chords[slot % 8];
+                    ++chords;
+                    CHECK (c.count >= 3 && c.count <= maxChordNotes);
+                    CHECK (c.hasBass == (v != Voicing::rootless));
+                    for (int i = 0; i + 1 < c.count; ++i) CHECK (c.note[i] < c.note[i + 1]);
+                    for (int i = 0; i < c.count; ++i) CHECK (c.note[i] >= 30 && c.note[i] <= 100);
+                    if (c.hasBass)
+                    {
+                        const int bass = ((sym.bassPc >= 0 ? sym.bassPc : sym.rootPc) + k) % 12;
+                        CHECK (c.note[0] % 12 == bass);
+                        CHECK (c.note[0] >= 34 && c.note[0] <= 45);
+                        CHECK (c.note[1] - c.note[0] >= 3);
+                    }
+                    // every tone is the chord's
+                    const Quality& q = qualities[sym.quality];
+                    for (int i = c.hasBass ? 1 : 0; i < c.count; ++i)
+                    {
+                        const int rel = ((c.note[i] - sym.rootPc - k) % 12 + 12) % 12;
+                        bool in = false;
+                        for (int t = 0; t < q.count; ++t) in |= rel == q.tones[t];
+                        if (sym.bassPc >= 0) in |= rel == 0;
+                        CHECK (in);
+                    }
+                    // the third (or the sus) is there
+                    bool third = false;
+                    for (int i = c.hasBass ? 1 : 0; i < c.count; ++i)
+                    {
+                        const int rel = ((c.note[i] - sym.rootPc - k) % 12 + 12) % 12;
+                        third |= rel == q.tones[0];
+                    }
+                    if (! (sym.bassPc >= 0 && (sym.bassPc - sym.rootPc + 12) % 12 == q.tones[0])) CHECK (third);
+                    // minor ninths only where the chord has them
+                    for (int i = c.hasBass ? 1 : 0; i < c.count; ++i)
+                        for (int j = i + 1; j < c.count; ++j)
+                            if ((c.note[j] - c.note[i]) > 12 && (c.note[j] - c.note[i]) % 12 == 1)
+                            {
+                                ++flat9;
+                                CHECK (q.flat9);
+                            }
+                }
+            }
+    std::printf ("  %d chords voiced, %d minor ninths (all in b9 chords)\n", chords, flat9);
+    // the pads and the banks
+    CHECK (padOf (36).slot == 0 && padOf (36).shift == 0);
+    CHECK (padOf (51).slot == 15 && padOf (51).shift == 0);
+    CHECK (padOf (52).slot == 0 && padOf (52).shift == 12);
+    CHECK (padOf (35).slot == 15 && padOf (35).shift == -12);
+    CHECK (padOf (127).shift == 24 && padOf (0).shift == -24);
+    // a progression voices quickly (it is done on the audio thread when one is picked)
+    const auto t0 = std::chrono::steady_clock::now();
+    VoicingSet set;
+    for (int i = 0; i < 20; ++i) voiceProgression (i % progressionCount, Voicing::open, i % 12, set);
+    const double ms = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - t0).count() / 20.0;
+    std::printf ("  an Open progression voices in %.3f ms here\n", ms);
+    CHECK (ms < 2.0);
+}
+
+void testPadMap (const char* path)
+{
+    std::ifstream f (path, std::ios::binary);
+    const std::string bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char>());
+    const size_t at = bytes.find ("{\"pad_layout\":\"drums\"");
+    CHECK (at != std::string::npos);
+    if (at == std::string::npos) return;
+    const std::string json = bytes.substr (at, bytes.find ('\0', at) - at);
+    int found = 0;
+    for (int k = 36; k <= 51; ++k)
+        found += json.find ("\"note\":" + std::to_string (k) + "}") != std::string::npos;
+    CHECK (found == 16);
+    CHECK (json.find ("Chord 1") != std::string::npos && json.find ("Lift 8") != std::string::npos);
+}
+
+void testState()
+{
+    std::vector<uint8_t> saved;
+    {
+        Instance a;
+        a.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
+        clap_ostream out { &saved, [] (const clap_ostream* s, const void* d, uint64_t n) -> int64_t {
+                              auto* v = static_cast<std::vector<uint8_t>*> (s->ctx);
+                              v->insert (v->end(), (const uint8_t*) d, (const uint8_t*) d + n);
+                              return (int64_t) n; } };
+        CHECK (a.state->save (a.plugin, &out));
+    }
+    CHECK (saved.size() == 12 + 8 * (size_t) paramCount);
+    struct Reader { const std::vector<uint8_t>* v; size_t at; };
+    auto load = [] (Instance& b, const std::vector<uint8_t>& bytes) {
+        Reader r { &bytes, 0 };
+        clap_istream in { &r, [] (const clap_istream* s, void* d, uint64_t n) -> int64_t {
+                             auto* rd = static_cast<Reader*> (s->ctx);
+                             const uint64_t left = rd->v->size() - rd->at, take = std::min (left, n);
+                             std::memcpy (d, rd->v->data() + rd->at, take);
+                             rd->at += take;
+                             return (int64_t) take; } };
+        return b.state->load (b.plugin, &in);
+    };
+    {
+        Instance b;
+        CHECK (load (b, saved));
+        CHECK_NEAR (b.value (ParamId::progression), 12, 0);
+        CHECK_NEAR (b.value (ParamId::key), 5, 0);
+        CHECK_NEAR (b.value (ParamId::cutoff), 0.42, 1e-6);
+        CHECK_NEAR (b.value (ParamId::osc2Wave), 9, 0);
+        CHECK_NEAR (b.value (ParamId::latch), 1, 0);
+    }
+    {   // unknown ids skipped, missing ones default; a wrong tag refused
+        std::vector<uint8_t> odd = { 'R', 'V', 'R', 'E', 1, 0, 0, 0, 2, 0, 0, 0 };
+        auto pair = [&] (uint32_t id, float v) { const uint8_t* a = (const uint8_t*) &id; const uint8_t* b = (const uint8_t*) &v; odd.insert (odd.end(), a, a + 4); odd.insert (odd.end(), b, b + 4); };
+        pair (5000, 1.0f), pair (ParamId::key, 9.0f);
+        Instance b;
+        CHECK (load (b, odd));
+        CHECK_NEAR (b.value (ParamId::key), 9, 0);
+        CHECK_NEAR (b.value (ParamId::cutoff), paramTable[ParamId::cutoff].def, 1e-6);
+        std::vector<uint8_t> bad = saved;
+        bad[0] = 'X';
+        CHECK (! load (b, bad));
+    }
+    {   // loaded while inactive, it plays as loaded
+        Instance b (48000.0, 4096, false);
+        CHECK (load (b, saved));
+        CHECK (b.plugin->activate (b.plugin, 48000.0, 1, 4096) && b.plugin->start_processing (b.plugin));
+        CHECK_NEAR (b.value (ParamId::progression), 12, 0);
+        const Stereo s = b.render (24000, { On (0, 36) });
+        CHECK (rms (s.l) > 1e-3);
+    }
+}
+
+void testPresets()
+{
+    Instance inst;
+    // the chord section stays as it is through every sound
+    inst.flush ({ { ParamId::progression, 9 }, { ParamId::key, 3 }, { ParamId::voicing, 2 }, { ParamId::latch, 1 }, { ParamId::strum, 0.6 },
+                  { ParamId::bass, 0.3 }, { ParamId::octave, -1 } });
+    std::set<std::string> keys, names;
+    for (const auto& p : presetTable)
+    {
+        keys.insert (p.key), names.insert (p.name);
+        const int before = presetsLoaded;
+        CHECK (inst.preset (p.key));
+        CHECK (presetsLoaded == before + 1);
+        CHECK_NEAR (inst.value (ParamId::progression), 9, 0);
+        CHECK_NEAR (inst.value (ParamId::key), 3, 0);
+        CHECK_NEAR (inst.value (ParamId::voicing), 2, 0);
+        CHECK_NEAR (inst.value (ParamId::latch), 1, 0);
+        CHECK_NEAR (inst.value (ParamId::strum), 0.6, 1e-6);
+        CHECK_NEAR (inst.value (ParamId::bass), 0.3, 1e-6);
+        CHECK_NEAR (inst.value (ParamId::octave), -1, 0);
+        for (int i = 0; i < p.count; ++i)
+        {
+            CHECK (p.values[i].id >= ParamId::chordSection && p.values[i].id < (uint32_t) paramCount);
+            const Param& q = paramTable[p.values[i].id];
+            CHECK (p.values[i].value >= q.min && p.values[i].value <= q.max);
+            CHECK_NEAR (inst.value (p.values[i].id), clampParam (q, p.values[i].value), 1e-6);
+        }
+    }
+    CHECK (keys.size() == (size_t) presetCount && names.size() == (size_t) presetCount);
+    const int errors = presetErrors;
+    CHECK (! inst.preset ("no-such-sound"));
+    CHECK (presetErrors == errors + 1);
+    // preset discovery lists every sound
+    const auto* pf = static_cast<const clap_preset_discovery_factory*> (entry->get_factory (CLAP_PRESET_DISCOVERY_FACTORY_ID));
+    CHECK (pf != nullptr && pf->count (pf) == 1);
+    struct Indexer { int locations = 0; } ix;
+    clap_preset_discovery_indexer indexer { CLAP_VERSION, "test", "", "", "", &ix,
+                                            [] (const clap_preset_discovery_indexer*, const clap_preset_discovery_filetype*) { return true; },
+                                            [] (const clap_preset_discovery_indexer* i, const clap_preset_discovery_location*) { ++static_cast<Indexer*> (i->indexer_data)->locations; return true; },
+                                            [] (const clap_preset_discovery_indexer*, const clap_preset_discovery_soundpack*) { return true; },
+                                            [] (const clap_preset_discovery_indexer*, const char*) -> const void* { return nullptr; } };
+    const auto* provider = pf->create (pf, &indexer, pf->get_descriptor (pf, 0)->id);
+    CHECK (provider != nullptr && provider->init (provider) && ix.locations == 1);
+    struct Got { std::vector<std::string> keys; } got;
+    clap_preset_discovery_metadata_receiver r {};
+    r.receiver_data = &got;
+    r.on_error = [] (const clap_preset_discovery_metadata_receiver*, int32_t, const char*) {};
+    r.begin_preset = [] (const clap_preset_discovery_metadata_receiver* m, const char*, const char* key) { static_cast<Got*> (m->receiver_data)->keys.push_back (key); return true; };
+    r.add_plugin_id = [] (const clap_preset_discovery_metadata_receiver*, const clap_universal_plugin_id*) {};
+    r.set_soundpack_id = [] (const clap_preset_discovery_metadata_receiver*, const char*) {};
+    r.set_flags = [] (const clap_preset_discovery_metadata_receiver*, uint32_t) {};
+    r.add_creator = [] (const clap_preset_discovery_metadata_receiver*, const char*) {};
+    r.set_description = [] (const clap_preset_discovery_metadata_receiver*, const char*) {};
+    r.set_timestamps = [] (const clap_preset_discovery_metadata_receiver*, clap_timestamp, clap_timestamp) {};
+    r.add_feature = [] (const clap_preset_discovery_metadata_receiver*, const char*) {};
+    r.add_extra_info = [] (const clap_preset_discovery_metadata_receiver*, const char*, const char*) {};
+    CHECK (provider->get_metadata (provider, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &r));
+    CHECK (got.keys.size() == (size_t) presetCount);
+    provider->destroy (provider);
+    // every sound plays, bounded, and none is far louder than the rest
+    for (const auto& p : presetTable)
+    {
+        Instance a;
+        CHECK (a.preset (p.key));
+        const Stereo s = a.render (5 * 48000, { On (0, 36, 0.8), Off (48000 * 2, 36), On (48000 * 2, 37, 0.8), Off (48000 * 4, 37) });
+        const double level = 20.0 * std::log10 (std::max (rms (s.l), 1e-9));
+        CHECK (finite (s));
+        CHECK (peak (s) <= 1.0);
+        if (level < -30.0 || level > -12.0) std::printf ("  %s plays at %.1f dBFS RMS\n", p.key, level);
+        CHECK (level > -30.0 && level < -12.0);
+        if (std::string (p.key) == "reverie") writeWav ((outDir + "/demo-reverie.wav").c_str(), s.l, s.r, 48000);
+    }
+}
+
+// The engine itself, for what only it can tell (which voices sound, at which pitch).
+struct Bench
+{
+    Telemetry tel;
+    Engine e { &tel };
+    std::vector<float> l, r;
+    explicit Bench (double rate = 48000.0)
+    {
+        for (int i = 0; i < paramCount; ++i) e.set ((uint32_t) i, paramTable[i].def);
+        e.prepare (rate);
+    }
+    void run (int frames)
+    {
+        l.resize ((size_t) frames), r.resize ((size_t) frames);
+        e.render (l.data(), r.data(), (uint32_t) frames);
+    }
+    int voices() const { return __builtin_popcount (tel.sounding.load()); }
+    std::vector<int> notes() const
+    {
+        std::vector<int> n;
+        for (int i = 0; i < maxVoices; ++i)
+            if ((tel.sounding.load() >> i) & 1u) n.push_back (tel.notes[i].load());
+        std::sort (n.begin(), n.end());
+        return n;
+    }
+};
+
+void testNotes()
+{
+    {   // a pad plays its chord: the voicing's notes, the bass among them
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        const ChordNotes& c = b.e.voicings().slot[0];
+        std::vector<int> want (c.note, c.note + c.count);
+        CHECK (b.notes() == want);
+        CHECK (b.tel.lastSlot.load() == 0);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        // the pad up: they let go and end
+        b.e.noteOff (36);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+        b.run (48000 * 6);
+        CHECK (b.voices() == 0);
+    }
+    {   // bank B: the same chord an octave up; Octave moves the whole chord
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f);
+        b.e.noteOn (52, 0.8f);
+        b.run (240);
+        const ChordNotes& c = b.e.voicings().slot[0];
+        std::vector<int> want;
+        for (int i = 0; i < c.count; ++i) want.push_back (c.note[i] + 12);
+        CHECK (b.notes() == want);
+        Bench d;
+        d.e.set (ParamId::strum, 0.0f), d.e.set (ParamId::octave, -1.0f);
+        d.e.noteOn (36, 0.8f);
+        d.run (240);
+        std::vector<int> down;
+        for (int i = 0; i < c.count; ++i) down.push_back (c.note[i] - 12);
+        CHECK (d.notes() == down);
+    }
+    {   // Bass at 0: no bass voice; Rootless: none either
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::bass, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (240);
+        CHECK (b.voices() == b.e.voicings().slot[0].count - 1);
+        Bench d;
+        d.e.set (ParamId::strum, 0.0f), d.e.set (ParamId::voicing, (float) Voicing::rootless);
+        d.e.noteOn (36, 0.8f);
+        d.run (240);
+        CHECK (d.voices() == d.e.voicings().slot[0].count && ! d.e.voicings().slot[0].hasBass);
+    }
+    {   // Strum: the notes enter one after another, bottom up, at its spacing
+        Bench b;
+        b.e.set (ParamId::strum, strumKnob (40.0f)), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (48 * 10);
+        CHECK (b.voices() == 1);
+        b.run (48 * 40);
+        CHECK (b.voices() == 2);
+        b.run (48 * 200);
+        CHECK (b.voices() == b.e.voicings().slot[0].count);
+    }
+    {   // A pad let go before its strum is through: the late notes still play their turn, as long as the pad was
+        // held, and every note ends
+        Bench b;
+        b.e.set (ParamId::strum, strumKnob (60.0f)), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::ampRelease, envKnob (100.0f));
+        b.e.noteOn (36, 0.8f);
+        b.run (48 * 30);
+        b.e.noteOff (36);
+        CHECK (b.voices() == 1);
+        b.run (48 * 200);
+        CHECK (b.voices() >= 2); // the later notes came in
+        b.run (48000 * 3);
+        CHECK (b.voices() == 0);
+        // and a choke or All Notes Off before their turn: they never start
+        Bench c;
+        c.e.set (ParamId::strum, strumKnob (60.0f));
+        c.e.noteOn (36, 0.8f);
+        c.run (48 * 30);
+        c.e.allNotesOff();
+        c.run (48 * 400);
+        CHECK (c.voices() <= 1);
+        c.run (48000 * 6);
+        CHECK (c.voices() == 0);
+    }
+    {   // Melodee: a key struck again while held (on, on, off): one chord sounding, the first letting go
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f);
+        b.e.noteOn (37, 0.8f);
+        b.run (4800);
+        const int n = b.voices();
+        b.e.noteOn (37, 0.8f);
+        b.run (480);
+        CHECK (b.voices() == 2 * n); // the first chord's release and the new strike
+        CHECK (__builtin_popcount (b.tel.padsHeld.load()) == 1);
+        b.e.noteOff (37);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
+    {   // Two strikes of one pad on one sample play the louder once, exactly
+        Instance a, c;
+        const Stereo twice = a.render (24000, { On (0, 38, 0.5), On (0, 38, 0.9) });
+        const Stereo once = c.render (24000, { On (0, 38, 0.9) });
+        CHECK (same (twice, once));
+        Instance d, e2;
+        const Stereo softer = d.render (24000, { On (0, 38, 0.9), On (0, 38, 0.4) });
+        CHECK (same (softer, e2.render (24000, { On (0, 38, 0.9) })));
+    }
+    {   // Latch: the chord rings on with the pad up, and gives way to the next
+        Bench b;
+        b.e.set (ParamId::latch, 1.0f), b.e.set (ParamId::strum, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        b.e.noteOff (36);
+        b.run (48000 * 2);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        b.e.noteOn (39, 0.8f);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == (1u << 3));
+        b.e.noteOff (39);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == (1u << 3));
+        // Latch off: the latched chord lets go
+        b.e.set (ParamId::latch, 0.0f);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+        // CC 123: latched or not, every chord lets go
+        b.e.set (ParamId::latch, 1.0f);
+        b.run (16);
+        b.e.noteOn (40, 0.8f);
+        b.run (480);
+        b.e.controller (123, 0);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
+    {   // Sustain: held past the pad until the pedal lifts
+        Bench b;
+        b.e.controller (64, 127);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        b.e.noteOff (36);
+        b.run (4800);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        b.e.controller (64, 0);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
+    {   // Chord Glide: a chord struck while one is held takes its voices, which slide to the new notes
+        Bench b;
+        b.e.set (ParamId::glide, glideKnob (400.0f)), b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (4800);
+        const int n = b.voices();
+        b.e.noteOn (37, 0.8f);
+        b.run (480);
+        const ChordNotes& c2 = b.e.voicings().slot[1];
+        CHECK (b.voices() <= std::max (n, (int) c2.count) + std::max (0, n - (int) c2.count)); // no new strike of the shared notes
+        b.run (48000);
+        std::vector<int> held;
+        for (int i = 0; i < maxVoices; ++i)
+            if (((b.tel.sounding.load() >> i) & 1u)) held.push_back (b.tel.notes[i].load());
+        std::sort (held.begin(), held.end());
+        std::vector<int> want (c2.note, c2.note + c2.count);
+        for (int w : want) CHECK (std::find (held.begin(), held.end(), w) != held.end());
+        b.e.noteOff (36); // the first pad no longer holds anything
+        b.run (480);
+        CHECK ((b.tel.padsHeld.load() & 2u) != 0);
+    }
+    {   // A choke stops its key's voices within a few milliseconds (the tails ring on); All Sound Off (CC 120 at 0)
+        // stops everything, tails too; CC 120 and 123 at another value do nothing
+        Bench k;
+        k.e.noteOn (36, 0.8f), k.e.noteOn (40, 0.8f);
+        k.run (24000);
+        const int both = k.voices();
+        k.e.choke (36);
+        k.run (480);
+        CHECK (k.voices() < both && k.voices() > 0);
+        CHECK ((k.tel.padsHeld.load() & 1u) == 0 && (k.tel.padsHeld.load() & 16u) != 0);
+        Instance a;
+        const Stereo s = a.render (48000, { On (0, 36), Choke (24000, 36), Midi (24000, 0xb0, 120, 0) });
+        CHECK (peak (s, 24000 + 960, 48000) < 0.02);
+        Instance c;
+        const Stereo t = c.render (48000, { On (0, 36), Midi (24000, 0xb0, 120, 0) });
+        CHECK (peak (t, 24000 + 960, 48000) < 0.02);
+        Instance d;
+        const Stereo u = d.render (48000, { On (0, 36), Midi (24000, 0xb0, 120, 64), Midi (24000, 0xb0, 123, 64) });
+        CHECK (rms (u.l, 30000, 48000) > 0.01);
+        Instance e2;
+        const Stereo w = e2.render (48000, { On (0, 36), Midi (0, 0xb0, 123, 0) });
+        CHECK (rms (w.l, 0, 48000) < rms (u.l, 0, 48000));
+    }
+    {   // a MIDI note plays as a CLAP one
+        Instance a, c;
+        CHECK (same (a.render (12000, { Midi (0, 0x90, 40, 100) }), c.render (12000, { On (0, 40, 100.0 / 127.0) })));
+    }
+    {   // velocity: softer is quieter
+        Instance a, c;
+        const double loud = rms (a.render (24000, { On (0, 36, 1.0) }).l), soft = rms (c.render (24000, { On (0, 36, 0.3) }).l);
+        CHECK (soft < loud * 0.8);
+    }
+    {   // every voice taken: the oldest letting go give way, nothing breaks
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::voicing, (float) Voicing::open);
+        for (int k = 0; k < 16; ++k) { b.e.noteOn (36 + k, 0.8f); b.run (240); }
+        CHECK (b.voices() <= maxVoices);
+        CHECK (b.voices() >= 20);
+        for (float x : b.l) CHECK (std::isfinite (x));
+    }
+}
+
+void testTiming()
+{
+    // the same output whatever the block size
+    const std::vector<Cue> scene = { P (0, ParamId::motionShape, Motion::star), P (0, ParamId::strum, 0.4), On (100, 36), On (7777, 44, 0.6),
+                                     P (9000, ParamId::cutoff, 0.4), Off (30000, 36), On (30001, 37), P (31000, ParamId::glide, 0.4), On (40000, 38),
+                                     Midi (45000, 0xb0, 1, 90), Off (50000, 44), Off (60000, 37), Off (61000, 38) };
+    Instance a;
+    const Stereo ref = a.render (96000, scene, 128);
+    CHECK (rms (ref.l) > 1e-3);
+    for (uint32_t block : { 1u, 37u, 4096u })
+    {
+        Instance b;
+        const bool ok = same (ref, b.render (96000, scene, block));
+        if (! ok) std::printf ("  blocks of %u differ from blocks of 128\n", block);
+        CHECK (ok);
+    }
+    // an event lands on its own sample: a note at frame 1000 is silent before it
+    Instance c;
+    const Stereo s = c.render (4000, { P (0, ParamId::ampAttack, 0), P (0, ParamId::strum, 0), On (1000, 36) });
+    CHECK (peak (s, 0, 1000) == 0.0);
+    CHECK (peak (s, 1000, 1200) > 0.0);
+}
+
+void testTuning()
+{
+    // the bass of Velvet Night's first chord (F2) in tune at several rates
+    for (double rate : { 44100.0, 48000.0, 96000.0 })
+    {
+        Instance a (rate);
+        const Stereo s = a.render ((uint64_t) (rate * 1.5), dry() + std::vector<Cue> { On (0, 36, 1.0) });
+        const ChordNotes& c = [] () -> const ChordNotes& { static VoicingSet v; voiceProgression (0, 0, 0, v); return v.slot[0]; }();
+        const double want = 440.0 * std::pow (2.0, (c.note[0] - 69) / 12.0);
+        const double got = strongest (s.l, (size_t) (rate * 0.5), (size_t) (rate * 0.9), rate, want * 0.8, want * 1.2);
+        CHECK_NEAR (1200.0 * std::log2 (got / want), 0.0, 1.0);
+        CHECK (finite (s));
+    }
+    // the Key moves the bass
+    Instance b;
+    const Stereo s = b.render (72000, dry() + std::vector<Cue> { P (0, ParamId::key, 2), On (0, 36, 1.0) });
+    VoicingSet v;
+    voiceProgression (0, 0, 2, v);
+    const double want = 440.0 * std::pow (2.0, (v.slot[0].note[0] - 69) / 12.0);
+    const double got = strongest (s.l, 24000, 43200, 48000.0, want * 0.8, want * 1.2);
+    CHECK_NEAR (1200.0 * std::log2 (got / want), 0.0, 1.0);
+}
+
+void testExtremes()
+{
+    using namespace ParamId;
+    // every knob at an end: bounded and finite
+    for (int end = 0; end < 2; ++end)
+    {
+        Instance a;
+        std::vector<Cue> cues;
+        for (int i = (int) chordSection; i < paramCount; ++i) cues.push_back (P (0, (uint32_t) i, end ? paramTable[i].max : paramTable[i].min));
+        cues.push_back (P (0, volume, 2.0));
+        for (int k = 0; k < 8; ++k) cues.push_back (On (100 + 4800 * k, 36 + 2 * k, 1.0));
+        const Stereo s = a.render (48000 * 3, cues);
+        CHECK (finite (s));
+        CHECK (peak (s) <= 1.0);
+    }
+    // the loudest sound we can make stays under 0 dBFS
+    Instance b;
+    const Stereo s = b.render (48000 * 2, { P (0, volume, 2.0), P (0, osc1Unison, 4), P (0, osc2Unison, 4), P (0, resonance, 1.0), P (0, voicing, Voicing::open),
+                                            On (0, 44, 1.0), On (0, 45, 1.0), On (0, 46, 1.0) });
+    CHECK (finite (s) && peak (s) <= 1.0);
+    // pitch bend and a sweep of every motion path
+    for (int shape = 0; shape < Motion::count; ++shape)
+    {
+        Instance c;
+        const Stereo t = c.render (24000, { P (0, motionShape, shape), P (0, motionDepth, 1), P (0, motionRate, 1), On (0, 36), Midi (1000, 0xe0, 0, 127) });
+        CHECK (finite (t) && peak (t) <= 1.0);
+    }
+}
+
+void testSleep()
+{
+    Instance a;
+    // silent from the start: asleep at once
+    a.render (1280);
+    CHECK (a.statuses.back() == CLAP_PROCESS_SLEEP);
+    // a chord: awake while it and its tails sound, asleep after
+    const Stereo s = a.render (48000 * 20, { P (0, ParamId::revDecay, 0.3), On (0, 36), Off (48000, 36) });
+    CHECK (a.statuses[100] == CLAP_PROCESS_CONTINUE);
+    CHECK (a.statuses.back() == CLAP_PROCESS_SLEEP);
+    CHECK (peak (s, 48000 * 19, 48000 * 20) == 0.0);
+    // and wakes for the next
+    const Stereo t = a.render (24000, { On (0, 37) });
+    CHECK (rms (t.l) > 1e-3);
+}
+
+void testScreen()
+{
+    Instance inst;
+    CHECK (inst.screen != nullptr);
+    std::vector<uint32_t> px (320 * 218, 0);
+    melodee_screen_canvas_t c {};
+    c.pixels = px.data(), c.width = 320, c.height = 218, c.stride = 320, c.whole = true, c.accent = 0xff8a5cff;
+    for (auto& k : c.knobs) k.position = -1, k.engaged = true;
+    CHECK (inst.screen->paint (inst.plugin, &c));
+    c.whole = false;
+    CHECK (! inst.screen->paint (inst.plugin, &c)); // nothing changed
+    // K1-K3 on the CHORDS page: Progression, Voicing, Key
+    clap_id ids[3];
+    inst.screen->knobs (inst.plugin, ids);
+    CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
+    // a chord sounding, then each page drawn
+    inst.render (24000, { On (0, 36), On (0, 44) });
+    static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
+    for (int p = 0; p < 6; ++p)
+    {
+        c.now_ms += 100;
+        c.whole = true;
+        CHECK (inst.screen->paint (inst.plugin, &c));
+        writePng ((outDir + "/screen-" + names[p] + ".png").c_str(), px.data(), 320, 218, 320, 2);
+        if (p == 1)
+        {
+            inst.screen->knobs (inst.plugin, ids);
+            CHECK (ids[0] == ParamId::motionX && ids[1] == ParamId::motionY && ids[2] == ParamId::motionDepth);
+        }
+        melodee_screen_input_t next { MELODEE_SCREEN_NUDGE, 1, false };
+        CHECK (inst.screen->input (inst.plugin, &next));
+        inst.render (128);
+    }
+    // back on CHORDS: the wheel moves to KEY, Push edits it, the wheel turns it, and the host hears of it
+    melodee_screen_input_t wheel { MELODEE_SCREEN_WHEEL, 1, false }, push { MELODEE_SCREEN_PUSH, 0, false };
+    CHECK (inst.screen->input (inst.plugin, &wheel));
+    CHECK (inst.screen->input (inst.plugin, &wheel));
+    CHECK (inst.screen->input (inst.plugin, &push));
+    const int before = rescans;
+    CHECK (inst.screen->input (inst.plugin, &wheel));
+    CHECK_NEAR (inst.value (ParamId::key), 1, 0);
+    CHECK (rescans > before);
+    inst.told.clear();
+    inst.render (128);
+    bool told = false;
+    for (auto& [id, v] : inst.told) told |= id == ParamId::key && v == 1.0;
+    CHECK (told);
+    CHECK (inst.screen->input (inst.plugin, &push)); // done
+    // Push on a switch (LATCH) flips it
+    for (int i = 0; i < 6; ++i) inst.screen->input (inst.plugin, &wheel);
+    inst.screen->knobs (inst.plugin, ids);
+    CHECK (ids[0] == ParamId::latch);
+    CHECK (inst.screen->input (inst.plugin, &push));
+    CHECK_NEAR (inst.value (ParamId::latch), 1, 0);
+    // Shift draws the legend
+    c.shift = true;
+    c.now_ms += 100;
+    CHECK (inst.screen->paint (inst.plugin, &c));
+    writePng ((outDir + "/screen-legend.png").c_str(), px.data(), 320, 218, 320, 2);
+    // a bad canvas is refused
+    melodee_screen_canvas_t bad = c;
+    bad.width = 100;
+    CHECK (! inst.screen->paint (inst.plugin, &bad));
+}
+} // namespace
+
+int main (int argc, char** argv)
+{
+    if (argc < 3) { std::printf ("host PLUGIN.clap OUT_FOLDER\n"); return 2; }
+    outDir = argv[2];
+    void* lib = dlopen (argv[1], RTLD_NOW | RTLD_LOCAL);
+    if (lib == nullptr) { std::printf ("%s\n", dlerror()); return 1; }
+    entry = static_cast<const clap_plugin_entry*> (dlsym (lib, "clap_entry"));
+    CHECK (entry != nullptr && entry->init (argv[1]));
+    factory = static_cast<const clap_plugin_factory*> (entry->get_factory (CLAP_PLUGIN_FACTORY_ID));
+    CHECK (factory != nullptr);
+    testDescriptor();
+    testParams();
+    testProgressions();
+    testPadMap (argv[1]);
+    testState();
+    testPresets();
+    testNotes();
+    testTiming();
+    testTuning();
+    testExtremes();
+    testSleep();
+    testScreen();
+    entry->deinit();
+    std::printf ("%d checks, %d failures\n", checks, failures);
+    return failures == 0 ? 0 : 1;
+}

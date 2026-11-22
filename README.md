@@ -1,0 +1,247 @@
+# hdslave Reverie
+
+A pad and chord synthesizer as a CLAP plug-in for the Akai MPC Sample (Melodee and hdslaveOS). The MPC's pads play
+chords from progressions written to show pads off: jazzy, soulful, R&B and neo-soul changes, voiced the way a
+keyboard player would voice them and voice-led from chord to chord. The sound is built for huge, slow, shimmering
+pads: two morphing wavetable oscillators with unison and drift, and Motion, an X / Y path that moves the sound.
+Ensemble, a tempo delay and a big modulated reverb with shimmer finish it.
+
+The idea comes from Korg's M3 workstation: its X / Y MOTION pad (a recorded path that animates a sound), its
+two-oscillator programs, and its pads that play chords. Reverie is its own design, not a model of the M3. Korg and
+M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
+
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.1.0). Not yet run on the MPC itself.
+
+## Install
+
+Copy the folder `hdslave Reverie` (the `.clap`, this README and `licenses/`) to `Melodee/Plugins/` on the card. Pick
+it on a PLUGIN track (SYNTH on Stage). Reverie tells Melodee to play the track's pads as a kit (as drum plug-ins
+do): pad A01 is note 36, A16 note 51, whatever the key or the octave, and the Keys page names them Chord 1-8 and
+Lift 1-8. Its page needs hdslaveOS; in stock Melodee you get the list of its parameters instead.
+
+## The pads
+
+![The CHORDS page in hdslaveOS, pad 6 just struck](docs/reverie-chords.png)
+
+| Pads | What they play |
+|---|---|
+| A01-A08 (the bottom two rows) | the progression's eight chords, in order |
+| A09-A16 (the top two rows) | the same eight chords **lifted**: one colour tone more and voiced higher, each above its own chord |
+| bank B (notes 52-67) | the sixteen again, an octave up; bank C two octaves up; the notes below 36 an octave down per bank |
+
+A chord sounds while its pad is held. A pad struck again while it still holds its chord (Melodee sends on, on, off
+when a step repeats) starts the chord fresh and lets the old one ring out. Two strikes of one pad on the same sample
+play once, at the louder velocity.
+
+### The chord section
+
+These ten controls belong to the chords, not the sound. **Loading a sound never changes them**, so the progression
+and the sound are picked separately: keep a progression and go through the sounds, or keep a sound and go through
+the progressions.
+
+| Control | What it does |
+|---|---|
+| PROG | the progression (46, listed below) |
+| VOICING | how the chords are spread (below) |
+| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass stays between Bb1 and A2 in every key |
+| OCT | the whole chord up or down, -2 to +2 octaves |
+| STRUM | the notes enter one after another, bass first, 0 to 150 ms apart. Let go of the pad before the strum is through and the late notes still play their turn, as long as the pad was held |
+| HUMAN | a little velocity and timing jitter per note (up to about 20 ms late) |
+| BASS | the bass note's level; at 0 there is no bass note at all |
+| VEL | how much velocity sets the level (0: none, 100 %: all of it) |
+| LATCH | a struck chord rings on after the pad is up, until the next chord; turning LATCH off lets go of it |
+| GLIDE | Chord Glide: a chord struck while another is held (or latched) takes over its notes, and each slides to the new note over this time (0 to 3 s) without striking again; extra notes enter fresh, missing ones let go |
+
+### Voicings
+
+Each chord is a bass note (the root, or a slash chord's bass) and an upper structure: the chord's most telling tones
+(third and seventh first, then the ninth, eleventh or thirteenth and the fifth; the root left to the bass) placed in
+the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds
+or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or
+root on top, and moves least from the chord before it. The progression is voiced in order twice round, so the
+eighth chord leads back into the first.
+
+| Voicing | Sound |
+|---|---|
+| Neo Soul | bass, then four tones close around middle C (the default) |
+| Open | five tones spread wide, often in fourths and fifths (cinematic) |
+| Close | four tones packed within an octave |
+| Air | the upper structure high above the bass, a wide gap between |
+| Quartal | prefers fourths between the tones |
+| Rootless | no bass note: five upper tones, for playing over a bass line |
+
+For example, the first progression's chords in Neo Soul are: Fmaj9 = F2 | G3 C4 E4 A4, Em9 = E2 | G3 B3 D4 F#4,
+Dm9 = D2 | F3 A3 C4 E4, G13 = G2 | F3 A3 B3 E4.
+
+### The progressions
+
+| # | Name | Key | Chords (in C) |
+|---|---|---|---|
+| 1 | Velvet Night | major | Fmaj9 Em9 Dm9 G13 Cmaj9 Am9 Dm9 G9sus |
+| 2 | Moonlit Two-Five | major | Dm9 G13 Cmaj9 Am9 Dm9 Db9#11 Cmaj9 A7#9 |
+| 3 | Sunday Sanctuary | major | Fmaj9 F#dim7 Cmaj9/G A7b13 Dm9 G13sus G13 Cmaj9 |
+| 4 | Tidal Hearts | major | Fmaj9 E7#9 Am9 Gm9 C13 Fmaj9 E7alt Am9 |
+| 5 | Backdoor Bliss | major | Cmaj9 Fmaj9 Fm9 Bb13 Cmaj9 Am9 Dm9 G7b9 |
+| 6 | Aurora | major | Cmaj9#11 Emaj9 Abmaj9 Fm9 Dbmaj9#11 Ebmaj9 Bb13sus Bb13 |
+| 7 | Starlight Lydian | major | Cmaj9#11 D9/C Bm9 Em9 Am9 D13 Gmaj9 G9sus |
+| 8 | Rose Quartz | major | Cmaj9 Bm7b5 E7b13 Am9 Gm9 C13 Fmaj9 Fm6/9 |
+| 9 | Honey Drip | major | Em9 A13 Dm9 G13 Cmaj9 Fmaj9#11 F#m7b5 B7#9 |
+| 10 | Neon Dusk | major | Fmaj9 G13 Em9 Am9 Dm9 G13 Cmaj9 C9 |
+| 11 | Halo Ballad | major | Cmaj9 Gadd9/B Am9 Am9/G Fmaj9 Cmaj9/E Dm9 G13sus |
+| 12 | Late Night Drive | major | Dm9 Em9 Fmaj9 Em9 Dm9 G13 Cmaj9 A7b13 |
+| 13 | Crystal Cave | major | Am9 Fmaj9#11 Cmaj9 Gadd9/B Am9 Dm11 E7sus E7b9 |
+| 14 | Golden Hour | major | Cmaj9 Gm9 C13 Fmaj9 Fm9 Bb13 Ebmaj9 G7alt |
+| 15 | Cotton Clouds | major | Cmaj9 Em9 Fmaj9 Fm6/9 Em7b5 A7b13 Dm9 G13sus |
+| 16 | Bossa Moon | major | Cmaj9 C#dim7 Dm9 D#dim7 Em9 A7b13 Dm9 G13 |
+| 17 | Celestial Pedal | major | Cmaj9 Dadd9/C Bbmaj9/C Fmaj9/C Abmaj9#11/C Bbmaj9/C Fm6/9/C Cmaj9#11 |
+| 18 | Silhouette | major | Fmaj9 Fm9 Em9 Eb9#11 Dm9 Db9#11 Cmaj9 G9sus |
+| 19 | Neo Classic | major | Cmaj9 A7#9 Dm9 G7b13 Em9 A13 Dm9 G13sus |
+| 20 | Prism | major | Dm11 Em11 Fmaj9#11 G13sus Am11 G13sus Fmaj9#11 Em11 |
+| 21 | Ocean Floor | major | Cmaj9 Bbmaj9#11 Abmaj9 Bb13sus Cmaj9#11 Gm9 Fmaj9 Fm6/9 |
+| 22 | Sanctuary Steps | major | Cmaj9 C13 Fmaj9 F#dim7 Cmaj9/G A7#9 Dm9 G13b9 |
+| 23 | Afterglow | major | Cmaj9 G6/9/B Am9 Fmaj9#11 Cmaj9 Gadd9/B Am11 Fm6/9 |
+| 24 | Firefly | major | Cmaj9 E7b13 Am9 C13 Fmaj9 D13 Dm9 G7b9 |
+| 25 | Dorian Drift | major | Dm9 G13 Dm11 G13sus Em9 A13 Dm9 G13 |
+| 26 | Glass Garden | major | Fmaj7#11 Em9 Ebmaj9#11 Dm9 Dbmaj9#11 Cmaj9 Bm7b5 E7alt |
+| 27 | Silver Lining | major | Fmaj9 Em9 A7b13 Dm9 G13sus Cmaj9/E A7#9 Dm11 |
+| 28 | Velvet Rope | major | Am9 Abmaj9#11 Gm9 C13 Fmaj9 E7#9 Am9 D9 |
+| 29 | Heavenly Steps | major | Cmaj9 Ebdim7 Dm9 G13 Em11 A7b13 Dm11 G13sus |
+| 30 | Paper Lanterns | major | Cmaj9 Am11 Fmaj9 G13sus Em9 Am11 Dm9 Fm6/9 |
+| 31 | Daydream Descent | major | Dm9 Db13 Cmaj9 B7alt Bbmaj9#11 A7#9 Abmaj9 G13 |
+| 32 | Amethyst | minor | Cm9 F13 Ebmaj9 Abmaj9#11 Dm7b5 G7b13 Cm11 Bb13sus |
+| 33 | Midnight Dorian | minor | Cm11 F13 Bbmaj9 Ebmaj9 Abmaj9#11 Dm7b5 G7#9 G7b9 |
+| 34 | Smoke and Velvet | minor | Cm9 Abmaj9 Ebmaj9 Bb13sus Fm9 Gm9 Abmaj9 G7alt |
+| 35 | Obsidian | minor | Cm9 Dbmaj9#11 Bbm9 Abmaj9 Fm9 Dbmaj9 Dm7b5 G7b9 |
+| 36 | Rainy Neo Soul | minor | Cm9 Fm9 Bb13 Ebmaj9 Abmaj9 Fm9 Dm7b5 G7#9 |
+| 37 | Line Cliche | minor | Cmadd9 CmMaj9 Cm9 Cm6/9 Abmaj9 Fm9 Dm7b5 G7b9 |
+| 38 | Nocturne | minor | Cm9 Abmaj9#11 Fm9 G7b13 Ebmaj9 Abmaj9 Dm7b5 G7#9 |
+| 39 | Sapphire | minor | Dm7b5 G7b13 Cm9 C7#9 Fm9 Bb13 Ebmaj9 Abmaj9 |
+| 40 | Witching Hour | minor | CmMaj9 Abmaj9#11 Fm9 Dbmaj9#11 Bbm9 Ebmaj9 Abmaj9 G7alt |
+| 41 | Rose Petal | minor | Cm9 Bb6/9 Abmaj9 G7#9 Cm9 Bb13sus Abmaj9#11 G7b13 |
+| 42 | Lunar Tide | minor | Cm11 Abmaj9 Ebmaj9 Bb6/9 Fm9 Gm9 Abmaj9 Bb13sus |
+| 43 | Deep Indigo | minor | Cm9 Bbm9 Abmaj9 Gm9 Fm9 Gm9 Abmaj9 Bb13sus |
+| 44 | Phantom Waltz | minor | Cm9 G7b13/B Cm9/Bb Am7b5 Abmaj9#11 Fm9 Dm7b5 G7b9 |
+| 45 | Echo Chamber | minor | Cm9 F13 Cm11 F13sus Abmaj9 Gm9 Fm9 Bb13 |
+| 46 | Moonstone | minor | Fm9 Bb13 Ebmaj9 Abmaj9 Dm7b5 G7alt Cm9 C7#9 |
+
+## Sound and parameters
+
+![The MOTION page: the path, its centre and a light for every note](docs/reverie-motion.png)
+
+**Oscillators.** Two, each with a WAVE (twelve sources made for pads), a POS (Position: each wave has four frames
+and POS morphs across them), OCT, SEMI, FINE, UNISON (1-4 voices), DETUNE (the outer unison voices' spread, up to 50
+cents) and LEVEL.
+
+| Wave | Its four frames |
+|---|---|
+| Velvet Saw | soft, full, bright, and a glowing band |
+| Hollow Pulse | square to a narrow pulse |
+| Choir | the vowels Oo, Oh, Ah, Eh |
+| Strings | a bowed string, the bow at four places, with a body |
+| Drawbar | organ registrations: flute, jazz, full, gospel |
+| Crystal | sparse high partials (glass) |
+| Spectra | a resonant band swept up the harmonics |
+| Octaves | octave stacks, then fifths among them |
+| Warm | triangle to a soft square |
+| Breath | dense, airy, formant-shaped |
+| Reed | clarinet to oboe |
+| Sine | pure, then gentle organ partials |
+
+The frames share their harmonics' phases, so the morph is a smooth change of the spectrum, never a phasey dip.
+Every frame is band-limited for each octave of pitch (no aliasing; images of the interpolation below -45 dB).
+
+**Voice.** WIDTH spreads the unison across the stereo field (the upper notes of a chord also alternate sides; the
+bass stays near the middle). AIR adds breath: a band of noise under each note's envelope (A.TONE moves the band).
+DRIFT makes each oscillator wander in pitch, slowly, as analog ones do (up to 20 cents).
+
+**Filter.** LP 12, LP 24, BP or HP (a state-variable filter, stereo), CUTOFF, RESO, ENV (the filter envelope's
+depth, up to 6 octaves either way), KEYTRK and VEL (soft notes darker). **Envelopes:** amplitude and filter, each
+ATTACK, DECAY, SUSTAIN, RELEASE (up to 20 s).
+
+**LFO.** One a note, each starting at its own phase (so a chord shimmers rather than wobbles together): SHAPE (Sine,
+Triangle, Drift: a smooth random walk), RATE (0.05-20 Hz), DELAY (fades in over up to 5 s), and its depths to PITCH
+(up to 50 cents), CUTOFF and WAVE (Position).
+
+**Motion.** The X / Y pad, as the M3's MOTION records and plays a path on its X / Y pad. PATH picks the path (Orbit,
+Figure 8, Pendulum, Spiral, Wander, Tide, Star, Lissajous; Off for none), RATE its speed (0.01-4 Hz; or SYNC to
+the song, one turn every DIV), DEPTH its size, X and Y its centre (on the MOTION page K1 and K2: turn them by hand
+and Melodee's motion recording keeps your gestures). SPREAD places each note of a chord at its own point of the
+path, so the notes move apart and together; RETRIG starts the path again with each chord. The mod wheel moves Y. X
+and Y each move two destinations (X>1, X>2, Y>1, Y>2, each with an amount): Wave 1, Wave 2, Waves (both), Osc Mix,
+Cutoff, Resonance, Detune, Width, Air, Pitch (up to two semitones), Level, LFO Depth.
+
+**Effects.** ENSEMBLE (three modulated delays a side with a slow and a quick LFO, as string machines did: mix, depth,
+rate), DELAY (ping-pong, its time a division of the tempo, its repeats darkening; mix, time, feedback), REVERB (an
+eight-line feedback delay network, slowly modulated, with diffusion, a pre-delay and a high-pass ahead of it so the
+low end stays clear: mix, size, decay up to 40 s, tone, pre-delay) and SHIMMER (the reverb an octave up, fed back
+into it). VOLUME sets the level; a soft limiter keeps the output under 0 dBFS.
+
+## The page
+
+Use Minus and Plus to move through the six pages. The wheel moves between controls. Push edits one; turn the
+wheel to change it (Shift + wheel for fine steps, Minus and Plus for coarse) and Push again when done. On a switch,
+Push flips it at once. K1-K3 hold the control picked and the next two. Hold Shift to see the controls.
+
+| Page | What it holds |
+|---|---|
+| CHORDS | the sixteen pads as they sit on the MPC, each with its chord's name in this key, lit while held; PROG, VOICING, KEY, OCT, STRUM, HUMAN, BASS, VEL, LATCH, GLIDE; a keyboard with the notes that sound (the bass in gold), or the last chord's |
+| MOTION | the X / Y field with the path, its centre and a light for every note on it; X, Y, DEPTH (K1-K3), PATH, RATE, SPREAD, SYNC, DIV, RETRIG and the four destinations |
+| OSC | both oscillators, each drawn as its Position (and Motion) has it now; their controls; WIDTH, AIR, A.TONE, DRIFT |
+| FILTER | the response, with the cutoff where the newest note has it, and the filter envelope |
+| AMP | the amplitude envelope and the LFO |
+| FX | ensemble, delay, reverb and shimmer under an aurora that follows the output |
+
+The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
+
+![The OSC page: Velvet Saw and Choir at their positions](docs/reverie-osc.png)
+
+## Sounds
+
+Twenty, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
+section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
+
+Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
+Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
+Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
+
+## Cost
+
+Instructions a 128-frame block takes (callgrind, `tools/bench.sh`; a block at 48 kHz is about 4.8 million cycles of
+the MPC's 1.8 GHz Cortex-A55):
+
+| Scene | Instructions | Share of one core |
+|---|---|---|
+| silent | 4,079 | 0.08 % |
+| one chord held, default sound | 251,125 | 5.2 % |
+| the progression played, releases overlapping | 325,945 | 6.8 % |
+| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 705,971 | 14.7 % |
+
+The page costs about 275,000 instructions a frame on CHORDS and 228,000 on MOTION while it moves (25 frames a
+second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
+(the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
+channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
+smoothing) runs every 16 samples and only while something moves; silent, Reverie sleeps.
+
+## Building and testing
+
+`./build.sh` builds `build/Reverie.clap` and runs the tests in a Linux arm64 container (Melodee's `melodee-builder`
+image in the `colima-melodee` Docker context; start it with `colima start melodee`).
+
+- `tests/host.cpp` loads the plug-in as a host does: ports, every parameter and its text, state, the sounds (and
+  that they leave the chord section alone), every progression in every voicing and key (52,992 chords: each a sound
+  chord, the third there, no stray minor ninths), the pad map Melodee reads, chords from the pads and banks,
+  Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes,
+  tuning at 44.1, 48 and 96 kHz, bounded output at every extreme, sleeping, and the page (it writes
+  `build/screen-*.png`).
+- `tests/fingerprint.cpp` hashes every output sample over 43 scenes (`tests/fingerprint.txt`), including one in
+  blocks of 1, 37, 128 and 4096 frames that must hash the same: the output does not depend on the host's blocks. A
+  change meant to keep the sound must keep the hashes; `make fingerprint-update` records a change meant to change it.
+- `./build.sh sanitize`: the host tests against an AddressSanitizer and UBSan build.
+- `tools/bench.sh`: the cost table above.
+- `./build.sh render` then `build/render build/Reverie.clap OUT.wav PLAYLIST`: renders progressions and sounds for
+  listening (see `tests/render.cpp` for the playlist's lines).
+
+## Licence
+
+No project licence yet. The page's font is Departure Mono (SIL Open Font License, `licenses/OFL-departure-mono.txt`);
+the CLAP headers are MIT (`third_party/clap/LICENSE`); `src/melodee_screen.h` is MIT.
