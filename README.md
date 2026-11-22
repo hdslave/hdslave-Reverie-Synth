@@ -4,11 +4,11 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 46 jazzy, soulful, R&B, and neo-soul chord progressions — voiced and voice-led across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 64 jazzy, soulful, R&B, neo-soul, gospel, city-pop, modal, and cinematic chord progressions — voiced with smooth voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.1.1). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.2.0). Not yet run on the MPC itself.
 
 ## Install
 
@@ -39,9 +39,9 @@ the progressions.
 
 | Control | What it does |
 |---|---|
-| PROG | the progression (46, listed below) |
+| PROG | the progression (64, listed below) |
 | VOICING | how the chords are spread (below) |
-| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass stays between Bb1 and A2 in every key |
+| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). The bass is voice-led between G1 and C3 in every key |
 | OCT | the whole chord up or down, -2 to +2 octaves |
 | STRUM | the notes enter one after another, bass first, 0 to 150 ms apart. Let go of the pad before the strum is through and the late notes still play their turn, as long as the pad was held |
 | HUMAN | a little velocity and timing jitter per note (up to about 20 ms late) |
@@ -52,14 +52,7 @@ the progressions.
 
 ### Voicings
 
-Each chord is a bass note (the root, or a slash chord's bass) and an upper structure: the chord's most telling tones
-(third and seventh first, then the ninth, eleventh or thirteenth and the fifth; the root left to the bass) placed in
-the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds
-or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or
-root on top, and moves least from the chord before it. The progression is voiced in order twice round, so the
-eighth chord leads back into the first. Every progression is voiced in every style and key when Reverie is built
-(a table of 3,312 sets of sixteen pads), so picking one, or automating it on the same step as a chord, costs the
-audio thread nothing.
+Each chord is a voice-led bass note (the root, or a slash chord's bass, optimized across the 8-chord contour between G1 and C3 so descending, chromatic, and pedal bass lines never jump octaves mid-phrase) and an upper structure: the chord's most telling tones (third and seventh first, then the ninth, eleventh or thirteenth and the fifth) placed in the style's register. Of every way to place them, Reverie takes the one that keeps the low register open (no thirds or seconds crowded down low), has no minor ninths except in b9 chords, keeps the style's spacing, avoids a third or root on top, and moves least from the chord before it. Pads A09–A16 (**Lift**) voice each chord higher and bloom with an extra colour tone (13th on maj9, 11th on m9/m7b5, etc.). The progression is voiced in order twice round, so the eighth chord leads back into the first. Every progression is voiced in every style and key when Reverie is built (a table of 4,608 sets of sixteen pads — 73,728 chords), so picking one, or automating it on the same step as a chord, costs the audio thread nothing.
 
 | Voicing | Sound |
 |---|---|
@@ -86,43 +79,61 @@ Dm9 = D2 | F3 A3 C4 E4, G13 = G2 | F3 A3 B3 E4.
 | 7 | Starlight Lydian | major | Cmaj9#11 D9/C Bm9 Em9 Am9 D13 Gmaj9 G9sus |
 | 8 | Rose Quartz | major | Cmaj9 Bm7b5 E7b13 Am9 Gm9 C13 Fmaj9 Fm6/9 |
 | 9 | Honey Drip | major | Em9 A13 Dm9 G13 Cmaj9 Fmaj9#11 F#m7b5 B7#9 |
-| 10 | Neon Dusk | major | Fmaj9 G13 Em9 Am9 Dm9 G13 Cmaj9 C9 |
+| 10 | Neon Dusk | major | Fmaj9 G13 Em9 Am9 Dm11 G13 Cmaj13 C13#11 |
 | 11 | Halo Ballad | major | Cmaj9 Gadd9/B Am9 Am9/G Fmaj9 Cmaj9/E Dm9 G13sus |
-| 12 | Late Night Drive | major | Dm9 Em9 Fmaj9 Em9 Dm9 G13 Cmaj9 A7b13 |
-| 13 | Crystal Cave | major | Am9 Fmaj9#11 Cmaj9 Gadd9/B Am9 Dm11 E7sus E7b9 |
+| 12 | Late Night Drive | major | Dm11 Em9 Fmaj13 E7#9 Am11 Ab13#11 G13sus Cmaj9#11 |
+| 13 | Crystal Cave | minor | Cm11 Abmaj9#11 Ebmaj13 Bbadd9/D Cm9 Fm11 G13sus G7b9 |
 | 14 | Golden Hour | major | Cmaj9 Gm9 C13 Fmaj9 Fm9 Bb13 Ebmaj9 G7alt |
 | 15 | Cotton Clouds | major | Cmaj9 Em9 Fmaj9 Fm6/9 Em7b5 A7b13 Dm9 G13sus |
 | 16 | Bossa Moon | major | Cmaj9 C#dim7 Dm9 D#dim7 Em9 A7b13 Dm9 G13 |
 | 17 | Celestial Pedal | major | Cmaj9 Dadd9/C Bbmaj9/C Fmaj9/C Abmaj9#11/C Bbmaj9/C Fm6/9/C Cmaj9#11 |
 | 18 | Silhouette | major | Fmaj9 Fm9 Em9 Eb9#11 Dm9 Db9#11 Cmaj9 G9sus |
 | 19 | Neo Classic | major | Cmaj9 A7#9 Dm9 G7b13 Em9 A13 Dm9 G13sus |
-| 20 | Prism | major | Dm11 Em11 Fmaj9#11 G13sus Am11 G13sus Fmaj9#11 Em11 |
+| 20 | Prism | major | Dm11 Em11 Fmaj9#11 G13sus Am13 Fmaj9#11 Ebmaj9#11 G13sus |
 | 21 | Ocean Floor | major | Cmaj9 Bbmaj9#11 Abmaj9 Bb13sus Cmaj9#11 Gm9 Fmaj9 Fm6/9 |
 | 22 | Sanctuary Steps | major | Cmaj9 C13 Fmaj9 F#dim7 Cmaj9/G A7#9 Dm9 G13b9 |
 | 23 | Afterglow | major | Cmaj9 G6/9/B Am9 Fmaj9#11 Cmaj9 Gadd9/B Am11 Fm6/9 |
 | 24 | Firefly | major | Cmaj9 E7b13 Am9 C13 Fmaj9 D13 Dm9 G7b9 |
-| 25 | Dorian Drift | major | Dm9 G13 Dm11 G13sus Em9 A13 Dm9 G13 |
-| 26 | Glass Garden | major | Fmaj7#11 Em9 Ebmaj9#11 Dm9 Dbmaj9#11 Cmaj9 Bm7b5 E7alt |
-| 27 | Silver Lining | major | Fmaj9 Em9 A7b13 Dm9 G13sus Cmaj9/E A7#9 Dm11 |
-| 28 | Velvet Rope | major | Am9 Abmaj9#11 Gm9 C13 Fmaj9 E7#9 Am9 D9 |
+| 25 | Dorian Drift | minor | Cm11 F13 Ebmaj9#11 F13sus Dm11 G13sus Cm13 F13#11 |
+| 26 | Glass Garden | major | Fmaj9#11 Em9 Ebmaj9#11 Dm11 Dbmaj9#11 Cmaj13 Gm11 C13#11 |
+| 27 | Silver Lining | major | Fmaj13 Em9 A9b13 Dm11 G13sus Cmaj9/E Gm11 C13b9 |
+| 28 | Velvet Rope | minor | Cm11 Bmaj9#11 Bbm9 Eb13 Abmaj13 G7#9 Cm13 F9#11 |
 | 29 | Heavenly Steps | major | Cmaj9 Ebdim7 Dm9 G13 Em11 A7b13 Dm11 G13sus |
 | 30 | Paper Lanterns | major | Cmaj9 Am11 Fmaj9 G13sus Em9 Am11 Dm9 Fm6/9 |
 | 31 | Daydream Descent | major | Dm9 Db13 Cmaj9 B7alt Bbmaj9#11 A7#9 Abmaj9 G13 |
 | 32 | Amethyst | minor | Cm9 F13 Ebmaj9 Abmaj9#11 Dm7b5 G7b13 Cm11 Bb13sus |
 | 33 | Midnight Dorian | minor | Cm11 F13 Bbmaj9 Ebmaj9 Abmaj9#11 Dm7b5 G7#9 G7b9 |
-| 34 | Smoke and Velvet | minor | Cm9 Abmaj9 Ebmaj9 Bb13sus Fm9 Gm9 Abmaj9 G7alt |
+| 34 | Smoke and Velvet | minor | Cm9 Abmaj9#11 Ebmaj13 Bb13sus Fm11 Gm9 Abmaj9 G7alt |
 | 35 | Obsidian | minor | Cm9 Dbmaj9#11 Bbm9 Abmaj9 Fm9 Dbmaj9 Dm7b5 G7b9 |
 | 36 | Rainy Neo Soul | minor | Cm9 Fm9 Bb13 Ebmaj9 Abmaj9 Fm9 Dm7b5 G7#9 |
 | 37 | Line Cliche | minor | Cmadd9 CmMaj9 Cm9 Cm6/9 Abmaj9 Fm9 Dm7b5 G7b9 |
 | 38 | Nocturne | minor | Cm9 Abmaj9#11 Fm9 G7b13 Ebmaj9 Abmaj9 Dm7b5 G7#9 |
-| 39 | Sapphire | minor | Dm7b5 G7b13 Cm9 C7#9 Fm9 Bb13 Ebmaj9 Abmaj9 |
+| 39 | Sapphire | minor | Dm11b5 G9b13 Cm9 C7#9 Fm11 Bb13 Ebmaj13 Abmaj9#11 |
 | 40 | Witching Hour | minor | CmMaj9 Abmaj9#11 Fm9 Dbmaj9#11 Bbm9 Ebmaj9 Abmaj9 G7alt |
-| 41 | Rose Petal | minor | Cm9 Bb6/9 Abmaj9 G7#9 Cm9 Bb13sus Abmaj9#11 G7b13 |
-| 42 | Lunar Tide | minor | Cm11 Abmaj9 Ebmaj9 Bb6/9 Fm9 Gm9 Abmaj9 Bb13sus |
+| 41 | Rose Petal | minor | Cm9 Bb6/9 Abmaj9#11 G9b13 Fm11 Ebmaj9/G Dbmaj9#11 G7alt |
+| 42 | Lunar Tide | minor | Cm11 Emaj9#11 Abmaj9#11 G13sus Fm11 Dbmaj9#11 Ebmaj9/G G9b13 |
 | 43 | Deep Indigo | minor | Cm9 Bbm9 Abmaj9 Gm9 Fm9 Gm9 Abmaj9 Bb13sus |
 | 44 | Phantom Waltz | minor | Cm9 G7b13/B Cm9/Bb Am7b5 Abmaj9#11 Fm9 Dm7b5 G7b9 |
 | 45 | Echo Chamber | minor | Cm9 F13 Cm11 F13sus Abmaj9 Gm9 Fm9 Bb13 |
-| 46 | Moonstone | minor | Fm9 Bb13 Ebmaj9 Abmaj9 Dm7b5 G7alt Cm9 C7#9 |
+| 46 | Moonstone | minor | Cm11 Dbmaj9#11/C Cm13 Bbm11 Eb13#11 Abmaj13 Dm11b5 G7alt |
+| 47 | Cathedral Sun | major | Cmaj13 Abmaj9#11 Emaj9 G13sus Fmaj9#11 Dbmaj9#11 Bbmaj9#11 G13sus |
+| 48 | Shibuya Glow | major | Fmaj13 G13/F Em11 A9b13 Dm11 Db13#11 Cmaj13 C13 |
+| 49 | Gospel Horizon | major | Cmaj13 E7#9/B Am11 Gm11 C13b9 Fmaj13 F#m11b5 G13sus |
+| 50 | Cloud Nine | major | Fmaj9#11 Ebmaj9#11 Dbmaj9#11 Cmaj13 Am11 Ab13#11 G13sus C13#11 |
+| 51 | Solaris | major | Cmaj9#11 D6/9/C Em11 Dadd9/F# Gmaj13 Fmaj9#11 Ebmaj9#11 G13sus |
+| 52 | Silk Highway | major | Cmaj13 Bm11b5 E9b13 Am11 D13#11 Fmaj13 Fm6/9 G13sus |
+| 53 | Amber Glass | major | Cmaj9#11 Eb13#11 Abmaj13 B13#11 Emaj9#11 G13sus Fmaj9#11 G9b13 |
+| 54 | Morning Choir | major | Cmaj9 Cmaj9/E Fmaj13 Fm6/9 Em11 A9b13 Dm11 G13sus |
+| 55 | Opal Drift | major | Cmaj9#11 Gadd9/B Fmaj9#11/A Cmaj9/G D9#11/F# Fmaj13 Ebmaj9#11 G13sus |
+| 56 | Neon Rain | major | Em11 Eb13#11 Dm11 Db13#11 Cmaj13 F#m11b5 B7#9 B7alt |
+| 57 | Velvet Eclipse | minor | Cm11 Emaj9#11 Fm11 Dbmaj9#11 Abmaj13 Ebmaj9/G Dm11b5 G7alt |
+| 58 | Midnight Garage | minor | Cm11 Ebm11 Fm11 Abm11 Gm11 Bbm11 Abmaj9#11 G9b13 |
+| 59 | Abyssal Choir | minor | Cm11 Dbmaj9#11 Eb13sus Dbmaj9#11 Bbm11 Abmaj9#11 Fm11 G7b9 |
+| 60 | Satin Noir | minor | Cm13 F13#11 Abmaj13 G9b13 Fm11 Bb13#11 Ebmaj13 G7alt |
+| 61 | Astral Minor | minor | Cm11 Abmaj9#11/C Bb6/9/C Fm11/C Dbmaj9#11 Ebmaj13 Fm11 G13sus |
+| 62 | Cobalt Pulse | minor | Cm11 Cm9/Bb Abmaj13 G9b13 Fm11 F#dim7 Cm9/G G7alt |
+| 63 | Mirage | minor | Cm11 F13#11 Bmaj9#11 E13#11 Abmaj9#11 Db13#11 Dm11b5 G7alt |
+| 64 | Starlit Requiem | minor | Cmadd9 Abmaj13/C Ebmaj9/Bb F9#11/A Abmaj9#11 Fm11 Dm11b5 G7b9 |
 
 ## Sound and parameters
 
@@ -218,9 +229,9 @@ the MPC's 1.8 GHz Cortex-A55):
 | silent | 4,319 | 0.09 % |
 | one chord held, default sound | 252,422 | 5.3 % |
 | the progression played, releases overlapping | 327,794 | 6.8 % |
-| worst: 24 voices, unison 4 + 4, LP 24, every effect up | 688,586 | 14.3 % |
+| worst: 21 voices (3×7-note Open Lift), unison 4 + 4, LP 24, every effect up | 918,548 | 19.1 % |
 
-The page costs about 71,000 instructions a frame on CHORDS and 114,000 on MOTION while it moves (25 frames a
+The page costs about 75,000 instructions a frame on CHORDS and 114,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
 channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
@@ -235,7 +246,7 @@ block reads that were not written since are zeroed first.
 image in the `colima-melodee` Docker context; start it with `colima start melodee`).
 
 - `tests/host.cpp` loads the plug-in as a host does: ports, every parameter and its text, state, the sounds (and
-  that they leave the chord section alone), every progression in every voicing and key (52,992 chords: each a sound
+  that they leave the chord section alone), every progression in every voicing and key (73,728 chords: each a sound
   chord, the third there, no stray minor ninths), the pad map Melodee reads, chords from the pads and banks,
   Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes
   (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step

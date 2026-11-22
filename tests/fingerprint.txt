@@ -18,12 +18,12 @@ sound-ethereal-vox 7b70b38117ef9f3d
 sound-mystic-reed f82cc776bcb6ddd0
 sound-polar-lights 99c8c5d83e4d94b7
 sound-satin-keys 4546a93c7c6b13ed
-voicing-0 425a288f1fec1309
-voicing-1 ae691c170eb4d861
-voicing-2 987321e4be671979
-voicing-3 066e22e258377c58
-voicing-4 d7e53bc94b3a334e
-voicing-5 00c15c18052550a6
+voicing-0 59d0e014e14e99af
+voicing-1 19882d188dac6d40
+voicing-2 53a962f57aab9004
+voicing-3 fd5be6da258ded08
+voicing-4 d0ccaca58b7a5b78
+voicing-5 f4bd126e6ad39e25
 motion-1 d15863476b8acf0a
 motion-2 a852f4a14111bcd7
 motion-3 3aefc60d242e87e5
@@ -32,7 +32,7 @@ motion-5 b3c30c2ef3401f8f
 motion-6 86bd9b0f48a1e6ab
 motion-7 7081cdd12a46d80c
 motion-8 e4d797a04fc04525
-strum-humanize c374100d9d6863eb
+strum-humanize cadfdc14bc24c410
 latch c1d2e05a64ec3027
 glide ea8c33b1eecf79d7
 retrig-sync ed4e065fb4017e1c
@@ -45,5 +45,5 @@ sound-off-96000 bcc47bb16fd70cab
 reset 4d0e46997221f136
 reverb-off-on 64f8bc84bbe9ae6d
 sleep-wake 23b473d9e94d4a5d
-steals 28994379d55e6a55
-blocks-128 1d12347497202111
+steals a2dbf41b8e8f1321
+blocks-128 03dc3501713ee2cb

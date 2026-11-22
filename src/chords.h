@@ -27,39 +27,39 @@ struct Quality
 
 inline constexpr Quality qualities[] = {
     { "", { 4, 7, 0 }, 3, false },
-    { "maj7", { 4, 11, 7, 0 }, 4, false },
-    { "maj9", { 4, 11, 2, 7, 0 }, 5, false },
-    { "maj13", { 4, 11, 2, 9, 7 }, 5, false },
-    { "maj9#11", { 4, 11, 2, 6, 7 }, 5, false },
-    { "maj7#11", { 4, 11, 6, 7, 0 }, 5, false },
+    { "maj7", { 4, 11, 7, 0, 2 }, 5, false },
+    { "maj9", { 4, 11, 2, 7, 9, 0 }, 6, false },
+    { "maj13", { 4, 11, 2, 9, 7, 0 }, 6, false },
+    { "maj9#11", { 4, 11, 2, 6, 7, 0 }, 6, false },
+    { "maj7#11", { 4, 11, 6, 7, 2, 0 }, 6, false },
     { "6/9", { 4, 9, 2, 7, 0 }, 5, false },
-    { "add9", { 4, 2, 7, 0 }, 4, false },
+    { "add9", { 4, 2, 7, 0, 9 }, 5, false },
     { "sus2", { 2, 7, 0 }, 3, false },
     { "m", { 3, 7, 0 }, 3, false },
-    { "m7", { 3, 10, 7, 0 }, 4, false },
-    { "m9", { 3, 10, 2, 7, 0 }, 5, false },
-    { "m11", { 3, 10, 5, 2, 7 }, 5, false },
-    { "m13", { 3, 10, 2, 9, 7 }, 5, false },
+    { "m7", { 3, 10, 7, 0, 2 }, 5, false },
+    { "m9", { 3, 10, 2, 7, 5, 0 }, 6, false },
+    { "m11", { 3, 10, 5, 2, 7, 0 }, 6, false },
+    { "m13", { 3, 10, 2, 9, 7, 5 }, 6, false },
     { "m6/9", { 3, 9, 2, 7, 0 }, 5, false },
-    { "mMaj7", { 3, 11, 7, 0 }, 4, false },
-    { "mMaj9", { 3, 11, 2, 7 }, 4, false },
-    { "madd9", { 3, 2, 7, 0 }, 4, false },
-    { "m7b5", { 3, 10, 6, 0 }, 4, false },
-    { "m11b5", { 3, 10, 6, 5 }, 4, false },
-    { "7", { 4, 10, 7, 0 }, 4, false },
-    { "9", { 4, 10, 2, 7, 0 }, 5, false },
-    { "13", { 4, 10, 2, 9, 7 }, 5, false },
-    { "7#9", { 4, 10, 3, 7 }, 4, false },
-    { "7b9", { 4, 10, 1, 7 }, 4, true },
-    { "7b13", { 4, 10, 8, 0 }, 4, false },
-    { "9b13", { 4, 10, 2, 8 }, 4, false },
-    { "7alt", { 4, 10, 3, 8 }, 4, false },
-    { "13b9", { 4, 10, 1, 9 }, 4, true },
-    { "9#11", { 4, 10, 2, 6 }, 4, false },
-    { "13#11", { 4, 10, 2, 6, 9 }, 5, false },
-    { "7sus", { 5, 10, 7, 0 }, 4, false },
-    { "9sus", { 5, 10, 2, 7, 0 }, 5, false },
-    { "13sus", { 5, 10, 2, 9, 7 }, 5, false },
+    { "mMaj7", { 3, 11, 7, 0, 2 }, 5, false },
+    { "mMaj9", { 3, 11, 2, 7, 0 }, 5, false },
+    { "madd9", { 3, 2, 7, 0, 5 }, 5, false },
+    { "m7b5", { 3, 10, 6, 0, 5 }, 5, false },
+    { "m11b5", { 3, 10, 6, 5, 0 }, 5, false },
+    { "7", { 4, 10, 7, 0, 2 }, 5, false },
+    { "9", { 4, 10, 2, 7, 9, 0 }, 6, false },
+    { "13", { 4, 10, 2, 9, 7, 0 }, 6, false },
+    { "7#9", { 4, 10, 3, 7, 0 }, 5, false },
+    { "7b9", { 4, 10, 1, 7, 9 }, 5, true },
+    { "7b13", { 4, 10, 8, 2, 0 }, 5, false },
+    { "9b13", { 4, 10, 2, 8, 0 }, 5, false },
+    { "7alt", { 4, 10, 3, 8, 0 }, 5, false },
+    { "13b9", { 4, 10, 1, 9, 7 }, 5, true },
+    { "9#11", { 4, 10, 2, 6, 9, 0 }, 6, false },
+    { "13#11", { 4, 10, 2, 6, 9, 0 }, 6, false },
+    { "7sus", { 5, 10, 7, 2, 0 }, 5, false },
+    { "9sus", { 5, 10, 2, 7, 9, 0 }, 6, false },
+    { "13sus", { 5, 10, 2, 9, 7, 0 }, 6, false },
     { "dim7", { 3, 6, 9, 0 }, 4, false },
     { "dim", { 3, 6, 0 }, 3, false },
     { "aug", { 4, 8, 0 }, 3, false },
@@ -209,7 +209,8 @@ inline void chordText (const ChordSymbol& c, int key, bool minor, char* out, siz
 
 constexpr int maxChordNotes = 8;
 constexpr int padSlots = 16;
-constexpr int bassLow = 34; // the bass between Bb1 and A2
+constexpr int bassLow = 31;  // the bass between G1 and C3, voice-led across the progression
+constexpr int bassHigh = 48;
 
 struct ChordNotes
 {
@@ -373,8 +374,65 @@ struct Search
 
 inline int mod12 (int x) { return ((x % 12) + 12) % 12; }
 
+// Globally voice-lead the 8 bass notes across [bassLow, bassHigh] (at most 2^8 = 256 combinations) so stepwise,
+// chromatic and pedal bass lines never snap up an octave mid-phrase. Uses exact integer scoring so ties never depend
+// on compiler FMA contraction.
+inline void chooseBassLine (const ChordSymbol* chords, int key, int* out)
+{
+    int bpc[chordsPerProgression];
+    int cand[chordsPerProgression][2], cnt[chordsPerProgression];
+    for (int i = 0; i < chordsPerProgression; ++i)
+    {
+        const int root = mod12 (chords[i].rootPc + key);
+        bpc[i] = chords[i].bassPc >= 0 ? mod12 (chords[i].bassPc + key) : root;
+        cnt[i] = 0;
+        for (int m = bassLow; m <= bassHigh; ++m)
+            if (mod12 (m) == bpc[i] && cnt[i] < 2) cand[i][cnt[i]++] = m;
+    }
+    int cur[chordsPerProgression], best[chordsPerProgression];
+    int bestScore = 1 << 30;
+    auto walk = [&] (auto& self, int i) -> void {
+        if (i == chordsPerProgression)
+        {
+            int s = 0;
+            for (int k = 0; k < chordsPerProgression; ++k)
+            {
+                s += std::abs (cur[k] - 39) * 50; // gentle pull toward Eb2
+                const int nxt = (k + 1) % chordsPerProgression;
+                const int w = k == chordsPerProgression - 1 ? 1 : 2; // loop seam weighs half as much as mid-phrase
+                const int raw = std::abs (cur[nxt] - cur[k]);
+                int modDiff = (bpc[nxt] - bpc[k] + 12) % 12;
+                if (modDiff > 6) modDiff -= 12;
+                if (bpc[nxt] == bpc[k])
+                {
+                    if (raw > 0) s += 2000 * w; // never jump octaves on a pedal bass
+                }
+                else if (std::abs (modDiff) <= 2)
+                {
+                    if (raw != std::abs (modDiff)) s += 1400 * w; // preserve stepwise/chromatic bass lines
+                }
+                else
+                    s += raw * 45 * w;
+            }
+            if (s < bestScore)
+            {
+                bestScore = s;
+                std::memcpy (best, cur, sizeof (best));
+            }
+            return;
+        }
+        for (int c = 0; c < cnt[i]; ++c)
+        {
+            cur[i] = cand[i][c];
+            self (self, i + 1);
+        }
+    };
+    walk (walk, 0);
+    std::memcpy (out, best, sizeof (best));
+}
+
 // One chord voiced; `prev` (the upper structure before it) may be empty.
-inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool lift, const ChordNotes* prev)
+inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool lift, const ChordNotes* prev, int chosenBass = -1)
 {
     const Quality& q = qualities[c.quality];
     const Style st = styleOf (voicing, lift);
@@ -385,8 +443,7 @@ inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool l
     for (int i = 0; i < q.count; ++i)
     {
         const int pc = mod12 (root + q.tones[i]);
-        if (! slash && q.count > 3 && pc == root) continue; // the root is the bass's
-        if (slash && pc == bass) continue;                   // the bass has it
+        if (slash && pc == bass) continue; // the bass has it
         list[n++] = pc;
     }
     if (slash)
@@ -408,9 +465,10 @@ inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool l
     s.root = root;
     s.flat9 = q.flat9;
     for (int i = 0; i < s.k; ++i) s.pcs[i] = list[i];
-    const int bassNote = bassLow + mod12 (bass - bassLow);
+    const int bassNote = chosenBass >= 0 ? chosenBass : (34 + mod12 (bass - 34));
     s.bassNote = st.bass ? bassNote : -1;
-    for (int note = st.lo; note <= st.hi && s.candCount < 48; ++note)
+    const int noteLo = st.bass ? std::max (st.lo, bassNote + 3) : st.lo;
+    for (int note = noteLo; note <= st.hi && s.candCount < 48; ++note)
         for (int i = 0; i < s.k; ++i)
             if (mod12 (note) == s.pcs[i]) s.cand[s.candCount] = note, s.candPc[s.candCount++] = i;
     int prevUpper[maxChordNotes];
@@ -421,9 +479,9 @@ inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool l
         s.prev = prevUpper;
     }
     s.walk (0, 0, 0);
-    if (s.bestScore >= 1e29f) // nothing within the limits (cannot happen with these ranges): close position from lo
+    if (s.bestScore >= 1e29f) // nothing within the limits (cannot happen with these ranges): close position from noteLo
     {
-        int at = st.lo;
+        int at = noteLo;
         for (int i = 0; i < s.k; ++i)
         {
             while (mod12 (at) != s.pcs[i]) ++at;
@@ -444,6 +502,8 @@ inline void voiceProgression (int progression, int voicing, int key, VoicingSet&
     const ParsedProgression& p = parsedProgressions()[std::clamp (progression, 0, progressionCount - 1)];
     voicing = std::clamp (voicing, 0, Voicing::count - 1);
     key = detail::mod12 (key);
+    int bassNotes[chordsPerProgression];
+    detail::chooseBassLine (p.chords, key, bassNotes);
     for (int lift = 0; lift < 2; ++lift)
     {
         ChordNotes chain[chordsPerProgression];
@@ -451,7 +511,7 @@ inline void voiceProgression (int progression, int voicing, int key, VoicingSet&
         for (int pass = 0; pass < 2; ++pass)
             for (int i = 0; i < chordsPerProgression; ++i)
             {
-                chain[i] = detail::voiceChord (p.chords[i], voicing, key, lift != 0, prev);
+                chain[i] = detail::voiceChord (p.chords[i], voicing, key, lift != 0, prev, bassNotes[i]);
                 prev = &chain[i];
             }
         for (int i = 0; i < chordsPerProgression; ++i) out.slot[8 * lift + i] = chain[i];

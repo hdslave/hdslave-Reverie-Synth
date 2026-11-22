@@ -413,7 +413,7 @@ void testProgressions()
                     {
                         const int bass = ((sym.bassPc >= 0 ? sym.bassPc : sym.rootPc) + k) % 12;
                         CHECK (c.note[0] % 12 == bass);
-                        CHECK (c.note[0] >= 34 && c.note[0] <= 45);
+                        CHECK (c.note[0] >= bassLow && c.note[0] <= bassHigh);
                         CHECK (c.note[1] - c.note[0] >= 3);
                     }
                     // every tone is the chord's
@@ -446,6 +446,23 @@ void testProgressions()
             }
     std::printf ("  %d chords voiced, %d minor ninths (all in b9 chords), %d of %d sets unlike the table\n", chords, flat9, differ,
                  progressionCount * Voicing::count * 12);
+    // Voice-led bass: Halo Ballad (#11, idx 10) descends cleanly C-B-A-G-F-E-D; Phantom Waltz (#44, idx 43) descends C-B-Bb-A-Ab
+    {
+        VoicingSet halo, waltz, cliche;
+        padChords (10, Voicing::neoSoul, 0, halo);
+        for (int i = 0; i < 6; ++i) CHECK (halo.slot[i].note[0] > halo.slot[i + 1].note[0] && halo.slot[i].note[0] - halo.slot[i + 1].note[0] <= 2);
+        padChords (43, Voicing::neoSoul, 0, waltz);
+        for (int i = 0; i < 4; ++i) CHECK (waltz.slot[i].note[0] - waltz.slot[i + 1].note[0] == 1);
+        // Line Cliche (#37, idx 36): Cmadd9 keeps C in its upper structure so C->B->Bb->A plays whole
+        padChords (36, Voicing::neoSoul, 0, cliche);
+        bool hasC = false;
+        for (int i = 1; i < cliche.slot[0].count; ++i) hasC |= (cliche.slot[0].note[i] % 12) == 0;
+        CHECK (hasC);
+        // Lift adds a 5th upper tone on maj9/m9 chords (e.g. Velvet Night pad 1 Fmaj9 -> Lift 1)
+        VoicingSet velvet;
+        padChords (0, Voicing::neoSoul, 0, velvet);
+        CHECK (velvet.slot[8].count == velvet.slot[0].count + 1);
+    }
     const ChordNotes odd = padChord (-5, 99, 14, 40), edge = padChord (0, Voicing::count - 1, 2, padSlots - 1); // out of range: clamped
     CHECK (std::memcmp (&odd, &edge, sizeof (odd)) == 0);
     // the pads and the banks
@@ -967,16 +984,18 @@ void testNotes()
         x.e.noteOn (36, 0.05f), x.e.noteOn (38, 0.05f);
         CHECK (stealBend (x, ref, "ten stolen at once") < 1.0 / 16.0);
     }
-    {   // (review) Five chords struck on one sample (26 notes for 24 voices): the last takes the first one's notes,
+    {   // (review) Four chords struck on one sample (28 notes for 24 voices): the last takes the first one's notes,
         // never its own
         Bench b;
         b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::voicing, (float) Voicing::open);
-        for (int k : { 44, 45, 46, 47, 48 }) b.e.noteOn (k, 0.8f);
+        for (int k : { 44, 45, 46, 47 }) b.e.noteOn (k, 0.8f);
         b.run (480);
         const VoicingSet& set = b.e.voicings();
-        std::vector<int> want;
-        for (int slot = 8; slot <= 12; ++slot)
-            for (int i = slot == 8 ? 2 : 0; i < set.slot[slot].count; ++i) want.push_back (set.slot[slot].note[i]);
+        std::vector<int> all;
+        for (int slot = 8; slot <= 11; ++slot)
+            for (int i = 0; i < set.slot[slot].count; ++i) all.push_back (set.slot[slot].note[i]);
+        CHECK (all.size() > (size_t) maxVoices);
+        std::vector<int> want (all.end() - maxVoices, all.end());
         std::sort (want.begin(), want.end());
         CHECK (want.size() == (size_t) maxVoices);
         CHECK (b.notes() == want);
