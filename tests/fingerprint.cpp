@@ -148,6 +148,11 @@ std::vector<Scenario> scenarios()
     list.push_back ({ "strum-humanize", "", { P (0, strum, 0.8), P (0, humanize, 1.0), On (0, 36), Off (96000, 36), On (100000, 41, 0.4) } });
     list.push_back ({ "latch", "", { P (0, latch, 1), On (0, 36), Off (1000, 36), On (72000, 37), Off (73000, 37), P (200000, latch, 0) } });
     list.push_back ({ "glide", "", { P (0, glide, 0.5), On (0, 36), On (60000, 37), Off (61000, 36), On (120000, 42), Off (121000, 37), Off (200000, 42) } });
+    // Sequencer ties and slides (CC 84 naming the held pad, then the next note-on; CC 68 the legato pedal): no
+    // re-attack, the late note-off of the pad slid from finding nothing.
+    list.push_back ({ "ties-slides", "", { On (0, 36), Midi (60000, 0xb0, 84, 36), On (60000, 37), Off (61000, 36),
+                                            Midi (120000, 0xb0, 84, 37), On (120000, 37), Midi (150000, 0xb0, 68, 127),
+                                            Midi (180000, 0xb0, 84, 37), On (180000, 39), Off (181000, 37), Off (240000, 39) } });
     list.push_back ({ "retrig-sync", "", { P (0, motionRetrig, 1), P (0, motionSync, 1), P (0, motionDiv, 6), On (0, 38), Off (200000, 38) } });
     list.push_back ({ "keys-octaves", "", { P (0, key, 7), P (0, octave, 1), On (0, 40), On (60000, 56), On (120000, 23) } });
     list.push_back ({ "lp24-bp-hp", "", { P (0, filterType, 1), On (0, 36), P (60000, filterType, 2), P (120000, filterType, 3), Off (200000, 36) } });

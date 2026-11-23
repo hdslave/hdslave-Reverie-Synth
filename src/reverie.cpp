@@ -65,6 +65,7 @@ struct RowBits
 
 struct Plugin
 {
+    Plugin() { for (auto& id : noteIdByKey) id = -1; }
     clap_plugin clap {};
     const clap_host* host = nullptr;
     // Every parameter's value. The audio thread writes it from events; the main thread reads it, and writes it when a
@@ -85,11 +86,9 @@ struct Plugin
     RowBits outgoing;
     bool valuesMoved = false;
     uint32_t shownStrikes = 0, shownSounding = 0, shownHeld = 0;
-    // [audio thread] The keys of the last notes the host named by CLAP note id, for note-offs and chokes that give
-    // only the id.
-    struct NoteId { int32_t id = -1; int16_t key = -1; };
-    NoteId noteIds[32];
-    uint32_t noteIdNext = 0;
+    // [audio thread] Each key's CLAP note id (-1: none held by id), for note-offs and chokes that give only the
+    // id. A slot a key, so no held note's id is ever overwritten by a later strike.
+    int32_t noteIdByKey[128];
 };
 
 Plugin& of (const clap_plugin* p) { return *static_cast<Plugin*> (p->plugin_data); }
@@ -198,8 +197,9 @@ bool paramsFromText (const clap_plugin*, clap_id id, const char* text, double* v
     return true;
 }
 
-// MIDI: notes, pitch bend, and the controllers the engine reads: the mod wheel (1, moves Motion's Y), sustain (64)
-// and the channel modes (120, 121, 123 at 0: they stop sound or notes and never move a parameter).
+// MIDI: notes, pitch bend, and the controllers the engine reads: the mod wheel (1, moves Motion's Y), sustain (64),
+// Melodee's ties and slides (legato 68, portamento 84 naming the held pad) and the channel modes (120, 121, 123
+// at 0: they stop sound or notes and never move a parameter).
 void midi (Plugin& p, const uint8_t* data)
 {
     const int status = data[0] & 0xf0, a = data[1] & 0x7f, b = data[2] & 0x7f;
@@ -221,11 +221,10 @@ int keyOf (Plugin& p, const clap_event_note& n, bool forget)
 {
     if (n.key >= 0 && n.key < 128) return n.key;
     if (n.key >= 0 || n.note_id < 0) return n.key < 0 ? -1 : -2;
-    for (auto& s : p.noteIds)
-        if (s.id == n.note_id)
+    for (int key = 0; key < 128; ++key)
+        if (p.noteIdByKey[key] == n.note_id)
         {
-            const int key = s.key;
-            if (forget) s.id = -1;
+            if (forget) p.noteIdByKey[key] = -1;
             return key;
         }
     return -2;
@@ -261,7 +260,12 @@ void handle (Plugin& p, const clap_event_header* e)
             const auto* n = reinterpret_cast<const clap_event_note*> (e);
             if (n->key >= 0 && n->key < 128)
             {
-                if (n->note_id >= 0) p.noteIds[p.noteIdNext++ % 32] = { n->note_id, (int16_t) n->key };
+                if (n->note_id >= 0)
+                {
+                    for (auto& id : p.noteIdByKey) // an id names one note: a key that held it no longer does
+                        if (id == n->note_id) id = -1;
+                    p.noteIdByKey[n->key] = n->note_id;
+                }
                 if (n->velocity > 0.0) p.engine.noteOn (n->key, (float) std::min (1.0, n->velocity));
                 else p.engine.noteOff (n->key);
             }
@@ -375,7 +379,7 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
     char tag[4] = {};
     uint32_t header[2] = {};
     if (! readAll (stream, tag, 4) || std::memcmp (tag, stateTag, 4) != 0 || ! readAll (stream, header, sizeof (header))
-        || header[0] == 0 || header[1] > 4096)
+        || header[0] == 0 || header[0] > stateVersion || header[1] > 4096)
         return false;
     float loaded[paramCount];
     for (int i = 0; i < paramCount; ++i)
@@ -505,7 +509,12 @@ void pluginDeactivate (const clap_plugin* plugin)
 }
 bool pluginStart (const clap_plugin*) { return true; }
 void pluginStop (const clap_plugin*) {}
-void pluginReset (const clap_plugin* plugin) { of (plugin).engine.reset(); }
+void pluginReset (const clap_plugin* plugin)
+{
+    auto& p = of (plugin);
+    for (auto& id : p.noteIdByKey) id = -1; // no note survives a reset, so no id may name a later one
+    p.engine.reset();
+}
 
 // Denormals: flushed to zero for the block (filters, envelopes and reverb tails decay into them).
 struct FlushDenormals

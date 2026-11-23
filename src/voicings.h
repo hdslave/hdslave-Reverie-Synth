@@ -6,6 +6,7 @@
 
 #include "chords.h"
 
+#include <algorithm>
 #include <cstddef>
 
 namespace reverie
@@ -29,7 +30,7 @@ inline ChordNotes padChord (int progression, int voicing, int key, int slot)
     const size_t at = (((size_t) progression * Voicing::count + (size_t) voicing) * 12 + (size_t) key) * padSlots + (size_t) slot;
     const unsigned char* b = table::voicingBytes + at * chordBytes;
     ChordNotes c;
-    c.count = (uint8_t) (b[0] & 0x7f);
+    c.count = (uint8_t) std::min<int> (b[0] & 0x7f, maxChordNotes); // a chord holds at most its notes, whatever the byte says
     c.hasBass = (b[0] & 0x80) != 0;
     for (int i = 0; i < c.count; ++i) c.note[i] = (int8_t) b[1 + i];
     return c;

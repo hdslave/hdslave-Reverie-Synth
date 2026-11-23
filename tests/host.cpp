@@ -591,6 +591,14 @@ void testState()
         bad[0] = 'X';
         CHECK (! load (b, bad));
     }
+    {   // a state from a newer Reverie than this one is refused whole, changing nothing
+        std::vector<uint8_t> future = saved;
+        future[4] = 99;
+        Instance b;
+        CHECK (! load (b, future));
+        CHECK_NEAR (b.value (ParamId::cutoff), paramTable[ParamId::cutoff].def, 1e-6);
+        CHECK_NEAR (b.value (ParamId::progression), paramTable[ParamId::progression].def, 0);
+    }
     {   // a state from 0.1-0.2 (version 1) chose among the retired progressions: it keeps every value but that one
         std::vector<uint8_t> old = saved;
         old[4] = 1;
@@ -921,6 +929,96 @@ void testNotes()
         b.run (480);
         CHECK (b.tel.padsHeld.load() == 0);
     }
+    {   // On, off, on of one pad on one sample: the third strike plays (the off between them is not a same-sample
+        // duplicate)
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.e.noteOff (36);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        CHECK (b.voices() == (int) b.e.voicings().slot[0].count);
+        b.run (48000 * 2);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+    }
+    {   // A wildcard note-off (every key) lets go of a latched chord too, as All Notes Off does; a latched chord's
+        // own pad coming up still leaves it ringing
+        Bench b;
+        b.e.set (ParamId::latch, 1.0f), b.e.set (ParamId::strum, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        b.e.noteOff (36);
+        b.run (480);
+        CHECK ((b.tel.padsHeld.load() & 1u) != 0);
+        b.e.noteOff (-1);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
+    {   // Ties and slides (Melodee sends CC 84 naming the held key, then the next note-on; CC 68 is the legato
+        // pedal): the held chord goes on with no new attack
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (4800);
+        const int n = b.voices();
+        CHECK (n == (int) b.e.voicings().slot[0].count);
+        b.e.controller (84, 36); // a tie: the same pad again
+        b.e.noteOn (36, 0.8f);
+        b.run (480);
+        CHECK (b.voices() == n); // no second strike sounding beside the first
+        CHECK (b.tel.padsHeld.load() == 1u);
+        b.e.controller (84, 36); // a slide: on to the next pad, its own note-off still to come
+        b.e.noteOn (37, 0.8f);
+        b.run (48000);
+        std::vector<int> want (b.e.voicings().slot[1].note, b.e.voicings().slot[1].note + b.e.voicings().slot[1].count);
+        CHECK (b.notes() == want);
+        CHECK (b.tel.padsHeld.load() == (1u << 1));
+        b.e.noteOff (36); // the slide's late note-off finds nothing on the old pad
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == (1u << 1));
+        // CC 84 naming a pad that is not held is spent: the next strike is a strike
+        Bench c;
+        c.e.set (ParamId::strum, 0.0f), c.e.set (ParamId::humanize, 0.0f);
+        c.e.controller (84, 50);
+        c.e.noteOn (36, 0.8f);
+        c.run (480);
+        CHECK (c.voices() == (int) c.e.voicings().slot[0].count);
+        CHECK (c.tel.padsHeld.load() == 1u);
+        // Reset All Controllers drops a pending slide and the legato pedal
+        Bench d;
+        d.e.set (ParamId::strum, 0.0f), d.e.set (ParamId::humanize, 0.0f);
+        d.e.noteOn (36, 0.8f);
+        d.run (480);
+        d.e.controller (84, 36);
+        d.e.controller (121, 0);
+        d.e.noteOn (37, 0.8f);
+        d.run (480);
+        CHECK (d.tel.padsHeld.load() == (1u | (1u << 1))); // a plain second strike: both pads hold
+    }
+    {   // A slide travels at Chord Glide's pace; with the legato pedal down (CC 68) it lands at once
+        Bench b;
+        b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f), b.e.set (ParamId::glide, 1.0f);
+        b.e.noteOn (36, 0.8f);
+        b.run (4800);
+        b.e.controller (84, 36);
+        b.e.noteOn (37, 0.8f);
+        b.run (480);
+        std::vector<int> want (b.e.voicings().slot[1].note, b.e.voicings().slot[1].note + b.e.voicings().slot[1].count);
+        CHECK (b.notes() != want); // still on its way
+        b.run (48000 * 4);
+        CHECK (b.notes() == want);
+        Bench c;
+        c.e.set (ParamId::strum, 0.0f), c.e.set (ParamId::humanize, 0.0f), c.e.set (ParamId::glide, 1.0f);
+        c.e.noteOn (36, 0.8f);
+        c.run (4800);
+        c.e.controller (68, 127);
+        c.e.controller (84, 36);
+        c.e.noteOn (37, 0.8f);
+        c.run (480);
+        std::vector<int> wantC (c.e.voicings().slot[1].note, c.e.voicings().slot[1].note + c.e.voicings().slot[1].count);
+        CHECK (c.notes() == wantC); // there at once
+    }
     {   // Two strikes of one pad on one sample play the louder once, exactly
         Instance a, c;
         const Stereo twice = a.render (24000, { On (0, 38, 0.5), On (0, 38, 0.9) });
@@ -1103,6 +1201,32 @@ void testNotes()
         CHECK (same (a.render (36000, two ({ Off (12000, -1, 7) })), b2.render (36000, two ({ Off (12000, 36) }))));
         CHECK (same (c2.render (36000, two ({ Off (12000, -1, 99), Choke (12000, -1, 99) })), d2.render (36000, two ({}))));
         CHECK (same (e3.render (36000, two ({ Choke (12000, -1, 8) })), f3.render (36000, two ({ Choke (12000, 40) }))));
+    }
+    {   // Note-offs by note id still find their pad after more than 32 id-named notes, and the host's reset
+        // forgets every id (a stale id must not let go of a later chord on the same pad)
+        auto many = [] (const Cue& off) {
+            // One chord held throughout, then 39 short id-named strikes (short releases, spaced out, so the held
+            // chord is never stolen): more id-named notes than any small table holds.
+            std::vector<Cue> cues { P (0, ParamId::ampRelease, envKnob (50.0f)), P (0, ParamId::strum, 0.0), On (0, 36, 0.8, 100) };
+            for (int i = 1; i < 40; ++i)
+            {
+                cues.push_back (On (6000 * (uint64_t) i, 40 + i % 8, 0.8, 100 + i));
+                cues.push_back (Off (6000 * (uint64_t) i + 2000, 40 + i % 8));
+            }
+            cues.push_back (off);
+            return cues;
+        };
+        Instance a, b2;
+        CHECK (same (a.render (6000 * 40 + 48000, many (Off (6000 * 40, -1, 100))),
+                     b2.render (6000 * 40 + 48000, many (Off (6000 * 40, 36)))));
+        Instance c1, c2;
+        for (Instance* p : { &c1, &c2 })
+        {
+            p->render (12000, { On (0, 36, 0.8, 7) });
+            p->plugin->reset (p->plugin);
+        }
+        CHECK (same (c1.render (36000, { On (0, 36, 0.8, 9), Off (12000, -1, 7) }),
+                     c2.render (36000, { On (0, 36, 0.8, 9) })));
     }
     {   // (review) A value sent with a note while asleep is the note's from its first sample (no glide in from the
         // value before it): as if sent well before the note

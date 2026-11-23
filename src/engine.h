@@ -188,6 +188,7 @@ public:
         wheel = 0.0f;
         beatClock = hostBeats = 0.0, hostAt = 0;
         lastStrikeKey = -1, lastStrikeAt = ~0ull, lastStrikeGroup = 0, lastStrikeVelocity = 0.0f;
+        legatoPedal = false, portamentoFrom = -1;
         volumePrimed = false;
         for (auto& f : fading) f.ticks = 0;
         fadingSlots = 0;
@@ -214,6 +215,8 @@ public:
     {
         if (key < 0 || key > 127) return;
         velocity = std::clamp (velocity, 0.0f, 1.0f);
+        const int slideFrom = portamentoFrom; // a tie or slide (CC 84 named the held pad), spent on this note
+        portamentoFrom = -1;
         // Asleep (or woken on this sample, nothing yet heard), a value sent with the note is the note's from its
         // first sample: no glide in from the one before.
         if ((dirty || smoothing) && ((! fxAwake && activeCount == 0) || wokeAt == now))
@@ -247,8 +250,13 @@ public:
         const bool latching = chordSet[ParamId::latch] >= 0.5f;
         const float glideTime = glideMs (chordSet[ParamId::glide]);
 
-        // A key struck again while it holds a chord: that chord lets go first (a fresh strike, never a slide).
-        releaseKey (key, true);
+        // A key struck again while it holds a chord: that chord lets go first (a fresh strike, never a slide) --
+        // unless this strike is a tie on that very pad, whose sounding chord is the slide's source below.
+        bool slideHeld = false;
+        if (slideFrom >= 0)
+            for (auto& v : voices)
+                slideHeld |= v.active && v.gated && v.waitTicks == 0 && v.releaseIn < 0 && v.key == slideFrom;
+        if (! (slideHeld && slideFrom == key)) releaseKey (key, true);
         keyDown[key] = true;
 
         int notes[maxChordNotes], count = 0;
@@ -270,11 +278,15 @@ public:
         // replaced. With Latch, every other latched chord lets go.
         int reused = 0;
         Voice* glideFrom[maxChordNotes] {};
-        if (glideTime > 0.0f)
+        if (glideTime > 0.0f || slideHeld)
         {
             uint32_t held = 0;
-            for (auto& v : voices)
-                if (v.active && v.gated && v.waitTicks == 0 && v.releaseIn < 0 && v.group > held) held = v.group;
+            if (slideHeld) // a tie or slide takes the pad CC 84 named, at Chord Glide's pace even when it is off
+                for (auto& v : voices)
+                    if (v.active && v.gated && v.waitTicks == 0 && v.releaseIn < 0 && v.key == slideFrom && v.group > held) held = v.group;
+            if (held == 0)
+                for (auto& v : voices)
+                    if (v.active && v.gated && v.waitTicks == 0 && v.releaseIn < 0 && v.group > held) held = v.group;
             if (held != 0)
             {
                 int n = 0;
@@ -308,6 +320,7 @@ public:
                 Voice& v = *glideFrom[i];
                 v.key = key, v.group = group, v.index = i, v.size = count, v.isBass = isBass;
                 v.target = (float) notes[i];
+                if (slideHeld && legatoPedal) v.pitch = v.target; // the legato pedal (CC 68): there at once
                 v.velocity = vel, v.gain = gain, v.jitter = jitter, v.level = level;
                 v.latched = latching, v.sustained = false;
                 v.panAt = -9.0f; // its place in the chord moved
@@ -329,18 +342,13 @@ public:
 
     void noteOff (int key)
     {
-        if (key < 0)
+        if (key < 0) // every key: as All Notes Off, latched chords too
         {
-            for (int k = 0; k < 128; ++k) keyDown[k] = false;
-            for (auto& v : voices)
-                if (v.active && v.gated && ! v.latched)
-                {
-                    if (sustain) v.sustained = true;
-                    else v.releaseNow();
-                }
+            allNotesOff();
             return;
         }
         if (key > 127) return;
+        forgetStrike (key); // an off between two strikes on one sample is no same-sample duplicate
         keyDown[key] = false;
         releaseKey (key, false);
     }
@@ -348,6 +356,7 @@ public:
     // A choke (or All Sound Off): the voices stop within a few milliseconds.
     void choke (int key)
     {
+        forgetStrike (key);
         for (auto& v : voices)
             if (v.active && (key < 0 || v.key == key)) v.chokeNow();
         if (key < 0) std::fill (std::begin (keyDown), std::end (keyDown), false);
@@ -366,6 +375,7 @@ public:
 
     void allNotesOff() // CC 123 and the like: every chord lets go, latched ones too (notes yet to strum never start)
     {
+        forgetStrike (-1);
         for (auto& v : voices)
             if (v.active && v.waitTicks > 0) v.active = false, v.gated = false, v.waitTicks = 0;
             else if (v.active && v.gated) v.releaseNow();
@@ -382,9 +392,11 @@ public:
                 if (value >= 64) sustain = true;
                 else liftSustain();
                 break;
+            case 68: legatoPedal = value >= 64; break; // Melodee's legato pedal: slides land at once
+            case 84: portamentoFrom = std::clamp (value, 0, 127); break; // a tie or slide: the pad held, for the next strike
             case 120: if (value == 0) silence(); break;
-            case 121: // Reset All Controllers (RP-015): the bend, the wheel and the pedal
-                if (value == 0) bend = 0.0f, wheel = 0.0f, dirty = true, liftSustain();
+            case 121: // Reset All Controllers (RP-015): the bend, the wheel and the pedals, no slide pending
+                if (value == 0) bend = 0.0f, wheel = 0.0f, dirty = true, legatoPedal = false, portamentoFrom = -1, liftSustain();
                 break;
             case 123: if (value == 0) allNotesOff(); break;
             default: break;
@@ -539,7 +551,8 @@ private:
     bool songPlaying = false;
     uint32_t groups = 0;
     bool keyDown[128] {};
-    bool sustain = false;
+    bool sustain = false, legatoPedal = false; // CC 64 and CC 68
+    int portamentoFrom = -1;                   // CC 84's pad, for the next strike
     float bend = 0.0f, wheel = 0.0f;
     int lastStrikeKey = -1;
     uint64_t lastStrikeAt = ~0ull;
@@ -582,6 +595,13 @@ private:
         float at[maxUnison][maxUnison] {}; // each unison voice's place, -1 .. 1, for 1 to 4 of them
         float volume = 0.7f, ensHz = 0.35f, decay = 5.0f, damp = 5500.0f, predelay = 20.0f;
     } sh;
+
+    // The pad's strike on this sample is over (let go, choked, every note off): a strike that follows on the same
+    // sample is a strike, not a same-sample duplicate.
+    void forgetStrike (int key)
+    {
+        if (key < 0 || key == lastStrikeKey) lastStrikeKey = -1, lastStrikeAt = ~0ull;
+    }
 
     // A pad let go (its strummed notes still play their turn), or struck again (`restrike`: its chord is replaced,
     // notes yet to strum never start).
@@ -783,7 +803,8 @@ private:
         volumeStep = (vol - volumeNow) / (float) tickSize;
         ensemble.control (smooth[ParamId::ensMix], smooth[ParamId::ensDepth], sh.ensHz);
         const double beat = 60.0 / std::clamp (tempo, 40.0, 300.0);
-        delay.control (smooth[ParamId::dlyMix], (float) (delayBeats[(int) smooth[ParamId::dlyTime]] * beat), smooth[ParamId::dlyFeedback]);
+        const int dlyAt = std::clamp ((int) smooth[ParamId::dlyTime], 0, (int) (sizeof (delayBeats) / sizeof (delayBeats[0])) - 1);
+        delay.control (smooth[ParamId::dlyMix], (float) (delayBeats[dlyAt] * beat), smooth[ParamId::dlyFeedback]);
         reverb.control (smooth[ParamId::revMix], smooth[ParamId::revSize], sh.decay, sh.damp, sh.predelay, smooth[ParamId::shimmer]);
         // Asleep once nothing sounds and the tails have been quiet for four seconds (the longest delay fits in it).
         if (fxAwake)
@@ -864,7 +885,7 @@ private:
         sh.mx = p[motionX];
         sh.my = std::clamp (p[motionY] + wheel, -1.0f, 1.0f);
         const uint32_t dests[4] = { xDest1, xDest2, yDest1, yDest2 };
-        for (int i = 0; i < 4; ++i) sh.dest[i] = (int) p[dests[i]], sh.amt[i] = p[dests[i] + 1];
+        for (int i = 0; i < 4; ++i) sh.dest[i] = std::clamp ((int) p[dests[i]], 0, Dest::count - 1), sh.amt[i] = p[dests[i] + 1];
         for (int o = 0; o < 2; ++o) sh.unisonGain[o] = 1.0f / std::sqrt ((float) sh.unison[o]);
         for (int n = 1; n <= maxUnison; ++n)
             for (int s = 0; s < n; ++s) sh.at[n - 1][s] = n == 1 ? 0.0f : -1.0f + 2.0f * (float) s / (float) (n - 1);
