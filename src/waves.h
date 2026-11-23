@@ -26,7 +26,8 @@ constexpr int topHarmonics = 512;
 
 struct WaveTable
 {
-    const float* data; // length + 1 samples (the first repeated at the end)
+    const float* data; // length + 1 samples (the first repeated at the end); while the bank is built alone --
+                       // freed once the segments below hold every frame and difference (read those instead)
     uint32_t shift;    // 32 - log2 (length): a 32-bit phase's index is phase >> shift
     uint32_t length;
 };
@@ -110,6 +111,10 @@ private:
                         *out++ = b.data[i] - a.data[i];
                     }
                 }
+        // The oscillators and the page read the segments alone: the frames they were built from go back (8,330
+        // floats a table set, 1,599,360 bytes in all). The tables keep their shift and length.
+        for (auto& t : tables) t.data = nullptr;
+        std::vector<float>().swap (storage);
     }
 
     // A fixed pseudo-random phase a harmonic, per wave (low crest factor, the same at every frame).

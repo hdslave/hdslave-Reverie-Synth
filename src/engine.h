@@ -189,6 +189,8 @@ public:
         beatClock = hostBeats = 0.0, hostAt = 0;
         lastStrikeKey = -1, lastStrikeAt = ~0ull, lastStrikeGroup = 0, lastStrikeVelocity = 0.0f;
         legatoPedal = false, portamentoFrom = -1;
+        glideCoefAt = -1.0f, motionHzAt = -1.0f;
+        publishedAt = ~0ull;
         volumePrimed = false;
         for (auto& f : fading) f.ticks = 0;
         fadingSlots = 0;
@@ -554,6 +556,9 @@ private:
     bool sustain = false, legatoPedal = false; // CC 64 and CC 68
     int portamentoFrom = -1;                   // CC 84's pad, for the next strike
     float bend = 0.0f, wheel = 0.0f;
+    uint64_t publishedAt = ~0ull; // the sample the page's picture was last published at (publish())
+    float glideCoefAt = -1.0f, glideCoef = 1.0f; // the glide coefficient at an exact knob value (control())
+    float motionHzAt = -1.0f, motionHzFor = 0.0f; // Motion's rate at an exact smoothed value (advanceClocks())
     int lastStrikeKey = -1;
     uint64_t lastStrikeAt = ~0ull;
     uint32_t lastStrikeGroup = 0;
@@ -833,7 +838,14 @@ private:
         const bool sync = target[ParamId::motionSync] >= 0.5f;
         const double div = motionDivBeats[std::clamp ((int) target[ParamId::motionDiv], 0, 6)];
         if (sync) motionPhase = beatClock / div;
-        else motionPhase += (double) (motionHz (smooth[ParamId::motionRate]) / tickRate);
+        else
+        {
+            // The rate at the knob's exact smoothed value, worked out once a value (the derived snapshot's copy
+            // lags it while asleep, when derive() waits for the next note).
+            const float k = smooth[ParamId::motionRate];
+            if (k != motionHzAt) motionHzFor = motionHz (k), motionHzAt = k;
+            motionPhase += (double) (motionHzFor / tickRate);
+        }
         if (motionPhase > 1e6) motionPhase -= std::floor (motionPhase);
     }
 
@@ -905,12 +917,19 @@ private:
         if (v.choking) v.amp.level *= 0.6f; // gone within a few milliseconds
         ++v.ticks;
 
-        // Glide (Chord Glide: about 95 % of the way in the glide time)
+        // Glide (Chord Glide: about 95 % of the way in the glide time). The coefficient is every gliding voice's
+        // alike: worked out once for each exact value of the knob as set (never from the smoothed snapshot,
+        // which lags it while it moves).
         if (v.pitch != v.target)
         {
-            const float gms = glideMs (target[ParamId::glide]);
-            const float coef = gms <= 0.0f ? 1.0f : 1.0f - std::exp (-3.0f * 1000.0f / (gms * tickRate));
-            v.pitch += (v.target - v.pitch) * coef;
+            const float g = target[ParamId::glide];
+            if (g != glideCoefAt)
+            {
+                const float gms = glideMs (g);
+                glideCoef = gms <= 0.0f ? 1.0f : 1.0f - std::exp (-3.0f * 1000.0f / (gms * tickRate));
+                glideCoefAt = g;
+            }
+            v.pitch += (v.target - v.pitch) * glideCoef;
             if (std::fabs (v.target - v.pitch) < 1e-4f) v.pitch = v.target;
         }
 
@@ -1194,6 +1213,10 @@ private:
 
     void publish()
     {
+        // The page's picture, at most once a tick: a block sliced at every event calls render() a segment at a
+        // time, and nothing it shows moves faster than the tick grid everything else runs on.
+        if (publishedAt != ~0ull && now - publishedAt < (uint64_t) tickSize) return;
+        publishedAt = now;
         uint32_t sounding = 0, held = 0;
         for (int i = 0; i < maxVoices; ++i)
         {

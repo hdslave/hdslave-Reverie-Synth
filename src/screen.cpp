@@ -510,14 +510,14 @@ void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
     const float xf = pos * (float) (waveFrames - 1);
     const int f = std::min ((int) xf, waveFrames - 2);
     const float m = xf - (float) f;
-    const WaveTable& a = WaveBank::get().table (wave, f, 2);
-    const WaveTable& b = WaveBank::get().table (wave, f + 1, 2);
+    const float* seg = WaveBank::get().segment (wave, f, 2); // each point and its morph difference, as the oscillators read
+    const uint32_t length = WaveBank::lengthAt (2);
     const float level = live (ParamId::osc (o, 7));
     int ly = 0;
     for (int x = 0; x < w; ++x)
     {
-        const uint32_t i = (uint32_t) ((float) x / (float) w * (float) a.length);
-        const float v = (a.data[i] + (b.data[i] - a.data[i]) * m) * 2.2f;
+        const uint32_t i = (uint32_t) ((float) x / (float) w * (float) length);
+        const float v = (seg[2 * i] + seg[2 * i + 1] * m) * 2.2f;
         const int y = y0 + h / 2 - (int) std::lround (std::clamp (v, -1.0f, 1.0f) * (float) (h / 2 - 3));
         const Ink c = o ? ink::lime : ink::foam;
         const Ink c2 = level > 0.0f ? c : ink::guide;
