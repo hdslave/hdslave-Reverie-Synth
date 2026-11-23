@@ -1253,6 +1253,18 @@ void testNotes()
         CHECK (same (c1.render (36000, { On (0, 36, 0.8, 9), Off (12000, -1, 7) }),
                      c2.render (36000, { On (0, 36, 0.8, 9) })));
     }
+    {   // (review) A pad let go by key, by MIDI or by a wildcard off, then struck again with no id, keeps its new
+        // chord: the first strike's id no longer names the pad, so a late off or choke for that id alone does nothing
+        Instance a, b2, c2, d2, e3, f3, g3, h3;
+        const std::vector<Cue> byKey { On (0, 36, 0.8, 7), Off (12000, 36), On (24000, 36) };
+        CHECK (same (a.render (72000, byKey + std::vector<Cue> { Off (36000, -1, 7) }), b2.render (72000, byKey)));
+        const std::vector<Cue> byChoke { On (0, 36, 0.8, 7), Choke (12000, 36), On (24000, 36) };
+        CHECK (same (c2.render (72000, byChoke + std::vector<Cue> { Off (36000, -1, 7) }), d2.render (72000, byChoke)));
+        const std::vector<Cue> byMidi { On (0, 36, 0.8, 7), Midi (12000, 0x80, 36, 0), On (24000, 36) };
+        CHECK (same (e3.render (72000, byMidi + std::vector<Cue> { Choke (36000, -1, 7) }), f3.render (72000, byMidi)));
+        const std::vector<Cue> byWild { On (0, 36, 0.8, 7), Off (12000, -1), On (24000, 36) };
+        CHECK (same (g3.render (72000, byWild + std::vector<Cue> { Off (36000, -1, 7) }), h3.render (72000, byWild)));
+    }
     {   // (review) A value sent with a note while asleep is the note's from its first sample (no glide in from the
         // value before it): as if sent well before the note
         Instance a, c;

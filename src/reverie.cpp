@@ -206,9 +206,9 @@ void midi (Plugin& p, const uint8_t* data)
     switch (status)
     {
         case 0x90:
-            if (b > 0) { p.engine.noteOn (a, (float) b / 127.0f); break; }
+            if (b > 0) { p.noteIdByKey[a] = -1, p.engine.noteOn (a, (float) b / 127.0f); break; } // MIDI names no id
             [[fallthrough]];
-        case 0x80: p.engine.noteOff (a); break;
+        case 0x80: p.noteIdByKey[a] = -1, p.engine.noteOff (a); break;
         case 0xb0: p.engine.controller (a, b); break;
         case 0xe0: p.engine.pitchBend (((float) ((b << 7) | a) - 8192.0f) / 8192.0f); break;
         default: break;
@@ -219,8 +219,17 @@ void midi (Plugin& p, const uint8_t* data)
 // neither (a wildcard: every key), -2 when it names an id Reverie does not know or a key out of range (ignored).
 int keyOf (Plugin& p, const clap_event_note& n, bool forget)
 {
-    if (n.key >= 0 && n.key < 128) return n.key;
-    if (n.key >= 0 || n.note_id < 0) return n.key < 0 ? -1 : -2;
+    if (n.key >= 0 && n.key < 128)
+    {
+        if (forget) p.noteIdByKey[n.key] = -1; // let go by key: its id must not name a later strike of the pad
+        return n.key;
+    }
+    if (n.key >= 0) return -2;
+    if (n.note_id < 0) // neither named: a wildcard lets go of every key, so no id survives it either
+    {
+        if (forget) for (auto& id : p.noteIdByKey) id = -1;
+        return -1;
+    }
     for (int key = 0; key < 128; ++key)
         if (p.noteIdByKey[key] == n.note_id)
         {
@@ -260,14 +269,18 @@ void handle (Plugin& p, const clap_event_header* e)
             const auto* n = reinterpret_cast<const clap_event_note*> (e);
             if (n->key >= 0 && n->key < 128)
             {
-                if (n->note_id >= 0)
+                if (n->velocity > 0.0)
                 {
-                    for (auto& id : p.noteIdByKey) // an id names one note: a key that held it no longer does
-                        if (id == n->note_id) id = -1;
-                    p.noteIdByKey[n->key] = n->note_id;
+                    if (n->note_id >= 0)
+                    {
+                        for (auto& id : p.noteIdByKey) // an id names one note: a key that held it no longer does
+                            if (id == n->note_id) id = -1;
+                        p.noteIdByKey[n->key] = n->note_id;
+                    }
+                    else p.noteIdByKey[n->key] = -1; // struck with no id: an older id must not name this strike
+                    p.engine.noteOn (n->key, (float) std::min (1.0, n->velocity));
                 }
-                if (n->velocity > 0.0) p.engine.noteOn (n->key, (float) std::min (1.0, n->velocity));
-                else p.engine.noteOff (n->key);
+                else p.noteIdByKey[n->key] = -1, p.engine.noteOff (n->key);
             }
             break;
         }

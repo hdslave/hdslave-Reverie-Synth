@@ -15,7 +15,7 @@
 #include "progressions.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.4.2"
+#define REVERIE_VERSION "0.4.3"
 #endif
 
 namespace reverie

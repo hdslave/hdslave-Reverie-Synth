@@ -10,7 +10,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.2). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.3). Not yet run on the MPC itself.
 
 ## Install
 
