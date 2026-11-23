@@ -16,7 +16,7 @@ bool Screen::paint (const Host& h, uint32_t* pixels, int stride, bool whole)
     const uint32_t sounding = tel.sounding.load (std::memory_order_relaxed);
     const uint32_t held = tel.padsHeld.load (std::memory_order_relaxed);
     const uint32_t strikes = tel.strikes.load (std::memory_order_relaxed);
-    const float tail = tel.reverb.load (std::memory_order_relaxed);
+    const float tail = tel.peak.load (std::memory_order_relaxed);
     animated = sounding != 0 || tail > 1e-4f;
     const bool frame = animated && (h.nowMs - frameAt >= 40 || h.nowMs < frameAt);
     const bool notesMoved = sounding != shownSounding || held != shownHeld || strikes != shownStrikes;
@@ -652,7 +652,7 @@ void Screen::outputMeter (const Raster& r, int x, int y) const
     using namespace hdui;
     r.box (x, y, 103, 13, ink::deep);
     r.text (x + 4, y + 1, "OUT", ink::ice, 10);
-    const float peak = tel.reverb.load (std::memory_order_relaxed);
+    const float peak = tel.peak.load (std::memory_order_relaxed);
     const float db = 20.f * std::log10 (std::max (peak, 1.e-5f));
     for (int i = 0; i < 16; ++i)
     {

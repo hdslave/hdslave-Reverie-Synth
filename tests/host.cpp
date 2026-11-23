@@ -429,6 +429,31 @@ void testProgressions()
     for (int p = 0; p < progressionCount; ++p)
         for (const ChordSymbol& c : parsedProgressions()[p].chords)
             CHECK (hdui::Raster::measure (chordQualityText (c), 10) <= 36);
+    // ... and so does every label the page draws beside it, at the size and place the page draws it: each pad's
+    // root line in every key (size 12, size 10 once wider than 25, as Screen::padGrid picks), the skyline's
+    // progression and voicing (from x 8, a rule and 12 pixels between them, across 320), and its key-and-mode
+    // pill (from x 141). The sounds' names are the host's list to draw; they are held to the same full width.
+    for (int p = 0; p < progressionCount; ++p)
+    {
+        for (int k = 0; k < 12; ++k)
+            for (int c = 0; c < chordsPerProgression; ++c)
+            {
+                char root[16];
+                chordRootText (parsedProgressions()[p].chords[c], k, progressionTable[p].minor, root, sizeof (root));
+                const int rootSize = hdui::Raster::measure (root, 12) > 25 ? 10 : 12;
+                CHECK (hdui::Raster::measure (root, rootSize) <= 36);
+            }
+        for (int v = 0; v < Voicing::count; ++v)
+            CHECK (8 + hdui::Raster::measure (progressionTable[p].name, 12) + 12 + hdui::Raster::measure (voicingChoices[v], 12) <= 320);
+        for (int k = 0; k < 12; ++k)
+        {
+            char mode[20];
+            std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (k, progressionTable[p].minor), progressionTable[p].minor ? "minor" : "major");
+            CHECK (141 + hdui::Raster::measure (mode, 10) + 12 <= 320);
+        }
+    }
+    for (const auto& preset : presetTable)
+        CHECK (hdui::Raster::measure (preset.name, 12) <= 312);
     // every voicing of every progression in every key is a sound chord, and the table the plug-in reads (voiced when
     // it was built, src/voicings.h) holds exactly the chords the search gives
     int chords = 0, flat9 = 0, differ = 0, lifted = 0, withColour = 0;

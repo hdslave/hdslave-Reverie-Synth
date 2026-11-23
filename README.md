@@ -10,7 +10,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.1). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.2). Not yet run on the MPC itself.
 
 ## Install
 
@@ -32,7 +32,9 @@ Keys page names them Chord 1-8 and Lift 1-8. Its page needs hdslaveOS; in stock 
 
 A chord sounds while its pad is held. A pad struck again while it still holds its chord (Melodee sends on, on, off
 when a step repeats) starts the chord fresh and lets the old one ring out. Two strikes of one pad on the same sample
-play once, at the louder velocity.
+play once, at the louder velocity; one struck, let go and struck again all on one sample plays its second strike.
+A step the sequencer ties (or slides) goes on with no new attack, travelling at Chord Glide's pace — at once while
+the legato pedal is down.
 
 ### The chord section
 
@@ -416,12 +418,13 @@ the MPC's 1.8 GHz Cortex-A55):
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
-| silent | 4,319 | 0.09 % |
-| one chord held, default sound | 224,832 | 4.7 % |
-| the progression played, releases overlapping | 285,372 | 5.9 % |
-| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,033,405 | 21.5 % |
+| silent | 3,838 | 0.08 % |
+| one chord held, default sound | 224,452 | 4.7 % |
+| the progression played, releases overlapping | 284,996 | 5.9 % |
+| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,033,044 | 21.5 % |
+| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,076,805 | 22.4 % |
 
-The page costs about 82,000 instructions a frame on CHORDS and 111,000 on MOTION while it moves (25 frames a
+The page costs about 86,000 instructions a frame on CHORDS and 111,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
 channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
@@ -446,7 +449,7 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   wiped ones (and All Sound Off on 16 channels costing what one does), tuning at 44.1, 48 and 96 kHz, bounded output
   at every extreme, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
   against the search, set by set.
-- `tests/fingerprint.cpp` hashes every output sample over 49 scenes (`tests/fingerprint.txt`), including one in
+- `tests/fingerprint.cpp` hashes every output sample over 50 scenes (`tests/fingerprint.txt`), including one in
   blocks of 1, 37, 128 and 4096 frames that must hash the same: the output does not depend on the host's blocks. A
   change meant to keep the sound must keep the hashes; `make fingerprint-update` records a change meant to change it.
 - `./build.sh sanitize`: the host tests against an AddressSanitizer and UBSan build.

@@ -633,7 +633,7 @@ bool screenInput (const clap_plugin* plugin, const melodee_screen_input_t* e)
     {
         const auto& edit = edits.list[i];
         const int index = paramIndex (edit.id);
-        if (index < 0 || edit.press)
+        if (index < 0)
             continue;
         p.values[index].store (clampParam (paramTable[index], edit.value), std::memory_order_relaxed);
         p.outgoing.set ((uint32_t) index);

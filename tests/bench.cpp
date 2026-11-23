@@ -1,10 +1,12 @@
 // Reverie's cost: renders through the CLAP entry for SECONDS at 48 kHz in 128-frame blocks, as Melodee plays it.
 // tools/bench.sh runs it under callgrind for instruction counts (exact and repeatable, unlike timings on a computer
 // that is not the MPC).
-//   bench [worst|pad|typical|silent|paint|motion] [SECONDS]   (REVERIE_BENCH_RATE=44100 for another host rate)
+//   bench [worst|storm|pad|typical|silent|paint|motion] [SECONDS]   (REVERIE_BENCH_RATE=44100 for another host rate)
 // worst: every voice busy (five Open-voiced lifted chords struck together and held: all 24 voices), unison 4 + 4,
-// LP 24, Motion on every destination, every effect up; pad: the default sound holding one chord; typical: the
-// default sound playing its progression, a chord every two seconds, the releases overlapping; silent: no notes;
+// LP 24, Motion on every destination, every effect up; storm: the same patch with its five held pads rotating
+// every block, so stolen voices keep fading beside the 24 (the steal transient worst never reaches); pad: the
+// default sound holding one chord; typical: the default sound playing its progression, a chord every two
+// seconds, the releases overlapping; silent: no notes;
 // paint / motion: the CHORDS / MOTION page painted 25 times a second while the pad plays.
 #include "../src/reverie.cpp"
 
@@ -32,7 +34,7 @@ int main (int argc, char** argv)
     std::vector<Any> first;
     auto param = [&] (uint32_t id, double v) { Any a {}; a.param = { { sizeof (clap_event_param_value), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, id, nullptr, -1, -1, -1, -1, v }; first.push_back (a); };
     auto note = [&] (std::vector<Any>& list, uint32_t t, uint8_t s, uint8_t k, uint8_t v) { Any a {}; a.midi.header = { sizeof (clap_event_midi), t, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 }; a.midi.data[0] = s, a.midi.data[1] = k, a.midi.data[2] = v; list.push_back (a); };
-    if (mode == "worst")
+    if (mode == "worst" || mode == "storm")
     {
         param (voicing, reverie::Voicing::open), param (osc1Unison, 4), param (osc2Unison, 4), param (filterType, reverie::Filter::lp24);
         param (resonance, 0.5), param (air, 0.4), param (ensMix, 1.0), param (dlyMix, 0.5), param (dlyFeedback, 0.7);
@@ -67,6 +69,13 @@ int main (int argc, char** argv)
         {
             const uint8_t k = (uint8_t) (36 + (b / chordEvery) % 8), prev = (uint8_t) (36 + (b / chordEvery + 7) % 8);
             note (list, 0, 0x80, prev, 0), note (list, 0, 0x90, k, 100);
+        }
+        if (mode == "storm" && b >= 40)
+        {
+            // Five lifted pads held at a time, the set rotating a pad every block (a ceiling no playing reaches):
+            // each new chord steals voices whose fades then render beside the 24.
+            const long strike = b - 40;
+            note (list, 0, 0x80, (uint8_t) (44 + strike % 8), 0), note (list, 0, 0x90, (uint8_t) (44 + (strike + 5) % 8), 110);
         }
         clap_input_events in { &list, [] (const clap_input_events* e) { return (uint32_t) static_cast<std::vector<Any>*> (e->ctx)->size(); },
                                [] (const clap_input_events* e, uint32_t i) -> const clap_event_header* { return &(*static_cast<std::vector<Any>*> (e->ctx))[i].header; } };

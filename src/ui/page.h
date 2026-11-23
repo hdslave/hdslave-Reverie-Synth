@@ -45,14 +45,13 @@ struct Host
 
 enum class Key : uint8_t { wheel = 0, push = 1, nudge = 2 }; // as MELODEE_SCREEN_WHEEL, _PUSH, _NUDGE
 
-// What an input did: parameters set (plain values) and buttons pressed.
+// What an input did: parameters set (plain values).
 struct Edits
 {
-    struct Edit { uint32_t id; float value; bool press; };
+    struct Edit { uint32_t id; float value; };
     Edit list[4];
     int count = 0;
-    void set (uint32_t id, float v) { if (count < 4) list[count++] = { id, v, false }; }
-    void press (uint32_t id) { if (count < 4) list[count++] = { id, 0.0f, true }; }
+    void set (uint32_t id, float v) { if (count < 4) list[count++] = { id, v }; }
 };
 
 struct Raster

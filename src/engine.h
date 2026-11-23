@@ -43,7 +43,7 @@ struct Telemetry
     std::atomic<float> morph[2];             // the newest voice's wave positions after modulation
     std::atomic<float> cutoff { 1000 };      // and its cutoff (Hz)
     std::atomic<float> ampEnv { 0 }, fltEnv { 0 };
-    std::atomic<float> peak { 0 }, reverb { 0 };
+    std::atomic<float> peak { 0 }; // the loudest sample since the tick before (post-limiter; the meter and tail lamp)
     Telemetry()
     {
         for (int i = 0; i < maxVoices; ++i)
@@ -825,7 +825,7 @@ private:
             else
                 silentTicks = 0;
         }
-        tel->reverb.store (tickPeak, std::memory_order_relaxed);
+        tel->peak.store (tickPeak, std::memory_order_relaxed);
         tickPeak = 0.0f;
     }
 

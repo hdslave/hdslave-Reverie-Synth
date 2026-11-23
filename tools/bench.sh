@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 CONTEXT=${DOCKER_CONTEXT:-colima-melodee}
 SECONDS_RUN=${1:-4}
 shift 2>/dev/null || true
-MODES=${*:-worst pad typical silent paint motion}
+MODES=${*:-worst storm pad typical silent paint motion}
 docker --context "$CONTEXT" run --rm --platform linux/arm64 -v "$PWD:/work" -w /work melodee-profiler sh -c "
     make -s build/bench >/dev/null
     blocks=\$(awk -v s=$SECONDS_RUN 'BEGIN { printf \"%d\", s * 48000 / 128 }')
