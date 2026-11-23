@@ -4,7 +4,6 @@ Separate desktop CLAP build of **hdslave Reverie** for **FL Studio** (2024+) and
 
 - **Multi-Screen MPC Dashboard:** displays all of hdslave Reverie's native MPC screens simultaneously on one resizable Retina/HiDPI panel (with the hardware `K1`–`K3` footer panels removed) and direct mouse, trackpad, and touch control over every parameter, plot, sequencer, and pad.
 - **Standalone from the MPC Sample build:** this directory is completely separate from the MPC Sample build in the repository root (`../src`, `../build.sh`). GitHub releases remain MPC Sample-only for now while the desktop builds are being finalized.
-- **All 11 desktop plug-ins together:** also available in the combined desktop suite at [hdslave-Synths-and-drum-machines-Mac-Win](https://github.com/hdslave/hdslave-Synths-and-drum-machines-Mac-Win).
 
 ## Build & Install (macOS)
 
@@ -22,8 +21,7 @@ cd mac-clap
 
 ```powershell
 cd mac-clap
-cmake -S . -B build\windows -A x64
-cmake --build build\windows --config Release --parallel
+.\build-windows.ps1
 ```
 
 Copy `build\windows\clap\Release\Reverie.clap` to `C:\Program Files\Common Files\CLAP\`.
