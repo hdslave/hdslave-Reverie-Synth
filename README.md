@@ -415,12 +415,15 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## Sounds
 
-Twenty, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
+Twenty-one, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
 section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
 
 Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
-Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
+Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Velvet Wah.
+
+Velvet Wah pairs a saw and a reed through a resonant band-pass. Each chord opens with a short filter swell.
+Hold a pad for the slower wah or move Motion Y to sweep the filter by hand.
 
 ## Cost
 
