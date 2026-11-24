@@ -139,6 +139,23 @@ inline const PresetValue velvetWah[] = {
     { revMix, 0.40f }, { revDecay, decayKnob (1.8f) }, { revDamp, dampKnob (3500) }, { revPredelay, 0.035f },
     { shimmer, 0.0f }, { phaserMix, 0.75f }, { phaserRate, 0.0f }, { phaserFeedback, 0.45f },
     { phaserEnv, 0.84f }, { volume, 1.9f } };
+// The low Oo moves forward as the pulse recedes. The filter envelope sweeps the phaser on every strike.
+inline const PresetValue undertowWah[] = {
+    { osc1Wave, 2 }, { osc1Pos, 0.0f }, { osc1Octave, -1 }, { osc1Fine, -9.5f },
+    { osc1Unison, 2 }, { osc1Detune, detuneKnob (7.2f) }, { osc1Level, 0.86f },
+    { osc2Wave, 1 }, { osc2Pos, 0.44f }, { osc2Fine, 10 }, { osc2Unison, 1 }, { osc2Level, 0.57f },
+    { width, 0.0f }, { air, 0.0f }, { drift, driftKnob (0.85f) },
+    { cutoff, cutoffKnob (950) }, { resonance, 0.49f }, { filterEnv, 0.02f }, { keyTrack, 0.005f }, { velCutoff, 0.02f },
+    { ampAttack, envKnob (140) }, { ampDecay, envKnob (870) }, { ampSustain, 0.35f }, { ampRelease, envKnob (625) },
+    { fltAttack, envKnob (315) }, { fltDecay, envKnob (660) }, { fltSustain, 0.67f }, { fltRelease, envKnob (625) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionRate, motionKnob (0.31f) }, { motionDepth, 0.80f }, { motionSpread, 0.0f }, { motionRetrig, 1 },
+    { xDest1, Dest::oscMix }, { xAmt1, 0.94f }, { xDest2, Dest::cutoff }, { xAmt2, 0.25f },
+    { yDest1, Dest::wave1 }, { yAmt1, 0.465f }, { yDest2, Dest::cutoff }, { yAmt2, 0.26f },
+    { phaserMix, 0.78f }, { phaserRate, 0.0f }, { phaserFeedback, 0.36f }, { phaserEnv, 0.69f },
+    { ensMix, 0.11f }, { ensDepth, 0.42f }, { ensRate, ensKnob (0.27f) }, { dlyMix, 0.0f },
+    { revMix, 0.29f }, { revSize, 0.65f }, { revDecay, decayKnob (2.05f) }, { revDamp, dampKnob (5100) },
+    { revPredelay, 0.072f }, { shimmer, 0.0f }, { volume, 1.69f } };
 } // namespace presetdata
 
 #define REVERIE_PRESET(key, name, list) { key, name, presetdata::list, (int) (sizeof (presetdata::list) / sizeof (presetdata::list[0])) }
@@ -164,6 +181,7 @@ inline const Preset presetTable[] = {
     REVERIE_PRESET ("polar-lights", "Polar Lights", polarLights),
     REVERIE_PRESET ("satin-keys", "Satin Keys", satinKeys),
     REVERIE_PRESET ("velvet-wah", "Velvet Wah", velvetWah),
+    REVERIE_PRESET ("undertow-wah", "Undertow Wah", undertowWah),
 };
 #undef REVERIE_PRESET
 constexpr int presetCount = (int) (sizeof (presetTable) / sizeof (presetTable[0]));
