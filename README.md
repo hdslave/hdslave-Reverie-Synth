@@ -21,7 +21,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.5.3). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.0). Not yet run on the MPC itself.
 
 ## Install
 
@@ -375,6 +375,18 @@ ATTACK, DECAY, SUSTAIN, RELEASE (up to 20 s).
 Triangle, Drift: a smooth random walk), RATE (0.05-20 Hz), DELAY (fades in over up to 5 s), and its depths to PITCH
 (up to 50 cents), CUTOFF and WAVE (Position).
 
+**Wave sequence.** Each note can play a third layer alongside its two oscillators. On **LAYER**,
+choose four of Reverie’s twelve original waves. Step Time sets each step from a sixteenth note
+to two bars at the host tempo. Each strummed note starts its own sequence when it sounds.
+Crossfade sets how much of the incoming step blends with the preceding wave. Level and Octave
+set the layer’s balance and register. The voice filter and amplitude envelope shape all three layers.
+
+- **Loop** repeats the four steps while the voice sounds.
+- **One Shot** plays them once and sustains the fourth wave.
+- **Strike** plays a decaying attack over four steps. The two main oscillators swell underneath it.
+
+The design draws on the sampled attack over a sustained synth tone and on timed crossfades between waves. Reverie synthesizes its own source waves. [Roland’s account of linear arithmetic synthesis](https://www.roland.com/global/products/d-05/) · [Korg’s wave sequencing overview](https://www.korg.com/us/products/software/korg_iwavestation/)
+
 **Motion.** The X / Y pad, as the M3's MOTION records and plays a path on its X / Y pad. PATH picks the path (Orbit,
 Figure 8, Pendulum, Spiral, Wander, Tide, Star, Lissajous; Off for none), RATE its speed (0.01-4 Hz; or SYNC to
 the song, one turn every DIV), DEPTH its size, X and Y its centre (on the MOTION page K1 and K2: turn them by hand
@@ -391,9 +403,14 @@ eight-line feedback delay network, slowly modulated, with diffusion, a pre-delay
 low end stays clear: mix, size, decay up to 40 s, tone, pre-delay) and SHIMMER (the reverb an octave up, fed back
 into it). VOLUME sets the level; a soft limiter keeps the output under 0 dBFS.
 
+**Stereo echo return.** Taps blends earlier repeats into opposite sides at one half and three
+quarters of the delay time. Duck reduces the wet return during a chord and brings it back as the
+chord decays. Tone adjusts the low-pass filter in the delay feedback. At 50% the cutoff is 4.2 kHz.
+The earlier taps share the ping-pong delay’s two buffers.
+
 ## The page
 
-Use Minus and Plus to move through the six pages. [Watch the screen tour in hdslaveOS](docs/reverie-pages.gif). The wheel moves between controls. Push edits one; turn the
+Use Minus and Plus to move through the seven pages. [Watch the screen tour in hdslaveOS](docs/reverie-pages.gif). The wheel moves between controls. Push edits one; turn the
 wheel to change it (Shift + wheel for fine steps, Minus and Plus for coarse) and Push again when done. On a switch,
 Push flips it at once. K1-K3 hold the control picked and the next two. Hold Shift to see the controls.
 
@@ -409,6 +426,7 @@ A hollow amber marker shows where a physical knob sits while it waits for pickup
 | FILTER | the response, with the cutoff where the newest note has it, and the filter envelope |
 | AMP | the amplitude envelope and the LFO |
 | FX | phaser, ensemble, tempo delay and shimmer reverb grouped beside an aquarium with a live output peak meter |
+| LAYER | wave sequence mode, level, octave, step time, crossfade, four step waves and three stereo echo controls |
 
 The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
 
@@ -416,12 +434,12 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## Sounds
 
-Twenty-five, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
+Twenty-seven, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
 section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
 
 Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
-Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
+Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello, Cloud Loom, Prism Choir and Tide Atlas.
 
 Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter envelope opens the phaser on each strike, and Motion brings the choir forward as you hold the chord. For the reference voicing on MPC, choose Bow and Gourd in D with Quartal voicing, set Strum to 30 ms and play A03 for about 0.7 s. The desktop equivalent is Velvet Night in C, Neo Soul, pad A08.
 
@@ -429,6 +447,8 @@ Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter en
 - **Lantern Ferry** rocks between a flute and a hollow pulse over two beats, with a dotted-eighth echo answering the chord.
 - **Cinder Cello** pairs a low bowed string with a reed. A band-pass filter and a slow reverse-envelope phaser move through the held chord.
 - **Cloud Loom** swells from pitched breath into airy octave harmonics, with a high-pass filter and a long shimmer tail.
+- **Prism Choir** opens with a pitched crystal strike. A choir and bowed strings swell underneath, and the stereo echoes answer the attack.
+- **Tide Atlas** holds a warm chord while an upper layer cycles through Reed, Breath, Crystal and Octaves. Hold a pad for two bars to hear the cycle twice at its quarter-note setting.
 
 ## Cost
 
@@ -436,13 +456,16 @@ Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. T
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
-| silent | 3,838 | 0.08 % |
-| Undertow Wah chord, phaser Mix at zero | 177,594 | 3.70 % |
-| same chord with the factory phaser setting | 190,250 | 3.96 % |
-| one chord held, default sound | 224,953 | 4.7 % |
-| the progression played, releases overlapping | 328,028 | 6.8 % |
-| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,904 | 21.8 % |
-| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,090,019 | 22.7 % |
+| silent | 3,814 | 0.08 % |
+| Undertow Wah chord, phaser Mix at zero | 177,002 | 3.69 % |
+| same chord with the factory phaser setting | 189,650 | 3.95 % |
+| one chord held, default sound | 224,300 | 4.67 % |
+| the progression played, releases overlapping | 326,967 | 6.81 % |
+| Tide Atlas chord with wave layer and extended echo bypassed | 201,141 | 4.19 % |
+| same chord with factory wave layer and echo | 242,027 | 5.04 % |
+| 24 voices and 4 + 4 unison with wave layer and extended echo bypassed | 1,042,808 | 21.73 % |
+| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,251,119 | 26.06 % |
+| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,258,591 | 26.22 % |
 
 The page costs about 86,000 instructions a frame on CHORDS and 111,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample

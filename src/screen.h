@@ -39,7 +39,7 @@ public:
         for (int i = 0; i < paramCount; ++i) seen[i] = paramTable[i].def;
     }
 
-    enum Page { chordsPage, motionPage, oscPage, filterPage, ampPage, fxPage, pageCount };
+    enum Page { chordsPage, motionPage, oscPage, filterPage, ampPage, fxPage, layerPage, pageCount };
 
     void knobs (uint32_t ids[3]) const;
 

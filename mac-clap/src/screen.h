@@ -89,6 +89,7 @@ private:
     const Telemetry& tel;
     float seen[paramCount] {};
     hdui::Picture picture;
+    bool showWaveLayer = false, showEcho = false; // desktop editor tabs, local to this instance
     int page = chordsPage;
     int focus[pageCount] {};
     bool editing = false, first = true, touched = false, animated = false, wasAnimated = false;

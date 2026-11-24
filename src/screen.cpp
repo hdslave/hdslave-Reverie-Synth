@@ -166,8 +166,16 @@ Screen::Layout Screen::layout (int p)
         { phaserMix, 102, 106, 46, 15, "Mix" }, { phaserRate, 148, 106, 66, 15, "Rate" },
         { phaserFeedback, 214, 106, 42, 15, "FB" }, { phaserEnv, 256, 106, 60, 15, "F.Env" },
     };
+    static const Cell layerCells[] = {
+        { seqMode, 4, 14, 101, 17, "Mode" }, { seqLevel, 106, 14, 100, 17, "Level" }, { seqOctave, 207, 14, 109, 17, "Octave" },
+        { seqDivision, 4, 32, 151, 17, "Step time" }, { seqFade, 157, 32, 159, 17, "Crossfade" },
+        { seqWave1, 4, 51, 151, 17, "Wave 1" }, { seqWave2, 157, 51, 159, 17, "Wave 2" },
+        { seqWave3, 4, 69, 151, 17, "Wave 3" }, { seqWave4, 157, 69, 159, 17, "Wave 4" },
+        { echoTaps, 4, 104, 101, 17, "Taps" }, { echoDuck, 106, 104, 100, 17, "Duck" }, { echoTone, 207, 104, 109, 17, "Tone" },
+    };
     switch (p)
     {
+        case layerPage: return { layerCells, (int) std::size (layerCells) };
         case chordsPage: return { chordCells, (int) std::size (chordCells) };
         case motionPage: return { motionCells, (int) std::size (motionCells) };
         case oscPage: return { oscCells.data(), (int) oscCells.size() };
@@ -180,6 +188,7 @@ Screen::Layout Screen::layout (int p)
 // The same plots are used for the first paint and the small animated regions.
 bool Screen::moving (uint32_t* pixels, int stride, uint32_t sounding)
 {
+    if (page == layerPage) return false;
     if (page == chordsPage)
         return picture.region<320, 20> (pixels, stride, false, 0, headH + 104, [&] (Raster& r) { keyboard (r, 4, 4, 312, 14, sounding); });
     if (page == oscPage)
@@ -217,8 +226,8 @@ void Screen::header (const Raster& r) const
     r.box (x + 5, 30, 1, 7, 0xff95d2de);
     r.text (x + 12, 27, voicingChoices[choice (ParamId::voicing)], ink::white);
 
-    static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
-    const int edges[] = { 17, 76, 135, 177, 226, 269, 301 };
+    static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx", "layer" };
+    const int edges[] = { 15, 65, 116, 148, 192, 229, 258, 304 };
     r.gradient (0, 43, 320, 16, 0xff35738c, 0xff103f5e);
     for (int p = 0; p < pageCount; ++p)
     {
@@ -279,6 +288,10 @@ void Screen::body (const Raster& r, uint32_t sounding, uint32_t held)
         case ampPage:
             section (r, 157, 1, 316, "Amplitude envelope");
             section (r, 157, 61, 316, "Modulation oscillator");
+            break;
+        case layerPage:
+            section (r, 4, 1, 316, "Wave sequence");
+            section (r, 4, 91, 316, "Stereo echo return");
             break;
         case fxPage:
             r.bitmap (4, 3, 103, 99, art::aquarium);

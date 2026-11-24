@@ -15,7 +15,7 @@
 #include "progressions.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.2.3"
+#define REVERIE_VERSION "0.3.0"
 #endif
 
 namespace reverie
@@ -47,9 +47,12 @@ enum : uint32_t
     revMix = 73, revSize, revDecay, revDamp, revPredelay, shimmer,
     volume = 79,
     phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
-    count = 84
+    seqMode = 84, seqLevel, seqDivision, seqFade, seqOctave,
+    seqWave1, seqWave2, seqWave3, seqWave4,
+    echoTaps, echoDuck, echoTone,
+    count = 96
 };
-static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79 && phaserEnv == 83 && count == 84, "the ids are fixed");
+static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79 && phaserEnv == 83 && echoTone == 95 && count == 96, "the ids are fixed");
 constexpr uint32_t chordSection = 10; // ids below it belong to the chords, not the sound
 inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wave : osc2Wave) + field; }
 } // namespace ParamId
@@ -80,6 +83,10 @@ namespace Voicing { enum : int { neoSoul, open, close, air, quartal, rootless, c
 inline const char* const waveChoices[] = { "Velvet Saw", "Hollow Pulse", "Choir", "Strings", "Drawbar", "Crystal",
                                            "Spectra", "Octaves", "Warm", "Breath", "Reed", "Sine" };
 constexpr int waveCount = 12;
+namespace Sequence { enum : int { off, loop, once, strike }; }
+inline const char* const sequenceModes[] = { "Off", "Loop", "One Shot", "Strike" };
+inline const char* const sequenceDivisions[] = { "1/16", "1/8T", "1/8", "1/4T", "1/4", "1/2", "1 Bar", "2 Bars" };
+constexpr double sequenceBeats[] = { 0.25, 1.0 / 3.0, 0.5, 2.0 / 3.0, 1.0, 2.0, 4.0, 8.0 };
 inline const char* const filterChoices[] = { "LP 12", "LP 24", "BP", "HP" };
 namespace Filter { enum : int { lp12, lp24, bp, hp }; }
 inline const char* const lfoShapeChoices[] = { "Sine", "Triangle", "Drift" };
@@ -241,6 +248,18 @@ inline const Param* makeTable()
     b.add (phaserRate, "Phaser Rate", "RATE", "Phaser", 0, 3, 0.18f, K::continuous, U::hertz);
     b.add (phaserFeedback, "Phaser Feedback", "FDBK", "Phaser", 0, 1, 0.42f, K::continuous, U::unit);
     b.add (phaserEnv, "Phaser Filter Env", "F.ENV", "Phaser", -1, 1, 0, K::continuous, U::bipolar);
+    b.add (seqMode, "Sequence Mode", "MODE", "Wave Sequence", 0, 3, Sequence::off, K::choice, U::choice, sequenceModes);
+    b.add (seqLevel, "Sequence Level", "LAYER", "Wave Sequence", 0, 1, 0.60f, K::continuous, U::unit);
+    b.add (seqDivision, "Step Time", "TIME", "Wave Sequence", 0, 7, 4, K::choice, U::choice, sequenceDivisions);
+    b.add (seqFade, "Step Crossfade", "XFADE", "Wave Sequence", 0, 1, 0.70f, K::continuous, U::unit);
+    b.add (seqOctave, "Layer Octave", "OCT", "Wave Sequence", -2, 2, 0, K::integer, U::octaves);
+    b.add (seqWave1, "Step 1 Wave", "WAVE 1", "Wave Sequence", 0, waveCount - 1, 5, K::choice, U::choice, waveChoices);
+    b.add (seqWave2, "Step 2 Wave", "WAVE 2", "Wave Sequence", 0, waveCount - 1, 2, K::choice, U::choice, waveChoices);
+    b.add (seqWave3, "Step 3 Wave", "WAVE 3", "Wave Sequence", 0, waveCount - 1, 9, K::choice, U::choice, waveChoices);
+    b.add (seqWave4, "Step 4 Wave", "WAVE 4", "Wave Sequence", 0, waveCount - 1, 7, K::choice, U::choice, waveChoices);
+    b.add (echoTaps, "Stereo Echo Taps", "TAPS", "Delay", 0, 1, 0, K::continuous, U::unit);
+    b.add (echoDuck, "Echo Ducking", "DUCK", "Delay", 0, 1, 0, K::continuous, U::unit);
+    b.add (echoTone, "Echo Tone", "TONE", "Delay", 0, 1, 0.5f, K::continuous, U::unit);
     return b.list;
 }
 

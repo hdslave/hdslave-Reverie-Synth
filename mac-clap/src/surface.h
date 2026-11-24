@@ -28,6 +28,22 @@ struct Surface
     static constexpr SurfaceRect ampEnvelope {4, 335, 148, 44};
     static constexpr SurfaceRect lfo {4, 384, 148, 45};
 
+    enum Tab { oscillatorTab, sequenceTab, rackTab, echoTab };
+    static constexpr SurfaceRect tabs[] = { {192, 205, 48, 13}, {241, 205, 74, 13}, {532, 319, 46, 13}, {579, 319, 56, 13} };
+    static constexpr SurfaceRect layerArea {4, 221, 312, 96}, echoArea {432, 334, 204, 82};
+    static constexpr Cell layerCells[] = {
+        { ParamId::seqMode, 4, 233, 111, 16, "Mode" }, { ParamId::seqLevel, 116, 233, 95, 16, "Level" },
+        { ParamId::seqOctave, 212, 233, 104, 16, "Octave" }, { ParamId::seqDivision, 4, 250, 151, 15, "Step time" },
+        { ParamId::seqFade, 157, 250, 159, 15, "Crossfade" },
+        { ParamId::seqWave1, 4, 280, 151, 17, "1" }, { ParamId::seqWave2, 157, 280, 159, 17, "2" },
+        { ParamId::seqWave3, 4, 298, 151, 17, "3" }, { ParamId::seqWave4, 157, 298, 159, 17, "4" },
+    };
+    static constexpr Cell echoCells[] = {
+        { ParamId::dlyMix, 432, 349, 67, 18, "Mix" }, { ParamId::dlyTime, 500, 349, 67, 18, "Time" },
+        { ParamId::dlyFeedback, 568, 349, 68, 18, "Fdbk" }, { ParamId::echoTaps, 432, 391, 67, 18, "Taps" },
+        { ParamId::echoDuck, 500, 391, 67, 18, "Duck" }, { ParamId::echoTone, 568, 391, 68, 18, "Tone" },
+    };
+
     static Cell cellAt (int page, const Cell& source)
     {
         Cell c = source;
@@ -207,6 +223,24 @@ struct Surface
         }
     }
 
+    template<size_t N>
+    static void editorBank (const Raster& r, const Screen& s, SurfaceRect area, const Cell (&cells)[N])
+    {
+        using namespace hdui;
+        for (int y = area.y; y < area.y + area.h; ++y)
+            for (int x = area.x; x < area.x + area.w; ++x)
+                r.px[y * r.w + x] = desktopArt::glass[(y - headingY[0]) / 2 * 320 + x / 2];
+        for (const Cell& c : cells)
+        {
+            for (int y = 0; y < c.h - 1; ++y)
+                for (int x = 0; x < c.w - 1; ++x)
+                    r.blend (c.x + x, c.y + y, ink::white, 162 - y * 68 / c.h);
+            r.box (c.x, c.y + c.h - 1, c.w - 1, 1, ink::guide);
+            r.text (c.x + 3, c.y + (c.h - 10) / 2, c.label, ink::label, 10);
+            parameter (r, s, c);
+        }
+    }
+
     static void CLAP_ABI paint (const clap_plugin_t* plugin, uint32_t* pixels, const SurfaceHeader* state)
     {
         using namespace hdui;
@@ -250,9 +284,30 @@ struct Surface
             for (int i = 0; i < layout.count; ++i)
                 parameter (r, s, cellAt (page, layout.cells[i]));
         }
+        const char* tabLabels[] = {"Osc", "Sequence", "Rack", "Echo"};
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto& tab = tabs[i];
+            const bool selected = i == (s.showWaveLayer ? sequenceTab : oscillatorTab) || i == (s.showEcho ? echoTab : rackTab);
+            r.gel (tab.x, tab.y, tab.w, tab.h, ink::teal, selected ? 0xffedffc6 : ink::ice,
+                   selected ? 0xff9ed45b : 0xff218ca8, selected ? 0xffd6ffaf : ink::teal);
+            r.centre (tab.x + tab.w / 2, tab.y + 1, tabLabels[i], selected ? ink::deep : ink::white, 10);
+        }
+        if (s.showWaveLayer)
+        {
+            editorBank (r, s, layerArea, layerCells);
+            Screen::section (r, 4, 221, 316, "Wave sequence layer");
+            Screen::section (r, 4, 268, 316, "Step waves");
+        }
+        if (s.showEcho)
+        {
+            editorBank (r, s, echoArea, echoCells);
+            Screen::section (r, 432, 334, 636, "Tempo delay");
+            Screen::section (r, 432, 375, 636, "Stereo echo return");
+        }
     }
 
-    static bool CLAP_ABI hitTest (const clap_plugin_t*, int x, int y, Spot* out)
+    static bool CLAP_ABI hitTest (const clap_plugin_t* plugin, int x, int y, Spot* out)
     {
         if (!out || x < 0 || y < headingY[0] || x >= metrics.width || y >= metrics.height) return false;
         auto spot = [&] (SurfaceRect b, clap_id id, clap_id idY = CLAP_INVALID_ID, bool absolute = false) {
@@ -263,6 +318,26 @@ struct Surface
             *out = { HDSLAVE_HOTSPOT_NOTE_PAD, CLAP_INVALID_ID, CLAP_INVALID_ID, b.x, b.y, b.w, b.h, midi, false, false };
             return true;
         };
+        const Screen& s = of (plugin).screen;
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto& b = tabs[i];
+            if (b.contains (x, y))
+            {
+                *out = { HDSLAVE_HOTSPOT_ACTION, CLAP_INVALID_ID, CLAP_INVALID_ID, b.x, b.y, b.w, b.h, i, false, false };
+                return true;
+            }
+        }
+        auto bankHit = [&] (const auto& cells) {
+            for (const auto& c : cells)
+            {
+                const SurfaceRect b {c.x, c.y, c.w, c.h};
+                if (b.contains (x, y)) return spot (b, c.id);
+            }
+            return false;
+        };
+        if (s.showWaveLayer && layerArea.contains (x, y)) return bankHit (layerCells);
+        if (s.showEcho && echoArea.contains (x, y)) return bankHit (echoCells);
         const int row = y < headingY[1] ? 0 : y < headingY[2] ? 1 : 2;
         const int page = row * 2 + (x >= 320);
         const auto layout = Screen::layout (page);
@@ -313,7 +388,13 @@ struct Surface
         if (filterEnvelope.contains (x, y)) return adsr (filterEnvelope, ParamId::fltAttack);
         return false;
     }
+    static void CLAP_ABI action (const clap_plugin_t* plugin, int32_t tab, int32_t, bool)
+    {
+        Screen& s = of (plugin).screen;
+        if (tab == sequenceTab || tab == oscillatorTab) s.showWaveLayer = tab == sequenceTab;
+        if (tab == echoTab || tab == rackTab) s.showEcho = tab == echoTab;
+    }
 };
 
-const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, nullptr};
+const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, Surface::action};
 } // namespace reverie

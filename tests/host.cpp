@@ -606,6 +606,16 @@ void testState()
         CHECK_NEAR (b.value (ParamId::osc2Wave), 9, 0);
         CHECK_NEAR (b.value (ParamId::latch), 1, 0);
     }
+    {   // Activate the new layer, then load an 84-parameter project over it.
+        constexpr uint32_t oldCount = 84;
+        auto old = saved;
+        old.resize (12 + 8 * oldCount);
+        std::memcpy (old.data() + 8, &oldCount, sizeof (oldCount));
+        Instance restored;
+        CHECK (restored.preset ("tide-atlas") && restored.value (ParamId::seqMode) == Sequence::loop);
+        CHECK (load (restored, old));
+        for (uint32_t id = oldCount; id < ParamId::count; ++id) CHECK_NEAR (restored.value (id), paramTable[id].def, 0);
+    }
     {   // A released 80-value project opened over a wet patch restores the old, dry sound.
         constexpr uint32_t oldCount = 80;
         static_assert (ParamId::volume == oldCount - 1 && ParamId::phaserMix == oldCount);
@@ -1449,6 +1459,112 @@ void testPhaser()
     }
 }
 
+void testWaveLayers()
+{
+    using namespace ParamId;
+    const std::vector<Cue> layer {
+        P (0, osc1Level, 0), P (0, osc2Level, 0), P (0, air, 0), P (0, ensMix, 0), P (0, revMix, 0),
+        P (0, dlyMix, 0), P (0, strum, 0), P (0, humanize, 0), P (0, motionShape, Motion::off),
+        P (0, ampAttack, 0), P (0, filterEnv, 0), P (0, cutoff, 1), P (0, seqMode, Sequence::loop),
+        P (0, seqDivision, 0), P (0, seqFade, 0.65), P (0, seqLevel, 1), On (61, 39) };
+    auto play = [&] (std::vector<Cue> changes, double bpm = 120) {
+        Instance synth;
+        return synth.render (42000, layer + changes, 128, true, bpm);
+    };
+    const Stereo loop = play ({});
+    CHECK (peak (play ({ P (0, seqMode, Sequence::off) })) == 0.0);
+    CHECK (rms (loop.l) > 0.01);
+    for (double bpm : { 90.0, 120.0, 180.0 })
+    {
+        const auto reference = play ({}, bpm), different = play ({ P (0, seqWave2, 11) }, bpm);
+        const int transition = 61 + (int) (48000 * 15 / bpm); // one sixteenth from this note
+        CHECK (std::equal (reference.l.begin(), reference.l.begin() + transition - 16, different.l.begin()));
+        CHECK (! std::equal (reference.l.begin() + transition + 64, reference.l.begin() + transition + 1024,
+                             different.l.begin() + transition + 64));
+    }
+    const auto once = play ({ P (0, seqMode, Sequence::once) });
+    CHECK (std::equal (loop.l.begin(), loop.l.begin() + 24000, once.l.begin()));
+    CHECK (! std::equal (loop.l.begin() + 25600, loop.l.end(), once.l.begin() + 25600));
+    const auto strike = play ({ P (0, seqMode, Sequence::strike) });
+    CHECK (rms (strike.l, 256, 4096) > 0.01 && rms (strike.l, 30000) < 0.00001);
+    const auto scene = layer + std::vector<Cue> {
+        P (0, dlyMix, 0.6), P (0, dlyTime, 0), P (0, echoTaps, 0.85), P (0, echoDuck, 0.78),
+        P (0, echoTone, 0.24), P (6001, seqWave3, 0), P (8351, seqFade, 0),
+        On (10123, 43), P (14507, seqMode, Sequence::off), P (15611, seqMode, Sequence::strike),
+        P (19003, seqOctave, 2), Choke (21309, 43), Off (24229, 39) };
+    for (double rate : { 8000.0, 44100.0, 48000.0, 96000.0, 192000.0 })
+    {
+        Instance a (rate);
+        const auto audio = a.render (33000, scene);
+        CHECK (finite (audio) && peak (audio) <= 1.0 && rms (audio.l) > 1e-3);
+        if (rate == 48000)
+            for (uint32_t block : { 1u, 37u, 4096u })
+            {
+                Instance b (rate);
+                CHECK (same (audio, b.render (33000, scene, block)));
+            }
+    }
+}
+
+void testEchoReturn()
+{
+    auto impulse = [] (float taps, float duck, float tone, bool busy) {
+        PingPong delay;
+        delay.prepare (48000);
+        Stereo s;
+        s.l.resize (4800); s.r.resize (4800);
+        s.l[0] = s.r[0] = 1;
+        if (busy) for (int i = 16; i < 3200; ++i) s.l[i] = s.r[i] = 0.30f;
+        for (int i = 0; i < 4800; i += tickSize)
+        {
+            delay.color (taps, duck, tone);
+            delay.control (1, 0.02f, 0.60f);
+            delay.process (s.l.data() + i, s.r.data() + i, tickSize);
+        }
+        delay.reset();
+        float l[tickSize] {}, r[tickSize] {};
+        for (int i = 0; i < 3600; i += tickSize)
+        {
+            delay.color (1, 1, 0.5f);
+            delay.control (1, 0.02f, 0.8f);
+            delay.process (l, r, tickSize);
+            for (int j = 0; j < tickSize; ++j) CHECK (l[j] == 0 && r[j] == 0);
+        }
+        return s;
+    };
+    const auto direct = impulse (0, 0, 0.5f, false), taps = impulse (1, 0, 0.5f, false);
+    CHECK (direct.r[481] == 0 && direct.l[721] == 0 && direct.l[961] > 0.99f);
+    CHECK (taps.r[481] > 0.5f && taps.l[721] > 0.5f && taps.l[961] > 0.60f);
+    const auto dull = impulse (1, 0, 0, false), bright = impulse (1, 0, 1, false);
+    CHECK (bright.r[1922] > 2.0f * dull.r[1922]); // tone is in the feedback path
+    const auto open = impulse (1, 0, 0.5f, true), ducked = impulse (1, 1, 0.5f, true);
+    CHECK (ducked.l[2700] - 0.30f < 0.6f * (open.l[2700] - 0.30f));
+
+    // Bypassing a ducked return during a loud chord clears its detector before the next attack.
+    auto afterBypass = [] (float previous) {
+        PingPong d;
+        d.prepare (8000);
+        d.color (1, 1, 0.5f);
+        Stereo output;
+        for (int block = 0; block < 256; ++block)
+        {
+            const float input = block < 64 ? previous : 0.0f;
+            float l[tickSize], r[tickSize];
+            std::fill_n (l, tickSize, input); std::fill_n (r, tickSize, input);
+            if (block == 192) l[0] = r[0] = 1.0f;
+            d.control (block < 64 || block >= 192 ? 1.0f : 0.0f, 0.02f, 0);
+            d.process (l, r, tickSize);
+            if (block >= 192)
+            {
+                output.l.insert (output.l.end(), l, l + tickSize);
+                output.r.insert (output.r.end(), r, r + tickSize);
+            }
+        }
+        return output;
+    };
+    CHECK (same (afterBypass (0.9f), afterBypass (0.0f)));
+}
+
 void testTiming()
 {
     // the same output whatever the block size
@@ -1559,8 +1675,8 @@ void testScreen()
     CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
     // a chord sounding, then each page drawn
     inst.render (24000, { On (0, 36), On (0, 44) });
-    static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
-    for (int p = 0; p < 6; ++p)
+    static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx", "layer" };
+    for (int p = 0; p < (int) std::size (names); ++p)
     {
         c.time_ms += 100;
         c.redraw_all = 1;
@@ -1642,6 +1758,8 @@ int main (int argc, char** argv)
     testNotes();
     testEffects();
     testPhaser();
+    testWaveLayers();
+    testEchoReturn();
     testTiming();
     testTuning();
     testExtremes();

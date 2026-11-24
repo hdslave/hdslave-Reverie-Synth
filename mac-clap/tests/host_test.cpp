@@ -523,6 +523,12 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
                 return false;
             }
         }
+        click (272, 211);             // Sequence tab
+        scan (10, 235, 315, 315);
+        click (607, 325);             // Echo tab
+        scan (435, 392, 635, 408);
+        click (217, 211);             // back to oscillators
+        click (555, 325);             // back to effects rack
         if (ctx.edited.size() != pCount || !ctx.openGestures.empty())
         {
             std::fprintf (stderr, "FAIL: surface control coverage %zu/%u\n", ctx.edited.size(), pCount);
