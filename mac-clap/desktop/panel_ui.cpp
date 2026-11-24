@@ -235,6 +235,9 @@ void PanelUI::layout()
 Rect PanelUI::update (uint64_t now)
 {
     now_ = now;
+    if (dragParam_ >= 0 && !controlEnabled (dragParam_)) cancelInput();
+    if (popupParam_ >= 0 && !controlEnabled (popupParam_)) closePopup();
+    if (wheelParam_ >= 0 && !controlEnabled (wheelParam_)) endWheelGesture();
     if (wheelParam_ >= 0 && now_ - wheelAt_ > 240)
         endWheelGesture();
 
@@ -427,6 +430,7 @@ void PanelUI::drawHighlight (int tileIdx)
     if (draggingHere || hoveringHere)
     {
         const hdslave_tile_hotspot_t& sp = draggingHere ? dragSpot_ : hoverSpot_;
+        if (sp.kind == HDSLAVE_HOTSPOT_PARAM && !controlEnabled (p_->findParamIndex (sp.param_id))) return;
         const Rect hr = spotToLogicalRect (tileIdx, sp);
         if (!hr.empty())
         {
@@ -523,16 +527,22 @@ double PanelUI::fromNorm (int param, double n) const
     return v;
 }
 
+bool PanelUI::controlEnabled (int param) const
+{
+    return param >= 0 && param < int (p_->params.size())
+        && (!p_->surface || p_->surface->control_enabled (p_->inner, p_->params[(size_t) param].id));
+}
+
 void PanelUI::setParam (int param, double v)
 {
-    if (param < 0 || param >= int (p_->params.size())) return;
+    if (!controlEnabled (param)) return;
     p_->setEdit (param, v);
     lastTouched_ = param;
 }
 
 void PanelUI::stepParam (int param, int steps)
 {
-    if (param < 0 || param >= int (p_->params.size()) || steps == 0) return;
+    if (!controlEnabled (param) || steps == 0) return;
     if (wheelParam_ != param)
     {
         endWheelGesture();
@@ -562,7 +572,7 @@ void PanelUI::endWheelGesture()
 
 void PanelUI::resetParam (int param)
 {
-    if (param < 0 || param >= int (p_->params.size())) return;
+    if (!controlEnabled (param)) return;
     endWheelGesture();
     p_->setValueOnce (param, p_->params[(size_t) param].defVal);
     lastTouched_ = param;
@@ -845,6 +855,7 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
 
     if (drag_ != Drag::None)
     {
+        if (dragParam_ >= 0 && !controlEnabled (dragParam_)) { cancelInput(); return; }
         const float dx = x - lastX_;
         const float dy = y - lastY_;
         lastX_ = x;
@@ -1101,7 +1112,7 @@ std::string PanelUI::readoutText (bool& learnLine) const
     }
 
     const int activeParam = (dragParam_ >= 0) ? dragParam_ : ((hoverParam_ >= 0) ? hoverParam_ : lastTouched_);
-    if (activeParam >= 0 && activeParam < int (p_->params.size()))
+    if (controlEnabled (activeParam))
     {
         const auto& pr = p_->params[(size_t) activeParam];
         std::string line;
@@ -1149,7 +1160,7 @@ void PanelUI::openPresets()
 
 void PanelUI::openChoices (int param, const Rect& anchor)
 {
-    if (param < 0 || param >= int (p_->params.size())) return;
+    if (!controlEnabled (param)) return;
     const auto& pr = p_->params[(size_t) param];
     const int count = int (std::round (pr.range())) + 1;
     if (count < 2 || count > 64) return;
@@ -1173,7 +1184,7 @@ void PanelUI::openChoices (int param, const Rect& anchor)
 
 void PanelUI::openMenu (int param, float x, float y)
 {
-    if (param < 0 || param >= int (p_->params.size())) return;
+    if (!controlEnabled (param)) return;
     const auto& pr = p_->params[(size_t) param];
     popup_ = PopupKind::Menu;
     popupParam_ = param;
@@ -1251,6 +1262,7 @@ void PanelUI::popupPick (int i)
     const Rect anchor = popupRect_;
     closePopup();
 
+    if (param >= 0 && !controlEnabled (param)) return;
     if (k == PopupKind::Presets)
     {
         p_->loadPresetByIndex (int (val));

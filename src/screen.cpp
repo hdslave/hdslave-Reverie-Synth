@@ -13,6 +13,7 @@ bool Screen::paint (const Host& h, uint32_t* pixels, int stride, bool whole)
         params |= v != seen[i];
         seen[i] = v;
     }
+    if (editing && !controlEnabled (layout (page).cells[focus[page]].id)) editing = false;
     const uint32_t sounding = tel.sounding.load (std::memory_order_relaxed);
     const uint32_t held = tel.padsHeld.load (std::memory_order_relaxed);
     const uint32_t strikes = tel.strikes.load (std::memory_order_relaxed);
@@ -55,7 +56,7 @@ void Screen::knobs (uint32_t ids[3]) const
     for (int k = 0; k < 3; ++k)
     {
         const int c = focus[page] + k;
-        ids[k] = c < l.count ? l.cells[c].id : hdui::noParam;
+        ids[k] = c < l.count && controlEnabled (l.cells[c].id) ? l.cells[c].id : hdui::noParam;
     }
 }
 
@@ -63,15 +64,29 @@ bool Screen::input (hdui::Key key, int amount, bool shift, hdui::Edits& out)
 {
     using hdui::Key;
     touched = true;
+    const Layout l = layout (page);
+    int& f = focus[page];
+    const Cell& cell = l.cells[f];
+    const bool enabled = controlEnabled (cell.id);
+    if (!enabled) editing = false;
     if (key == Key::nudge && ! editing)
     {
         page = (page + (amount > 0 ? 1 : -1) + pageCount) % pageCount;
         return true;
     }
-    const Layout l = layout (page);
-    int& f = focus[page];
-    f = std::clamp (f, 0, l.count - 1);
-    const Cell& cell = l.cells[f];
+    if (! editing && key == Key::wheel)
+    {
+        const int step = amount >= 0 ? 1 : -1;
+        for (; amount != 0; amount -= step)
+        {
+            int next = f + step;
+            while (next >= 0 && next < l.count && !controlEnabled (l.cells[next].id)) next += step;
+            if (next < 0 || next >= l.count) break;
+            f = next;
+        }
+        return true;
+    }
+    if (!enabled) return false;
     const Param& p = paramTable[cell.id];
     if (key == Key::push)
     {
@@ -81,11 +96,6 @@ bool Screen::input (hdui::Key key, int amount, bool shift, hdui::Edits& out)
             return true;
         }
         editing = ! editing;
-        return true;
-    }
-    if (! editing && key == Key::wheel)
-    {
-        f = std::clamp (f + amount, 0, l.count - 1);
         return true;
     }
     if (editing && (key == Key::wheel || key == Key::nudge))
@@ -300,7 +310,13 @@ void Screen::body (const Raster& r, uint32_t sounding, uint32_t held)
 void Screen::cell (const Raster& r, const Cell& c, bool focused, bool edited) const
 {
     using namespace hdui;
-    if (focused)
+    const bool enabled = controlEnabled (c.id);
+    if (!enabled)
+    {
+        r.box (c.x, c.y, c.w, c.h, mutedBed);
+        r.box (c.x, c.y + c.h - 1, c.w, 1, mutedRule);
+    }
+    else if (focused)
     {
         if (edited) r.gel (c.x, c.y, c.w, c.h, 0xff94531d, 0xffffe3a1, 0xffedac4b, 0xffffc55e);
         else r.gel (c.x, c.y, c.w, c.h, ink::deep, 0xff367e9b, 0xff09567c, 0xff09718d);
@@ -314,8 +330,8 @@ void Screen::cell (const Raster& r, const Cell& c, bool focused, bool edited) co
     formatted (c.id, s, sizeof (s));
     const int space = c.w - 8 - r.measure (c.label, 10);
     const int size = r.measure (s, 12) <= space ? 12 : 10;
-    r.text (c.x + 3, c.y + (c.h - 11) / 2, c.label, focused && ! edited ? ink::ice : ink::label, 10);
-    r.right (c.x + c.w - 3, c.y + (c.h - size - 1) / 2, s, focused && ! edited ? ink::white : ink::text, size);
+    r.text (c.x + 3, c.y + (c.h - 11) / 2, c.label, !enabled ? mutedText : focused && ! edited ? ink::ice : ink::label, 10);
+    r.right (c.x + c.w - 3, c.y + (c.h - size - 1) / 2, s, !enabled ? mutedText : focused && ! edited ? ink::white : ink::text, size);
 }
 
 // The sixteen pads, pad 1 bottom left (as on the MPC); 9-16 the lifted chords.
@@ -724,6 +740,11 @@ void Screen::dock (const Raster& r, const Host& h) const
         r.centre (x + 10, 21, tag, ink::ice, 10);
         if (c >= l.count) continue;
         const uint32_t id = l.cells[c].id;
+        if (!controlEnabled (id))
+        {
+            r.text (x + 22, 2, paramTable[id].name, 0xffb1bec2, 10);
+            continue;
+        }
         const auto& p = paramTable[id];
         const float unit = (live (id) - p.min) / (p.max - p.min);
         knob (r, x + 10, 12, unit, accent);

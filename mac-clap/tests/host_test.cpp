@@ -510,6 +510,39 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
             if (!params->get_value (plug, id, &v)) std::abort();
             return v;
         };
+        // The Mood set supplies these three controls. Their stored values survive the switch.
+        setParam (0, 3);
+        setParam (1, 4);
+        setParam (2, 2);
+        auto chordBeds = [&] {
+            const auto* pixels = dbg->ui_render (plug, 960, 648, 2, &w, &h);
+            auto pixel = [&] (int x, int y) { return pixels[(y * 3) * w + x * 3]; };
+            return std::array<uint32_t, 4> {pixel (225, 82), pixel (225, 95), pixel (212, 108), pixel (278, 108)};
+        };
+        const auto muted = chordBeds();
+        ctx.edited.clear();
+        click (205, 86, 2);
+        click (205, 99, 2);
+        click (205, 112, 2);
+        click (274, 112, 2); // Octave still works.
+        process (&inEv);
+        if (ctx.edited != std::set<clap_id> {3} || !ctx.openGestures.empty()) return false;
+        setParam (97, 0);
+        const auto active = chordBeds();
+        if (value (0) != 3 || value (1) != 4 || value (2) != 2 || muted[3] != active[3]) return false;
+        for (int i = 0; i < 3; ++i)
+            if (muted[i] != 0xffd4dcdc || muted[i] == active[i]) return false;
+
+        // Host automation can enable Mood in the middle of a Key gesture.
+        mouse (0, 205, 112);
+        process (&inEv);
+        setParam (97, 18);
+        chordBeds();
+        mouse (1, 205, 85);
+        mouse (2, 205, 85);
+        process (&inEv);
+        if (value (1) != 4 || !ctx.openGestures.empty()) return false;
+        setParam (97, 0);
         // Alt-click each visible control bed. Every exposed ID must reach the host.
         ctx.edited.clear();
         auto scan = [&] (int left, int top, int right, int bottom) {

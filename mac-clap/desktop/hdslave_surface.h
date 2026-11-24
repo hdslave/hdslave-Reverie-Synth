@@ -4,7 +4,7 @@
 
 #include "hdslave_tiles.h"
 
-inline constexpr char CLAP_EXT_HDSLAVE_SURFACE[] = "com.hdslave.surface/1";
+inline constexpr char CLAP_EXT_HDSLAVE_SURFACE[] = "com.hdslave.surface/2";
 
 enum class SurfaceControl : uint8_t { Previous, Preset, Next, Learn, Clear, Readout, Count };
 
@@ -38,4 +38,5 @@ struct clap_plugin_hdslave_surface_t
     void (CLAP_ABI* paint) (const clap_plugin_t*, uint32_t* pixels, const SurfaceHeader*);
     bool (CLAP_ABI* hit_test) (const clap_plugin_t*, int x, int y, hdslave_tile_hotspot_t*);
     void (CLAP_ABI* action) (const clap_plugin_t*, int32_t id, int32_t wheel, bool shift);
+    bool (CLAP_ABI* control_enabled) (const clap_plugin_t*, clap_id);
 };

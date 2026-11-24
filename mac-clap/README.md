@@ -14,7 +14,7 @@ The last four entries in the 25-sound preset menu are Opal Rain, Lantern Ferry, 
 
 ## Mood
 
-On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Choose **Off** to return to the current progression and voicing. The set stays selected when you change sounds.
+On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Progression, Voicing and Key are greyed out while a Mood is selected. Choose **Off** to use their stored settings again. The set stays selected when you change sounds.
 
 ## Download and install
 

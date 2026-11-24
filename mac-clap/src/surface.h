@@ -194,6 +194,13 @@ struct Surface
     static void parameter (const Raster& r, const Screen& s, const Cell& c)
     {
         using namespace hdui;
+        const bool enabled = s.controlEnabled (c.id);
+        if (!enabled)
+        {
+            r.box (c.x, c.y, c.w - 1, c.h - 1, Screen::mutedBed);
+            r.box (c.x, c.y + c.h - 1, c.w - 1, 1, Screen::mutedRule);
+            r.text (c.x + 3, c.y + (c.h - 10) / 2, c.label, Screen::mutedText, 10);
+        }
         const auto& p = paramTable[c.id];
         const int labelW = r.measure (c.label, 10);
         char value[64];
@@ -201,7 +208,7 @@ struct Surface
         const int room = c.w - labelW - 8;
         const int size = c.h >= 15 && r.measure (value, 12) <= room ? 12 : 10;
         const int vx = c.x + std::max (labelW + 5, c.w - 3 - r.measure (value, size));
-        fitText (r, vx, c.y + (c.h - size) / 2, value, c.x + c.w - vx - 1, ink::deep, size);
+        fitText (r, vx, c.y + (c.h - size) / 2, value, c.x + c.w - vx - 1, enabled ? ink::deep : Screen::mutedText, size);
         if (p.kind == Kind::continuous)
         {
             const float unit = (s.live (c.id) - p.min) / (p.max - p.min);
@@ -254,7 +261,13 @@ struct Surface
         }
     }
 
-    static bool CLAP_ABI hitTest (const clap_plugin_t*, int x, int y, Spot* out)
+    static bool CLAP_ABI controlEnabled (const clap_plugin_t* plugin, clap_id id)
+    {
+        const int row = paramIndex (id);
+        return row >= 0 && of (plugin).screen.controlEnabled (row);
+    }
+
+    static bool CLAP_ABI hitTest (const clap_plugin_t* plugin, int x, int y, Spot* out)
     {
         if (!out || x < 0 || y < headingY[0] || x >= metrics.width || y >= metrics.height) return false;
         auto spot = [&] (SurfaceRect b, clap_id id, clap_id idY = CLAP_INVALID_ID, bool absolute = false) {
@@ -272,7 +285,7 @@ struct Surface
         {
             const auto c = cellAt (page, layout.cells[i]);
             const SurfaceRect b {c.x, c.y, c.w, c.h};
-            if (b.contains (x, y)) return spot (b, paramTable[c.id].id);
+            if (b.contains (x, y)) return of (plugin).screen.controlEnabled (c.id) && spot (b, paramTable[c.id].id);
         }
 
         if (page == Screen::chordsPage)
@@ -317,5 +330,5 @@ struct Surface
     }
 };
 
-const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, nullptr};
+const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, nullptr, Surface::controlEnabled};
 } // namespace reverie

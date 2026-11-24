@@ -646,7 +646,7 @@ namespace
 const void* pluginExtension (const clap_plugin*, const char* id)
 {
     if (std::strcmp (id, MELODEE_SCREEN_CLAP) == 0) return &screenExtension;
-    if (std::strcmp (id, CLAP_EXT_HDSLAVE_SURFACE) == 0) return &surfaceExtension;
+    if (std::strcmp (id, CLAP_EXT_HDSLAVE_SURFACE) == 0 || std::strcmp (id, "com.hdslave.surface/1") == 0) return &surfaceExtension;
     if (std::strcmp (id, CLAP_EXT_HDSLAVE_TILES) == 0) return &tilesExtension;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &paramsExtension;
     if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &stateExtension;

@@ -161,6 +161,7 @@ private:
     void popupPick (int i);
 
     // Parameter value helpers
+    bool controlEnabled (int param) const;
     double norm (int param) const;
     double fromNorm (int param, double n) const;
     void setParam (int param, double v);

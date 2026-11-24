@@ -62,6 +62,7 @@ struct TilesAccess
             const int cx = c.x, cy = Screen::headH + c.y, cw = c.w, ch = c.h;
             if (x >= cx && x < cx + cw && y >= cy && y < cy + ch)
             {
+                if (!of (plugin).screen.controlEnabled (c.id)) return false;
                 out_spot->kind = HDSLAVE_HOTSPOT_PARAM;
                 out_spot->param_id = paramTable[c.id].id;
                 out_spot->x = (int16_t) cx;
@@ -227,6 +228,7 @@ struct TilesAccess
             const int cx = c.x, cy = Screen::headH + c.y;
             if (x >= cx && x < cx + c.w && y >= cy && y < cy + c.h)
             {
+                if (!p.screen.controlEnabled (c.id)) return;
                 p.screen.focus[tile] = i;
                 p.screen.touched = true;
                 break;

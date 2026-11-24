@@ -64,6 +64,12 @@ private:
 
     float live (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
     int choice (uint32_t id) const { return (int) std::lround (live (id)); }
+    static constexpr Ink mutedBed = 0xffd4dcdc, mutedRule = 0xffafbcbc, mutedText = 0xff536265;
+    bool controlEnabled (uint32_t row) const
+    {
+        return (row != ParamId::progression && row != ParamId::key && row != ParamId::voicing)
+            || choice (ParamId::mood) == 0;
+    }
     void formatted (uint32_t id, char* s, uint32_t n) const;
 
     bool moving (uint32_t* pixels, int stride, uint32_t sounding);
