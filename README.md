@@ -4,16 +4,18 @@
 
 <table>
   <tr>
-    <th width="34%">MPC Sample</th>
-    <th width="66%">macOS and Windows · CLAP and VST3</th>
+    <th width="25%">MPC Sample</th>
+    <th width="48%">macOS and Windows · CLAP and VST3</th>
+    <th width="27%">SP-16 · freesp16</th>
   </tr>
   <tr>
     <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie six Frutiger Aero pages running in hdslaveOS"></a></td>
     <td align="center"><a href="mac-clap/assets/desktop-preview.gif"><img src="mac-clap/assets/desktop-preview.gif" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
+    <td align="center"><a href="docs/reverie-sp16-chords.png"><img src="docs/reverie-sp16-chords.png" alt="Reverie on freesp16 with chord pad six held and its notes highlighted"></a></td>
   </tr>
 </table>
 
-> **Desktop VST3 and CLAP for macOS and Windows.** Download [Reverie Desktop 0.1.7](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7) or see the [desktop panel and installation guide](mac-clap/).
+[Download Reverie for MPC Sample, SP-16, macOS or Windows](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7). The release lists the matching firmware or desktop format for each build.
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
