@@ -11,14 +11,12 @@ using namespace hdui;
 using namespace ParamId;
 
 constexpr int w = SIXTEEN_SCREEN_WIDTH, h = SIXTEEN_SCREEN_HEIGHT;
-constexpr int left = 12, right = w - left;
-constexpr int tabWidth = 122, tabStep = 127, tabTop = 56, tabBottom = 86, bodyTop = 115;
-constexpr int contentY = 121;
-constexpr int padX = 13, padY = contentY, padW = 116, padH = 34, padDX = 121, padDY = 37;
-constexpr int globeX = 13, globeY = contentY, globeSize = 150;
+constexpr int headerH = 80, bodyTop = 114, paneW = w / 2;
+constexpr int patchX = 509, patchW = 262, arrowW = 36, patchH = 42;
+constexpr int viewsY = 43;
+constexpr int padX = 8, padY = 118, padW = 90, padH = 30, padDX = 94, padDY = 33;
+constexpr int globeX = 397, globeY = 121, globeSize = 150;
 constexpr int globeCenterX = globeX + 75, globeCenterY = globeY + 67, globeRadius = 56;
-constexpr int bankWidth = 106, bankStep = 108, bankY = tabBottom + 2, bankH = 26;
-constexpr int soundsX = 310, soundsY = 10, soundsW = 105, soundsH = 38;
 constexpr int soundCols = 5, soundX = 13, soundY = 123, soundDX = 152, soundDY = 35, soundW = 146, soundH = 33;
 
 struct Bank
@@ -30,49 +28,48 @@ struct Bank
 
 constexpr auto none = SIXTEEN_INVALID_PARAM_ID;
 constexpr Bank chordBanks[] = {
-    { "PROGRESSION", "CHORDS / PROG", { progression, voicing, key, octave, strum, latch } },
-    { "FEEL", "CHORDS / FEEL", { humanize, bass, velocity, glide, none, none } },
+    { "Progression", "CHORDS / PROG", { progression, voicing, key, octave, strum, latch } },
+    { "Feel", "CHORDS / FEEL", { humanize, bass, velocity, glide, none, none } },
 };
 constexpr Bank motionBanks[] = {
-    { "PATH", "MOTION / PATH", { motionX, motionY, motionDepth, motionShape, motionRate, motionSpread } },
-    { "CLOCK", "MOTION / CLOCK", { motionSync, motionDiv, motionRetrig, none, none, none } },
-    { "X ROUTES", "MOTION / X ROUTES", { xDest1, xAmt1, xDest2, xAmt2, none, none } },
-    { "Y ROUTES", "MOTION / Y ROUTES", { yDest1, yAmt1, yDest2, yAmt2, none, none } },
+    { "Path", "MOTION / PATH", { motionX, motionY, motionDepth, motionShape, motionRate, motionSpread } },
+    { "Clock", "MOTION / CLOCK", { motionSync, motionDiv, motionRetrig, none, none, none } },
+    { "X routes", "MOTION / X ROUTES", { xDest1, xAmt1, xDest2, xAmt2, none, none } },
+    { "Y routes", "MOTION / Y ROUTES", { yDest1, yAmt1, yDest2, yAmt2, none, none } },
 };
 constexpr Bank oscBanks[] = {
-    { "MORPH", "OSC / MORPH", { osc1Wave, osc1Pos, osc1Level, osc2Wave, osc2Pos, osc2Level } },
+    { "Morph", "OSC / MORPH", { osc1Wave, osc1Pos, osc1Level, osc2Wave, osc2Pos, osc2Level } },
     { "OSC 1", "OSC / OSC 1", { osc1Octave, osc1Semi, osc1Fine, osc1Unison, osc1Detune, none } },
     { "OSC 2", "OSC / OSC 2", { osc2Octave, osc2Semi, osc2Fine, osc2Unison, osc2Detune, none } },
-    { "VOICE", "OSC / VOICE", { width, air, airTone, drift, none, none } },
+    { "Voice", "OSC / VOICE", { width, air, airTone, drift, none, none } },
 };
 constexpr Bank filterBanks[] = {
-    { "RESPONSE", "FILTER / RESPONSE", { filterType, cutoff, resonance, filterEnv, keyTrack, velCutoff } },
-    { "ENVELOPE", "FILTER / ENVELOPE", { fltAttack, fltDecay, fltSustain, fltRelease, none, none } },
+    { "Response", "FILTER / RESPONSE", { filterType, cutoff, resonance, filterEnv, keyTrack, velCutoff } },
+    { "Envelope", "FILTER / ENVELOPE", { fltAttack, fltDecay, fltSustain, fltRelease, none, none } },
 };
 constexpr Bank ampBanks[] = {
-    { "ENVELOPE", "AMP / ENVELOPE", { ampAttack, ampDecay, ampSustain, ampRelease, volume, none } },
+    { "Envelope", "AMP / ENVELOPE", { ampAttack, ampDecay, ampSustain, ampRelease, volume, none } },
     { "LFO", "AMP / LFO", { lfoShape, lfoRate, lfoDelay, lfoPitch, lfoCutoff, lfoWave } },
 };
 constexpr Bank fxBanks[] = {
-    { "ENS / DELAY", "FX / ENS + DELAY", { ensMix, ensDepth, ensRate, dlyMix, dlyTime, dlyFeedback } },
-    { "REVERB", "FX / REVERB", { revMix, revSize, revDecay, revDamp, revPredelay, shimmer } },
+    { "Ens / Delay", "FX / ENS + DELAY", { ensMix, ensDepth, ensRate, dlyMix, dlyTime, dlyFeedback } },
+    { "Reverb", "FX / REVERB", { revMix, revSize, revDecay, revDamp, revPredelay, shimmer } },
 };
 
 struct Page
 {
-    const char* tab;
     const char* heading;
     const Bank* banks;
     int count;
 };
 
 constexpr Page pages[] = {
-    { "CHORDS", "Chord pads", chordBanks, std::size (chordBanks) },
-    { "MOTION", "Motion field", motionBanks, std::size (motionBanks) },
-    { "OSC", "Wavetable oscillators", oscBanks, std::size (oscBanks) },
-    { "FILTER", "Filter", filterBanks, std::size (filterBanks) },
-    { "AMP", "Amplitude & modulation", ampBanks, std::size (ampBanks) },
-    { "FX", "Stereo effects", fxBanks, std::size (fxBanks) },
+    { "Chord pads", chordBanks, std::size (chordBanks) },
+    { "Motion", motionBanks, std::size (motionBanks) },
+    { "Oscillators", oscBanks, std::size (oscBanks) },
+    { "Filter & envelope", filterBanks, std::size (filterBanks) },
+    { "Amplitude & LFO", ampBanks, std::size (ampBanks) },
+    { "Effects & output", fxBanks, std::size (fxBanks) },
 };
 static_assert (std::size (pages) == Screen::pageCount);
 
@@ -93,8 +90,6 @@ constexpr bool coversParameters()
 }
 static_assert (coversParameters(), "Each parameter has one six-encoder bank");
 
-int bankX (const Page& p, int bank) { return right - bankWidth - (p.count - 1 - bank) * bankStep; }
-
 template<int Size> struct Font;
 template<> struct Font<11> { static constexpr auto widths = sp16Art::width11, mask = sp16Art::mask11;
                              static constexpr auto offsets = sp16Art::offset11; };
@@ -102,8 +97,6 @@ template<> struct Font<14> { static constexpr auto widths = sp16Art::width14, ma
                              static constexpr auto offsets = sp16Art::offset14; };
 template<> struct Font<18> { static constexpr auto widths = sp16Art::width18, mask = sp16Art::mask18;
                              static constexpr auto offsets = sp16Art::offset18; };
-template<> struct Font<23> { static constexpr auto widths = sp16Art::width23, mask = sp16Art::mask23;
-                             static constexpr auto offsets = sp16Art::offset23; };
 
 unsigned glyph (char ch) { return ch >= ' ' && ch <= '~' ? unsigned (ch - ' ') : unsigned ('?' - ' '); }
 
@@ -141,38 +134,48 @@ bool inside (int x, int y, int x0, int y0, int width, int height)
     return x >= x0 && x < x0 + width && y >= y0 && y < y0 + height;
 }
 
-// The large plates are already in the host's opaque ARGB layout. Alpha is
-// needed only at the curved edges of the small overlaid controls.
-void sprite (const Raster& r, int x, int y, int width, int height, const Ink* pixels)
+int bankWidth (const Bank& bank) { return std::max (40, textWidth<14> (bank.name) + 14); }
+
+int bankX (int section, int bank)
 {
-    for (int row = 0; row < height; ++row)
-        for (int col = 0; col < width; ++col)
-        {
-            const Ink c = *pixels++;
-            const unsigned a = c >> 24;
-            if (a == 255) r.dot (x + col, y + row, c);
-            else if (a != 0) r.blend (x + col, y + row, c, int (a));
-        }
+    int x = (section % 2 + 1) * paneW - 4;
+    for (int i = pages[section].count - 1; i >= bank; --i)
+        x -= bankWidth (pages[section].banks[i]);
+    return x;
 }
 
-void section (const Raster& r, int x, int y, int width, const char* title)
+template<size_t N>
+void picture (const Raster& r, int x, int y, int width, const Ink (&art)[N])
 {
-    text<14> (r, x + 6, y, title, ink::text);
-    const int start = x + textWidth<14> (title) + 18;
-    r.box (start, y + 10, x + width - start - 8, 1, 0xff8bbbc8);
+    for (size_t pos = 0; pos < N; pos += width, ++y)
+        std::copy_n (art + pos, width, r.px + y * r.w + x);
 }
 
-void chordText (const ChordSymbol& chord, int key, bool minor, char (&label)[32])
+void button (const Raster& r, int x, int y, int width, int height, bool active)
 {
-    char root[12];
-    chordRootText (chord, key, minor, root, sizeof (root));
-    const char* suffix = chordQualityText (chord);
-    // Put the quality before the slash bass.
-    const char* slash = std::strchr (root, '/');
-    if (slash != nullptr)
-        std::snprintf (label, sizeof (label), "%.*s%s%s", int (slash - root), root, suffix, slash);
-    else
-        std::snprintf (label, sizeof (label), "%s%s", root, suffix);
+    if (active) r.gel (x, y, width, height, 0xff488f75, 0xfff4ffd9, 0xffabd879, 0xffd1efa1);
+    else r.gel (x, y, width, height, 0xff1b7898, 0xffa3eafb, 0xff12698c, 0xff2794ae);
+}
+
+void title (const Raster& r, int x, int y, const char* label)
+{
+    text<14> (r, x, y + 1, label, ink::deep);
+    text<14> (r, x, y, label, ink::white);
+}
+
+void row (const Raster& r, int x, int y, int width, const char* label, const char* value)
+{
+    r.box (x, y, width, 1, 0xffe0f8f8);
+    r.box (x, y + 19, width, 1, ink::rule);
+    text<14> (r, x + 4, y, label, ink::label);
+    text<14> (r, x + width - 4 - textWidth<14> (value), y, value, ink::text);
+}
+
+void section (const Raster& r, int x, int y, int width, const char* label)
+{
+    text<14> (r, x + 2, y, label, ink::label);
+    const int offset = textWidth<14> (label) + 10;
+    r.box (x + offset, y + 10, width - offset, 1, ink::rule);
 }
 } // namespace
 
@@ -181,6 +184,32 @@ void Sp16Screen::knobs (uint32_t ids[6], char name[SIXTEEN_TAB_NAME_SIZE]) const
     const Bank& bank = pages[page].banks[banks[page]];
     std::copy (bank.ids.begin(), bank.ids.end(), ids);
     std::snprintf (name, SIXTEEN_TAB_NAME_SIZE, "%s", bank.strip);
+}
+
+void Sp16Screen::soundLoaded (int index)
+{
+    lastFactory = index;
+    focusedSound = std::max (0, index);
+    dirty = true;
+}
+
+int Sp16Screen::matchingSound() const
+{
+    // Match only the sound parameters. Key, voicing and progression stay
+    // independent, including when an old project restores its parameter blob.
+    static const auto factory = [] {
+        std::array<std::array<float, paramCount>, presetCount> result {};
+        for (int i = 0; i < presetCount; ++i)
+            presetValuesOf (presetTable[i], result[i].data());
+        return result;
+    }();
+    std::array<float, paramCount> live;
+    for (int i = chordSection; i < paramCount; ++i) live[i] = value (i);
+    for (int i = 0; i < presetCount; ++i)
+        if (std::equal (live.begin() + chordSection, live.end(), factory[i].begin() + chordSection,
+                        [] (float a, float b) { return std::abs (a - b) < 1.0e-6f; }))
+            return i;
+    return -1;
 }
 
 bool Sp16Screen::turn (int delta)
@@ -226,22 +255,30 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
     {
         result.release = gesture == Gesture::pad;
         gesture = Gesture::none;
-        if (inside (x, y, soundsX, soundsY, soundsW, soundsH))
+        if (inside (x, y, patchX, 0, patchW, patchH))
         {
-            soundsOpen = ! soundsOpen;
+            const int match = matchingSound();
+            const int anchor = match >= 0 ? match : lastFactory;
+            if (x < patchX + arrowW || x >= patchX + patchW - arrowW)
+            {
+                const int step = x < patchX + arrowW ? -1 : 1;
+                result.sound = anchor < 0 ? (step < 0 ? presetCount - 1 : 0) : (anchor + step + presetCount) % presetCount;
+                soundsOpen = false;
+            }
+            else
+            {
+                soundsOpen = ! soundsOpen;
+                if (soundsOpen) focusedSound = std::max (0, anchor);
+            }
             dirty = result.used = true;
             return result;
         }
-        if (inside (x, y, left, tabTop, w - 2 * left, tabBottom - tabTop))
+        if (inside (x, y, patchX, viewsY, patchW, headerH - viewsY))
         {
-            const int target = (x - left) / tabStep;
-            if (target < Screen::pageCount && (x - left) % tabStep < tabWidth)
-            {
-                if (soundsOpen) soundsOpen = false;
-                else if (target == page) turn (1);
-                page = target;
-                dirty = result.used = true;
-            }
+            const int view = (x - patchX) * 3 / patchW;
+            if (page / 2 != view) page = view * 2;
+            soundsOpen = false;
+            dirty = result.used = true;
             return result;
         }
         if (soundsOpen)
@@ -257,15 +294,19 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
             result.used = true;
             return result;
         }
-        const Page& current = pages[page];
-        for (int i = 0; i < current.count; ++i)
-            if (inside (x, y, bankX (current, i), bankY, bankWidth, bankH))
-            {
-                banks[page] = i;
-                dirty = result.used = true;
-                return result;
-            }
-        if (page == Screen::chordsPage && inside (x, y, padX, padY, 3 * padDX + padW, 3 * padDY + padH))
+        if (inside (x, y, 0, headerH, w, bodyTop - headerH))
+        {
+            page = (page / 2) * 2 + x / paneW;
+            for (int i = 0; i < pages[page].count; ++i)
+                if (x >= bankX (page, i) && x < bankX (page, i) + bankWidth (pages[page].banks[i]))
+                {
+                    banks[page] = i;
+                    break;
+                }
+            dirty = result.used = true;
+            return result;
+        }
+        if (page / 2 == 0 && inside (x, y, padX, padY, 3 * padDX + padW, 3 * padDY + padH))
         {
             const int col = (x - padX) / padDX, row = (y - padY) / padDY;
             if ((x - padX) % padDX < padW && (y - padY) % padDY < padH)
@@ -275,7 +316,7 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
                 result.used = true;
             }
         }
-        if (page == Screen::motionPage && inside (x, y, globeX, globeY, globeSize, globeSize))
+        if (page / 2 == 0 && inside (x, y, globeX, globeY, globeSize, globeSize))
             gesture = Gesture::motion;
     }
 
@@ -304,31 +345,29 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     const uint32_t sounding = telemetry.sounding.load (std::memory_order_relaxed);
     const uint32_t held = telemetry.padsHeld.load (std::memory_order_relaxed);
     const uint32_t strikes = telemetry.strikes.load (std::memory_order_relaxed);
-    const bool moving = ! soundsOpen && (page == Screen::fxPage ? telemetry.peak.load (std::memory_order_relaxed) > 0.003f
-                                                                 : sounding != 0);
+    const bool moving = ! soundsOpen && (sounding != 0 || (page / 2 == 2 && telemetry.peak.load (std::memory_order_relaxed) > 0.003f));
     const bool changed = sounding != shownSounding || held != shownHeld || strikes != shownStrikes;
     if (! refresh && (soundsOpen || (! changed && moving == wasMoving && (! moving || surface.now_ms - frameAt < 40))))
         return false;
 
     const Raster r { pixels.data(), w, h };
-    if (refresh)
-        header (r);
-    const Ink* const plates[] = { sp16Art::chords, sp16Art::motion, sp16Art::graphs,
-                                  sp16Art::graphs, sp16Art::graphs, sp16Art::fx };
-    const Ink* body = soundsOpen ? sp16Art::sounds : plates[page];
-    std::copy_n (body, w * (h - bodyTop), r.px + w * bodyTop);
-    if (soundsOpen)
-        sounds (r);
+    const bool refreshHeader = refresh || (! soundsOpen && page / 2 == 0 && strikes != shownStrikes);
+    if (refreshHeader)
+    {
+        const int match = matchingSound();
+        if (match >= 0) lastFactory = match;
+        header (r, match);
+    }
+    std::copy_n (sp16Art::water, w * (h - bodyTop), r.px + w * bodyTop);
+    if (soundsOpen) sounds (r);
     else
     {
-        switch (page)
+        r.box (paneW - 1, bodyTop, 1, h - bodyTop, ink::rule);
+        switch (page / 2)
         {
-            case Screen::chordsPage: chords (r, sounding, held); break;
-            case Screen::motionPage: motion (r, sounding); break;
-            case Screen::oscPage: oscillators (r); break;
-            case Screen::filterPage:
-            case Screen::ampPage: contours (r, sounding != 0); break;
-            case Screen::fxPage: effects (r); break;
+            case 0: performance (r, sounding, held); break;
+            case 1: synthesis (r, sounding != 0); break;
+            case 2: output (r, sounding != 0); break;
         }
     }
 
@@ -339,7 +378,7 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     shownHeld = held;
     shownStrikes = strikes;
     bool drew = false;
-    for (int y = refresh ? 0 : bodyTop; y < h; ++y)
+    for (int y = refreshHeader ? 0 : bodyTop; y < h; ++y)
     {
         const uint32_t* row = pixels.data() + y * w;
         uint32_t* out = surface.pixels + y * surface.stride;
@@ -352,35 +391,87 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     return drew;
 }
 
-void Sp16Screen::header (const Raster& r) const
+void Sp16Screen::header (const Raster& r, int sound) const
 {
-    std::copy_n (sp16Art::header, w * bodyTop, r.px);
+    static_assert (std::size (sp16Art::header) == w * headerH && std::size (sp16Art::water) == w * (h - bodyTop));
+    std::copy_n (sp16Art::header, w * headerH, r.px);
     const auto& prog = progressionTable[choice (progression)];
-    char info[92];
-    std::snprintf (info, sizeof (info), "%s   /   %s %s   /   %s", prog.name,
-                   keyTonic (choice (key), prog.minor), prog.minor ? "minor" : "major", voicingChoices[choice (voicing)]);
-    text<14> (r, 17, 33, info, ink::white);
-    sprite (r, soundsX + 7, soundsY + 5, 90, 25, sp16Art::soundButton);
-    centered<14> (r, soundsX + soundsW / 2, soundsY + 8, soundsOpen ? "Close" : "Sounds", ink::white);
+    char mode[16];
+    std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (choice (key), prog.minor), prog.minor ? "minor" : "major");
+    const int badgeW = textWidth<14> (mode) + 14;
+    r.gel (15, 54, badgeW, 21, 0xff1f728b, 0xfff4ffff, 0xff8adcdf, 0xffc3eff4);
+    centered<14> (r, 15 + badgeW / 2, 55, mode, ink::deep);
+    title (r, 23 + badgeW, 55, prog.name);
 
-    if (! soundsOpen)
+    button (r, patchX, 7, arrowW - 2, 29, false);
+    button (r, patchX + arrowW, 7, patchW - 2 * arrowW, 29, soundsOpen);
+    button (r, patchX + patchW - arrowW + 2, 7, arrowW - 2, 29, false);
+    for (int dir : { -1, 1 })
     {
-        const int x = left + page * tabStep;
-        for (int row = 0; row < tabBottom - tabTop; ++row)
-            std::copy_n (sp16Art::selectedTabs + row * w + x, tabWidth, r.px + (tabTop + row) * w + x);
+        const int cx = dir < 0 ? patchX + arrowW / 2 : patchX + patchW - arrowW / 2;
+        r.line (cx - 3 * dir, 17, cx + 2 * dir, 21, ink::white);
+        r.line (cx + 2 * dir, 21, cx - 3 * dir, 25, ink::white);
     }
-    for (int i = 0; i < Screen::pageCount; ++i)
-        text<14> (r, left + i * tabStep + 43, tabTop + 6, pages[i].tab, ink::text);
-
-    const Page& p = pages[page];
-    text<18> (r, 17, tabBottom + 3, soundsOpen ? "Factory sounds" : p.heading, ink::text);
-    if (soundsOpen) return;
-    for (int i = 0; i < p.count; ++i)
+    char patch[64] = "Custom sound";
+    const int origin = sound >= 0 ? sound : lastFactory;
+    if (origin >= 0)
+        std::snprintf (patch, sizeof (patch), "%02d/%02d  %s%s", origin + 1, presetCount,
+                       presetTable[origin].name, sound >= 0 ? "" : " *");
+    const Ink patchInk = soundsOpen ? ink::deep : ink::white;
+    if (textWidth<18> (patch) <= patchW - 2 * arrowW - 10)
+        centered<18> (r, patchX + patchW / 2, 9, patch, patchInk);
+    else
+        centered<14> (r, patchX + patchW / 2, 12, patch, patchInk);
+    constexpr const char* viewNames[] = { "Perform", "Synth", "Output" };
+    for (int i = 0; i < 3; ++i)
     {
-        const int x = bankX (p, i);
-        if (banks[page] == i)
-            sprite (r, x + 3, bankY + 3, 100, 21, sp16Art::bankFocus);
-        centered<14> (r, x + bankWidth / 2, bankY + 4, p.banks[i].name, ink::text);
+        const int x = patchX + (i * patchW + 2) / 3, end = patchX + ((i + 1) * patchW + 2) / 3;
+        const bool active = ! soundsOpen && page / 2 == i;
+        button (r, x, 47, end - x - 2, 23, active);
+        centered<14> (r, (x + end) / 2 - 1, 49, viewNames[i], active ? ink::deep : ink::white);
+    }
+
+    r.gradient (0, headerH, w, 15, 0xff82cbd9, 0xff277e93);
+    r.gradient (0, headerH + 15, w, bodyTop - headerH - 15, 0xff176a79, 0xff43949b);
+    r.box (0, headerH, w, 1, ink::ice);
+    if (soundsOpen)
+    {
+        title (r, 13, 87, "Factory sounds");
+        return;
+    }
+    for (int side = 0; side < 2; ++side)
+    {
+        const int s = page / 2 * 2 + side, x = side * paneW;
+        const bool focused = s == page;
+        const auto& lens = focused ? sp16Art::sectionLit : sp16Art::sectionIdle;
+        constexpr int lensW = 12, lensH = 26;
+        static_assert (std::size (sp16Art::sectionIdle) == lensW * lensH && std::size (sp16Art::sectionLit) == lensW * lensH);
+        for (int y = 0; y < lensH; ++y)
+            for (int col = 0; col < lensW; ++col)
+            {
+                const Ink pixel = lens[y * lensW + col];
+                const unsigned alpha = pixel >> 24;
+                if (alpha) r.blend (x + 2 + col, headerH + 4 + y, pixel, alpha + (alpha == 255));
+            }
+        title (r, x + 18, 87, pages[s].heading);
+        if (s == Screen::chordsPage)
+        {
+            const int slot = telemetry.lastSlot.load (std::memory_order_relaxed);
+            if (slot >= 0 && slot < padSlots)
+            {
+                char name[32], caption[48];
+                chordText (parsedProgressions()[choice (progression)].chords[slot % 8], choice (key), prog.minor, name, sizeof (name));
+                std::snprintf (caption, sizeof (caption), "%s%s", name, slot >= 8 ? " / Lift" : "");
+                text<14> (r, 99, 87, caption, ink::ice);
+            }
+        }
+        for (int b = 0; b < pages[s].count; ++b)
+        {
+            const int bx = bankX (s, b), width = bankWidth (pages[s].banks[b]);
+            const bool active = focused && b == banks[s];
+            if (active) button (r, bx + 1, 86, width - 2, 22, true);
+            centered<14> (r, bx + width / 2, 88, pages[s].banks[b].name, active ? ink::deep : ink::white);
+        }
     }
 }
 
@@ -389,133 +480,115 @@ void Sp16Screen::sounds (const Raster& r) const
     for (int i = 0; i < presetCount; ++i)
     {
         const int x = soundX + i % soundCols * soundDX, y = soundY + i / soundCols * soundDY;
-        if (i == focusedSound)
-            sprite (r, x + 1, y + 2, 143, 29, sp16Art::soundFocus);
+        if (i == focusedSound) button (r, x + 1, y + 2, soundW - 2, soundH - 4, true);
+        else r.box (x + 4, y + soundH - 1, soundW - 8, 1, ink::rule);
         centered<14> (r, x + soundW / 2, y + 6, presetTable[i].name, ink::text);
     }
 }
 
-void Sp16Screen::chords (const Raster& r, uint32_t sounding, uint32_t held) const
+void Sp16Screen::field (const Raster& r, int x, int y, int width, const char* label, uint32_t id) const
+{
+    char formatted[64];
+    formatParam (paramTable[id], value (id), formatted, sizeof (formatted));
+    row (r, x, y, width, label, formatted);
+}
+
+void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held) const
 {
     const int prog = choice (progression), tonic = choice (key);
-    const bool minor = progressionTable[prog].minor;
-    const auto& pp = parsedProgressions()[prog];
+    const auto& sequence = parsedProgressions()[prog];
     const int last = telemetry.lastSlot.load (std::memory_order_relaxed);
     for (int slot = 0; slot < padSlots; ++slot)
     {
         const int x = padX + (slot % 4) * padDX, y = padY + (3 - slot / 4) * padDY;
         const bool lift = slot >= 8, on = (held & (1u << slot)) != 0;
-        if (on) sprite (r, x + 2, y + 2, 112, 30, sp16Art::padDown);
-        char name[32], index[4];
-        chordText (pp.chords[slot % 8], tonic, minor, name);
+        if (on) r.gel (x, y, padW, padH, 0xffae7c34, 0xfffff3bb, 0xffffd77c, 0xffffc262);
+        else if (lift) r.gel (x, y, padW, padH, 0xff70a385, 0xffeaffdf, 0xffb4e3be, 0xffa7d8be);
+        else r.gel (x, y, padW, padH, 0xff6b9fb7, 0xffe6fbff, 0xffb4e3f1, 0xffa0d4ec);
+        const auto& chord = sequence.chords[slot % 8];
+        char root[16], index[4];
+        chordRootText (chord, tonic, progressionTable[prog].minor, root, sizeof (root));
         std::snprintf (index, sizeof (index), "%02d", slot + 1);
-        centered<14> (r, x + 17, y + 8, index, ink::deep);
-        centered<14> (r, x + 17, y + 7, index, ink::white);
-        if (textWidth<18> (name) <= 74) text<18> (r, x + 32, y + 4, name, ink::text);
-        else if (textWidth<14> (name) <= 77) text<14> (r, x + 32, y + 7, name, ink::text);
-        else text<11> (r, x + 31, y + 9, name, ink::text);
-        if (slot == last) r.box (x + 40, y + 27, 42, 2, on ? 0xffa8590c : (lift ? ink::teal : ink::blue));
+        text<14> (r, x + 6, y, root, ink::text);
+        text<14> (r, x + 6, y + 12, chordQualityText (chord), ink::text);
+        text<11> (r, x + padW - 19, y + 2, index, ink::label);
+        if (slot == last) r.box (x + padW - 22, y + padH - 6, 14, 2, on ? 0xffa8590c : ink::teal);
     }
-
-    constexpr int x = 503;
-    text<14> (r, x + 15, 128, sounding ? "Sounding notes" : "Last chord", ink::white);
-    char title[52] = "Play a chord";
-    if (last >= 0 && last < padSlots)
-    {
-        char name[32];
-        chordText (pp.chords[last % 8], tonic, minor, name);
-        std::snprintf (title, sizeof (title), "%s%s", name, last >= 8 ? "  /  Lift" : "");
-    }
-    text<23> (r, x + 16, 150, title, 0xff10476a);
-    text<23> (r, x + 15, 149, title, ink::white);
-    plots.keyboard (r, x + 11, 190, 242, 31, sounding);
-    text<14> (r, x + 15, 235, "01-08  Chords", ink::white);
-    text<14> (r, x + 148, 235, "09-16  Lifts", 0xffe3ffa8);
-}
-
-void Sp16Screen::motion (const Raster& r, uint32_t sounding) const
-{
+    plots.keyboard (r, 8, 256, 373, 22, sounding);
+    picture (r, globeX, globeY, globeSize, sp16Art::lens);
     const int shape = choice (motionShape);
     plots.motionTrace (r, globeCenterX, globeCenterY, globeRadius, shape, sounding);
-    text<14> (r, globeX + 9, globeY + globeSize - 23, motionChoices[shape], ink::white);
-    text<14> (r, globeX + globeSize - 37, globeY + globeSize - 23, "X / Y", ink::ice);
+    text<14> (r, globeX + 7, globeY + 127, motionChoices[shape], ink::white);
+    text<14> (r, globeX + 112, globeY + 127, "X / Y", ink::ice);
 
+    constexpr int x = 553, col = 106, top = 118, dy = 23;
+    field (r, x, top, col, "X", motionX);
+    field (r, x + col + 3, top, col, "Y", motionY);
+    field (r, x, top + dy, col, "Depth", motionDepth);
+    field (r, x + col + 3, top + dy, col, "Rate", motionRate);
+    field (r, x, top + dy * 2, col, "Sync", motionSync);
+    field (r, x + col + 3, top + dy * 2, col, "Div", motionDiv);
     constexpr uint32_t routes[] = { xDest1, xDest2, yDest1, yDest2 };
-    constexpr const char* labels[] = { "X1", "X2", "Y1", "Y2" };
-    constexpr int x = 178;
-    constexpr int railX = x + 310, halfRail = 129;
+    constexpr const char* labels[] = { "X to 1", "X to 2", "Y to 1", "Y to 2" };
     for (int i = 0; i < 4; ++i)
     {
-        const int y = contentY + 2 + i * 37;
-        centered<14> (r, x + 22, y + 8, labels[i], ink::white);
-        char dst[44], amt[22];
-        formatParam (paramTable[routes[i]], value (routes[i]), dst, sizeof (dst));
-        formatParam (paramTable[routes[i] + 1], value (routes[i] + 1), amt, sizeof (amt));
-        text<18> (r, x + 62, y + 4, dst, ink::text);
-        text<14> (r, x + 239, y + 8, amt, ink::label);
-        r.box (railX, y + 15, 2 * halfRail, 3, ink::rule);
-        r.box (railX + halfRail, y + 11, 1, 11, ink::guide);
-        const int span = int (value (routes[i] + 1) * halfRail);
-        const Ink color = i < 2 ? ink::blue : ink::teal;
-        r.box (railX + halfRail + std::min (0, span), y + 14, std::abs (span), 5, color);
-        r.disc (railX + halfRail + span, y + 16, 4, color);
-        r.dot (railX + halfRail + span - 1, y + 15, ink::ice);
+        const int y = top + (3 + i) * dy;
+        field (r, x, y, 128, labels[i], routes[i]);
+        field (r, x + 131, y, 84, "Amt", routes[i] + 1);
     }
 }
 
-void Sp16Screen::oscillators (const Raster& r) const
+void Sp16Screen::synthesis (const Raster& r, bool sounding) const
 {
+    constexpr int column = 184;
     for (int o = 0; o < 2; ++o)
     {
-        const int x = 13 + o * 381;
-        const char* wave = waveChoices[choice (ParamId::osc (o, 0))];
-        section (r, x, contentY, 372, wave);
-        plots.scope (r, x + 8, 151, 356, 111, o, false);
+        const int x = 8 + o * 189;
+        plots.scope (r, x, 119, column, 65, o);
+        field (r, x, 189, column, "Wave", ParamId::osc (o, 0));
+        field (r, x, 212, column, "Position", ParamId::osc (o, 1));
+        field (r, x, 235, column, "Level", ParamId::osc (o, 7));
+        field (r, x, 258, column, "Detune", ParamId::osc (o, 6));
     }
+    plots.response (r, 397, 119, 168, 76);
+    plots.envelope (r, 397, 201, 168, 76, fltAttack, telemetry.fltEnv.load (std::memory_order_relaxed), ink::lime, sounding);
+    section (r, 571, 117, 200, "Filter response");
+    field (r, 571, 138, 200, "Type", filterType);
+    field (r, 571, 160, 200, "Cutoff", cutoff);
+    field (r, 571, 182, 200, "Resonance", resonance);
+    section (r, 571, 205, 200, "Filter envelope");
+    field (r, 571, 228, 98, "A", fltAttack);
+    field (r, 672, 228, 99, "D", fltDecay);
+    field (r, 571, 253, 98, "S", fltSustain);
+    field (r, 672, 253, 99, "R", fltRelease);
 }
 
-void Sp16Screen::contours (const Raster& r, bool sounding) const
+void Sp16Screen::output (const Raster& r, bool sounding) const
 {
-    constexpr int lx = 13, rx = 394, cw = 372, y = 151, ch = 111;
-    if (page == Screen::filterPage)
-    {
-        section (r, lx, contentY, cw, "FILTER RESPONSE");
-        section (r, rx, contentY, cw, "FILTER ENVELOPE");
-        plots.response (r, lx + 8, y, cw - 16, ch, false);
-        plots.envelope (r, rx + 8, y, cw - 16, ch, fltAttack, telemetry.fltEnv.load (std::memory_order_relaxed), ink::lime, sounding, false);
-    }
-    else
-    {
-        section (r, lx, contentY, cw, "AMPLITUDE ENVELOPE");
-        section (r, rx, contentY, cw, "LFO");
-        plots.envelope (r, lx + 8, y, cw - 16, ch, ampAttack, telemetry.ampEnv.load (std::memory_order_relaxed), ink::foam, sounding, false);
-        plots.lfoPicture (r, rx + 8, y, cw - 16, ch, false);
-    }
-}
+    plots.envelope (r, 8, 119, 164, 76, ampAttack, telemetry.ampEnv.load (std::memory_order_relaxed), ink::foam, sounding);
+    plots.lfoPicture (r, 8, 201, 164, 76);
+    section (r, 178, 117, 203, "Amplitude envelope");
+    field (r, 178, 139, 99, "A", ampAttack);
+    field (r, 280, 139, 101, "D", ampDecay);
+    field (r, 178, 162, 99, "S", ampSustain);
+    field (r, 280, 162, 101, "R", ampRelease);
+    section (r, 178, 195, 203, "LFO");
+    field (r, 178, 218, 203, "Shape", lfoShape);
+    field (r, 178, 241, 203, "Rate", lfoRate);
 
-void Sp16Screen::effects (const Raster& r) const
-{
-    plots.outputMeter (r, 61, 250);
-
-    constexpr uint32_t mixes[] = { ensMix, dlyMix, revMix };
-    constexpr uint32_t details[] = { ensRate, dlyTime, revDecay };
+    picture (r, 397, 119, 148, sp16Art::tank);
+    r.box (397, 245, 148, 13, ink::deep);
+    plots.outputMeter (r, 397, 245);
+    field (r, 397, 260, 148, "Volume", volume);
     constexpr const char* labels[] = { "Ensemble", "Tempo delay", "Shimmer reverb" };
+    constexpr const char* detail[] = { "Depth", "Time", "Decay" };
+    constexpr uint32_t mixes[] = { ensMix, dlyMix, revMix }, ids[] = { ensDepth, dlyTime, revDecay };
     for (int i = 0; i < 3; ++i)
     {
-        const int x = 322 + 174 * i, y = 195;
-        centered<18> (r, x, 128, labels[i], ink::text);
-        char mixText[24], detailText[32];
-        const float amount = value (mixes[i]);
-        formatParam (paramTable[mixes[i]], amount, mixText, sizeof (mixText));
-        formatParam (paramTable[details[i]], value (details[i]), detailText, sizeof (detailText));
-        centered<18> (r, x, y - 12, mixText, ink::white);
-        centered<14> (r, x, y + 5, "Mix", ink::ice);
-        const float angle = (135.0f + 270.0f * amount) * 0.017453293f;
-        const int tipX = x + int (std::lround (38.0f * std::cos (angle)));
-        const int tipY = y + int (std::lround (38.0f * std::sin (angle)));
-        r.disc (tipX, tipY, 3, ink::deep);
-        r.disc (tipX, tipY, 2, ink::lime);
-        centered<14> (r, x, 241, detailText, ink::text);
+        const int y = 117 + 56 * i;
+        section (r, 551, y, 220, labels[i]);
+        field (r, 551, y + 22, 101, "Mix", mixes[i]);
+        field (r, 655, y + 22, 116, detail[i], ids[i]);
     }
 }
 }

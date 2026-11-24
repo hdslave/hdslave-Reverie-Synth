@@ -14,6 +14,7 @@ public:
     bool render (const sixteen_screen_surface_t& surface, bool full);
     void knobs (uint32_t ids[6], char name[SIXTEEN_TAB_NAME_SIZE]) const;
     bool turn (int delta);
+    void soundLoaded (int index);
     int push();
 
     struct Touch
@@ -31,13 +32,13 @@ private:
     enum class Gesture { none, pad, motion };
     using Raster = hdui::Raster;
 
-    void header (const Raster& r) const;
+    void header (const Raster& r, int sound) const;
     void sounds (const Raster& r) const;
-    void chords (const Raster& r, uint32_t sounding, uint32_t held) const;
-    void motion (const Raster& r, uint32_t sounding) const;
-    void oscillators (const Raster& r) const;
-    void contours (const Raster& r, bool sounding) const;
-    void effects (const Raster& r) const;
+    void performance (const Raster& r, uint32_t sounding, uint32_t held) const;
+    void synthesis (const Raster& r, bool sounding) const;
+    void output (const Raster& r, bool sounding) const;
+    void field (const Raster& r, int x, int y, int width, const char* label, uint32_t id) const;
+    int matchingSound() const;
     float value (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
     int choice (uint32_t id) const { return static_cast<int> (std::lround (value (id))); }
 
@@ -48,7 +49,7 @@ private:
     std::array<float, paramCount> seen {};
     std::array<int, Screen::pageCount> banks {};
     int page = Screen::chordsPage;
-    int focusedSound = 0;
+    int focusedSound = 0, lastFactory = 0;
     bool soundsOpen = false;
     Gesture gesture = Gesture::none;
     bool dirty = true, wasMoving = false;

@@ -484,6 +484,9 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
     if (const int prog = paramIndex (ParamId::progression); header[0] < 2 && prog >= 0)
         loaded[prog] = paramTable[prog].def;
     setAll (p, loaded);
+#ifdef REVERIE_SP16
+    p.sp16Screen.soundLoaded (-1);
+#endif
     return true;
 }
 
@@ -509,6 +512,7 @@ bool presetFromLocation (const clap_plugin* plugin, uint32_t kind, const char*, 
     // End the old sound's gates even when the host has yet to deliver the pad release.
     p.audition.store (0, std::memory_order_relaxed);
     setAll (p, values, valuesChanged | releasePresetNotes);
+    p.sp16Screen.soundLoaded (int (preset - presetTable));
     if (p.host->request_process != nullptr)
         p.host->request_process (p.host);
 #else

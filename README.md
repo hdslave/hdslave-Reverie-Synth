@@ -408,8 +408,11 @@ The SP-16 build uses the `org.sixteen.screen/1` extension on freesp16's
 host's track header and its six-encoder strip on the 800 × 480 display.
 
 In the track menu, choose **TRACK TYPE → PLUGIN → SELECT PLUGIN → hdslave
-Reverie → OPEN UI**. Tap a page or one of its named banks. Turning the selector
-steps through banks. Pressing it advances to the next page.
+Reverie → OPEN UI**. The three tabs beneath the upper-right patch selector show
+the desktop panel in pairs. **Perform** opens Chords and Motion, **Synth** opens
+Oscillators and Filter, and **Output** opens Amplitude and Effects. Tap a section
+heading to focus its six encoders, or tap a bank to select it directly. Turning
+the selector steps through banks. Pressing it advances to the next section.
 
 | Page | Banks |
 | --- | --- |
@@ -422,7 +425,9 @@ steps through banks. Pressing it advances to the next page.
 
 Touch and hold a chord or lift to audition it. The pad goes amber and the
 keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
-**SOUNDS** opens all 20 factory sounds inside Reverie. Choosing a sound keeps the
+Tap the patch name in the upper right to browse all 20 factory sounds. Its
+arrows load the previous or next sound. An asterisk marks edits to a known factory sound. A recalled patch with no
+matching factory sound is labeled **Custom sound**. Choosing a sound keeps the
 progression, key, voicing and other chord settings. On a sound change old chord
 gates release and their effects can ring out. A short output fade smooths the
 change. Play the pad again to hear the new sound.

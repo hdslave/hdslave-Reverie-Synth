@@ -1,7 +1,7 @@
 // Black-box CLAP screen contract test. Runs on the native preview and the ARMv7 device build.
 #include "png.h"
 #include "sixteen_screen.h"
-#include "params.h"
+#include "presets.h"
 
 #include <clap/clap.h>
 #include <dlfcn.h>
@@ -108,7 +108,7 @@ struct Fixture
         return peak;
     }
 
-    int padSample (int slot) const { return (144 + (3 - slot / 4) * 37) * stride + 122 + (slot % 4) * 121; }
+    int padSample (int slot) const { return (135 + (3 - slot / 4) * 33) * stride + 56 + (slot % 4) * 94; }
     uint32_t padPixel (int slot) const { return pixels[padSample (slot)]; }
     uint32_t heldPads (const std::vector<uint32_t>& idle) const
     {
@@ -146,13 +146,45 @@ int main (int argc, char** argv)
     assert (f.frame (true) && f.pixels == first);
     f.capture (out, "chords");
 
+    // Desktop patch strip. The old button location is scenery. Fast arrow taps,
+    // external host loads, browser focus and cancelling all follow the same factory order.
+    assert (! f.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
+    auto expectSound = [&] (int index) {
+        float expected[reverie::paramCount] {};
+        reverie::presetValuesOf (reverie::presetTable[index], expected);
+        for (uint32_t i = chordSection; i < count; ++i) assert (std::abs (f.value (i) - expected[i]) < 1.0e-6);
+    };
+    expectSound (0);
+    for (int i = 1; i <= reverie::presetCount; ++i)
+    {
+        assert (f.touch (SIXTEEN_TOUCH_DOWN, 754, 21));
+        expectSound (i % reverie::presetCount);
+    }
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 527, 21));
+    expectSound (19);
+    const auto* load = static_cast<const clap_plugin_preset_load_t*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
+    assert (load && load->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "glass-cathedral"));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
+    assert (screen->selector_turn (plugin, 1));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
+    expectSound (2);
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 754, 21));
+    expectSound (3);
+    assert (load->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "reverie"));
+    f.block();
+    plugin->reset (plugin);
+
     // Every parameter belongs to exactly one bank. Each page keeps the bank selected last.
     constexpr int bankCounts[] = { 2, 4, 4, 2, 2, 2 };
     constexpr const char* pageNames[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
     std::array<int, count> uses {};
     for (int p = 0; p < 6; ++p)
     {
-        if (p > 0) assert (f.touch (SIXTEEN_TOUCH_DOWN, 72 + 127 * p, 85));
+        if (p > 0)
+        {
+            assert (f.touch (SIXTEEN_TOUCH_DOWN, 550 + 87 * (p / 2), 60));
+            assert (f.touch (SIXTEEN_TOUCH_DOWN, p % 2 ? 408 : 16, 97));
+        }
         assert (f.frame() || p == 0);
         f.capture (out, pageNames[p]);
         for (int b = 0; b < bankCounts[p]; ++b)
@@ -181,7 +213,7 @@ int main (int argc, char** argv)
         plugin->reset (plugin);
         f.frame();
         const auto idle = f.padPixel (slot);
-        const int x = 70 + 121 * (slot % 4), y = 138 + 37 * (3 - slot / 4);
+        const int x = 52 + 94 * (slot % 4), y = 132 + 33 * (3 - slot / 4);
         assert (f.touch (SIXTEEN_TOUCH_DOWN, x, y));
         float peak = 0.0f;
         for (int i = 0; i < 10; ++i) peak = std::max (peak, f.block());
@@ -195,9 +227,9 @@ int main (int argc, char** argv)
     // Releasing the screen pad must leave the same chord held by MIDI alone.
     plugin->reset (plugin);
     f.block (CLAP_EVENT_NOTE_ON);
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 70, 249));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 52, 231));
     f.block();
-    assert (f.touch (SIXTEEN_TOUCH_UP, 70, 249));
+    assert (f.touch (SIXTEEN_TOUCH_UP, 52, 231));
     f.block();
     f.frame();
     assert (f.padPixel (0) != first[f.padSample (0)]);
@@ -207,14 +239,14 @@ int main (int argc, char** argv)
 
     // A tap between blocks is played once. The close callback releases a hold.
     plugin->reset (plugin);
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 70, 249) && f.touch (SIXTEEN_TOUCH_UP, 70, 249));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 52, 231) && f.touch (SIXTEEN_TOUCH_UP, 52, 231));
     f.block();
     f.frame();
     assert (f.padPixel (0) != first[f.padSample (0)]);
     f.block();
     f.frame();
     assert (f.padPixel (0) == first[f.padSample (0)]);
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 70, 249));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 52, 231));
     f.block();
     screen->on_close (plugin);
     f.block();
@@ -223,17 +255,17 @@ int main (int argc, char** argv)
 
     // The freesp16 host stops rendering when leaving the plugin page. In that
     // case release the audition even if the touchscreen never sent touch-up.
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 70, 249));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 52, 231));
     for (int i = 0; i < 200; ++i) f.block();
     f.frame();
     assert (f.padPixel (0) == first[f.padSample (0)]);
     screen->on_close (plugin);
 
     // Drag outside the Motion field clamps the two existing bipolar parameters.
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 199, 85));
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 88, 188));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 405, 97));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 472, 188));
     assert (f.value (motionX) == 0.0 && f.value (motionY) == 0.0);
-    assert (f.touch (SIXTEEN_TOUCH_MOVE, 116, 160));
+    assert (f.touch (SIXTEEN_TOUCH_MOVE, 500, 160));
     assert (f.value (motionX) == 0.5 && f.value (motionY) == 0.5);
     assert (f.touch (SIXTEEN_TOUCH_MOVE, 779, 284));
     assert (f.value (motionX) == 1.0 && f.value (motionY) == -1.0);
@@ -243,19 +275,19 @@ int main (int argc, char** argv)
     assert (wakes >= 36);
 
     const double before = f.value (osc1Wave), prog = f.value (progression), tonic = f.value (key);
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
     assert (f.frame());
     f.capture (out, "sounds");
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 242, 244)); // Ethereal Vox
     assert (f.value (osc1Wave) != before && f.value (progression) == prog && f.value (key) == tonic);
     assert (f.frame());
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
     assert (screen->selector_turn (plugin, -16));
     assert (screen->selector_push (plugin)); // back to Reverie's default sound
     assert (f.value (osc1Wave) == before);
     // freesp16's unshifted chromatic SCALE mode sends 60–75. Legacy bank A
     // still sends 36–51. Both ranges address the same pads in the same order.
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 72, 85));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 16, 97));
     bool bothRangesMatch = true;
     for (int base : { 60, 36 })
         for (int slot = 0; slot < 16; ++slot)
@@ -274,7 +306,7 @@ int main (int argc, char** argv)
     f.block (CLAP_EVENT_NOTE_ON, 36);
     f.frame();
     assert (f.heldPads (first) == 1u);
-    assert (f.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 242, 244)); // Ethereal Vox
     f.block();
     f.frame();
@@ -309,7 +341,7 @@ int main (int argc, char** argv)
     for (int i = 1; i < 211; ++i) transition.block();
     const float beforeLeft = transition.left[255], beforeRight = transition.right[255];
     assert (std::max (std::abs (beforeLeft), std::abs (beforeRight)) > 0.05f);
-    assert (transition.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
+    assert (transition.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
     assert (transition.touch (SIXTEEN_TOUCH_DOWN, 697, 209)); // Dark Matter
     transition.block();
     const float transitionJump = std::max (std::abs (transition.left[0] - beforeLeft),

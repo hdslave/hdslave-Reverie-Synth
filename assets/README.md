@@ -7,9 +7,9 @@ The CLAP embeds the artwork and glyph masks. After changing a source, run `uv ru
 The SP-16 panel uses Reverie's original [desktop skyline](../mac-clap/assets/desktop-horizon.jpg)
 and [water artwork](../mac-clap/assets/aqua-glass.jpg). The Motion page uses
 [the desktop glass sphere](sp16-motion-glass.jpg) from revision `7199408`.
-The SP-16 art generator draws the musical staff, glass controls, navigation icons
-and meter faces at build time. Live labels, traces and highlights are drawn by
-the instrument. Run `PYTHONDONTWRITEBYTECODE=1 uv run --script tools/bake_sp16_art.py`
+The SP-16 art generator reuses the desktop masthead renderer for the skyline
+and pearl wordmark. The instrument draws its section rails, parameter readouts,
+traces and pad highlights at native size. Run `PYTHONDONTWRITEBYTECODE=1 uv run --script tools/bake_sp16_art.py`
 to rebuild the embedded panel artwork.
 
 ## Panorama prompt
