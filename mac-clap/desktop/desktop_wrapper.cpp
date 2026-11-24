@@ -917,8 +917,9 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
     }
     if (dp.surface)
     {
-        dp.guiWidth = dp.surface->metrics.width * 2;
-        dp.guiHeight = dp.surface->metrics.height * 2;
+        dp.guiWidth = kMinGuiWidth;
+        dp.guiHeight = kMinGuiHeight;
+        dp.fitGuiSize (dp.guiWidth, dp.guiHeight);
     }
     else if (dp.innerTiles && dp.innerTiles->count)
     {

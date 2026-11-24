@@ -298,9 +298,9 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
     const char* api = nullptr;
     bool floating = true;
     uint32_t gw = 0, gh = 0;
-    if (!gui || !gui->get_preferred_api (plug, &api, &floating) || floating || !api || !gui->get_size (plug, &gw, &gh) || gw < 1000 || gh < 640)
+    if (!gui || !gui->get_preferred_api (plug, &api, &floating) || floating || !api || !gui->get_size (plug, &gw, &gh) || gw != 960 || gh != 648)
     {
-        std::fprintf (stderr, "FAIL: invalid GUI config for %s (%ux%u)\n", desc->id, gw, gh);
+        std::fprintf (stderr, "FAIL: expected a 960x648 opening size for %s (got %ux%u)\n", desc->id, gw, gh);
         return false;
     }
 
@@ -327,9 +327,9 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         uint32_t actualW, actualH;
         return gui->get_size (plug, &actualW, &actualH) && actualW == w && actualH == h;
     };
-    if (!currentSize (gw, gh) || gui->set_size (plug, 1100, 648) || !currentSize (gw, gh)) return false;
+    if (!currentSize (gw, gh) || gui->set_size (plug, 1100, 646) || !currentSize (gw, gh)) return false;
     ctx.allowResize = true;
-    if (!gui->set_size (plug, 1100, 648) || !currentSize (960, 648)
+    if (!gui->set_size (plug, 1100, 646) || !currentSize (960, 648)
         || ctx.requestedWidth != 960 || ctx.requestedHeight != 648
         || !gui->set_size (plug, 1200, 648) || !currentSize (1200, 810)
         || !gui->set_size (plug, 1200, 945) || !currentSize (1400, 945)
