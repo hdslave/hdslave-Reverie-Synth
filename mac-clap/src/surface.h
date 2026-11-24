@@ -81,13 +81,15 @@ struct Surface
         const auto& progression = progressionTable[s.choice (ParamId::progression)];
         char key[8], mode[22];
         s.formatted (ParamId::key, key, sizeof (key));
-        std::snprintf (mode, sizeof (mode), "%s %s", key, progression.minor ? "minor" : "major");
+        const int mood = s.choice (ParamId::mood);
+        if (mood) std::snprintf (mode, sizeof (mode), "Mood %+d", s.choice (ParamId::moodShift));
+        else std::snprintf (mode, sizeof (mode), "%s %s", key, progression.minor ? "minor" : "major");
         const int keyW = r.measure (mode, 10) + 14;
         r.gel (13, 44, keyW, 15, 0xff1f728b, 0xfff4ffff, 0xff8adcdf, 0xffc3eff4);
         r.centre (13 + keyW / 2, 47, mode, ink::deep, 10);
         const int px = 20 + keyW;
-        r.text (px, 47, progression.name, ink::deep, 12);
-        r.text (px, 46, progression.name, ink::white, 12);
+        r.text (px, 47, mood ? moodNames[mood] : progression.name, ink::deep, 12);
+        r.text (px, 46, mood ? moodNames[mood] : progression.name, ink::white, 12);
 
         char clearText[24];
         if (state.mappedCc) std::snprintf (clearText, sizeof (clearText), "Clear CC (%d)", state.mappedCc);
@@ -270,7 +272,7 @@ struct Surface
         {
             const auto c = cellAt (page, layout.cells[i]);
             const SurfaceRect b {c.x, c.y, c.w, c.h};
-            if (b.contains (x, y)) return spot (b, c.id);
+            if (b.contains (x, y)) return spot (b, paramTable[c.id].id);
         }
 
         if (page == Screen::chordsPage)

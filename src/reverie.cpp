@@ -679,7 +679,7 @@ void screenControls (const void* plugin, uint32_t ids[3])
     uint32_t chosen[3];
     of (static_cast<const clap_plugin*> (plugin)).screen.knobs (chosen);
     for (int k = 0; k < 3; ++k)
-        ids[k] = chosen[k] == hdui::noParam ? MELODEE_SCREEN_NO_CONTROL : chosen[k];
+        ids[k] = chosen[k] == hdui::noParam ? MELODEE_SCREEN_NO_CONTROL : paramTable[chosen[k]].id;
 }
 
 const melodee_screen_t screenExtension { screenDraw, screenInput, screenControls };

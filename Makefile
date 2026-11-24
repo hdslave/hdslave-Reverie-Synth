@@ -36,7 +36,7 @@ $(OUT)/Reverie.clap: $(PLUGIN_SOURCES) $(HEADERS) src/exports.map Makefile
 	@mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(WARN) -ffunction-sections -fdata-sections $(PLUGIN_SOURCES) $(LDFLAGS) -o $@
 
-$(OUT)/host: tests/host.cpp tests/wav.h tests/png.h $(HEADERS) Makefile
+$(OUT)/host: tests/host.cpp tests/wav.h tests/png.h tests/mood_notes.h $(HEADERS) Makefile
 	@mkdir -p $(OUT)
 	$(CXX) -std=c++17 -O2 $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include -I$(OUT) tests/host.cpp -ldl -o $@
 

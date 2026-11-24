@@ -63,7 +63,7 @@ struct TilesAccess
             if (x >= cx && x < cx + cw && y >= cy && y < cy + ch)
             {
                 out_spot->kind = HDSLAVE_HOTSPOT_PARAM;
-                out_spot->param_id = c.id;
+                out_spot->param_id = paramTable[c.id].id;
                 out_spot->x = (int16_t) cx;
                 out_spot->y = (int16_t) cy;
                 out_spot->w = (int16_t) cw;
@@ -85,7 +85,7 @@ struct TilesAccess
                     const int rowFromTop = std::clamp ((by - 3) / 24, 0, 3);
                     const int pad = (3 - rowFromTop) * 4 + col; // Pad 1 (0) is bottom-left
                     out_spot->kind = HDSLAVE_HOTSPOT_NOTE_PAD;
-                    out_spot->custom_id = 60 + pad;
+                    out_spot->custom_id = 36 + pad;
                     out_spot->x = (int16_t) (4 + col * 41);
                     out_spot->y = (int16_t) (Screen::headH + 3 + rowFromTop * 24);
                     out_spot->w = 40;

@@ -12,6 +12,10 @@ The **Phaser** row in Effects & output has Mix, Rate, Feedback (FB) and Filter E
 
 The last four entries in the 25-sound preset menu are Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
 
+## Mood
+
+On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Choose **Off** to return to the current progression and voicing. The set stays selected when you change sounds.
+
 ## Download and install
 
 Each desktop ZIP contains CLAP, VST3 and the four new pads as VST3 preset files. All 25 sounds are available in Reverie’s preset menu.

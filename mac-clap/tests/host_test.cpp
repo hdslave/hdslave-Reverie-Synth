@@ -416,6 +416,18 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         };
         clap_input_events_t noteIn { &testNote.header, oneNoteSize, oneNoteGet };
 
+        auto setParam = [&] (clap_id id, double value) {
+            clap_event_param_value_t event {};
+            event.header = { sizeof (event), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 };
+            event.param_id = id;
+            event.note_id = event.port_index = event.channel = event.key = -1;
+            event.value = value;
+            clap_input_events_t input { &event.header, oneNoteSize, oneNoteGet };
+            params->flush (plug, &input, nullptr);
+        };
+        setParam (97, 2);
+        setParam (98, -4);
+
         for (int pi = 0; pi < pPresets; ++pi)
         {
             if (!dbg->preset_load (plug, pi))
@@ -423,6 +435,9 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
                 std::fprintf (stderr, "FAIL: preset_load(%d) failed for %s\n", pi, desc->id);
                 return false;
             }
+            double set = 0, shift = 0;
+            if (!params->get_value (plug, 97, &set) || set != 2
+                || !params->get_value (plug, 98, &shift) || shift != -4) return false;
             if (plug->on_main_thread) plug->on_main_thread (plug);
 
             // Render 6 blocks with a note-on + subtle audio input to catch any NaN/Inf in every single preset!

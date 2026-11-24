@@ -40,3 +40,5 @@ inline void padChords (int progression, int voicing, int key, VoicingSet& out)
     for (int s = 0; s < padSlots; ++s) out.slot[s] = padChord (progression, voicing, key, s);
 }
 } // namespace reverie
+
+#include "../../src/mood.h"
