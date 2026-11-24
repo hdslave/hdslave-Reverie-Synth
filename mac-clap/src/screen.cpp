@@ -407,7 +407,7 @@ void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t s
 }
 
 // The X / Y field: its grid, the path around (X, Y), the notes on it.
-void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const
+void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop) const
 {
     using namespace hdui;
     // The meridians and the specular highlight belong to the lens, so bake them once.
@@ -439,8 +439,9 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
         glass.frame (0, 0, gw, gh, ink::guide);
         return px;
     }();
+    if (!backdrop) backdrop = lens.data();
     for (int j = 0; j < gh; ++j)
-        std::copy_n (lens.data() + j * gw, gw, r.px + (y0 + j) * r.w + x0);
+        std::copy_n (backdrop + j * gw, gw, r.px + (y0 + j) * r.w + x0);
     auto px = [&] (float v) { return x0 + w / 2 + (int) std::lround (v * 45); };
     auto py = [&] (float v) { return y0 + 53 - (int) std::lround (v * 45); };
     const float cx = live (ParamId::motionX), cy = live (ParamId::motionY);
