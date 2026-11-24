@@ -421,16 +421,22 @@ the selector steps through banks. Pressing it advances to the next section.
 | Osc | Morph, Osc 1, Osc 2, Voice |
 | Filter | Response, Envelope |
 | Amp | Envelope (with output volume), LFO |
-| FX | Ensemble / Delay, Reverb |
+| FX | Ensemble / Delay, Reverb, Phaser |
 
 Touch and hold a chord or lift to audition it. The pad goes amber and the
 keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
-Tap the patch name in the upper right to browse all 20 factory sounds. Its
+Tap the patch name in the upper right to browse all 25 factory sounds. Its
 arrows load the previous or next sound. An asterisk marks edits to a known factory sound. A recalled patch with no
 matching factory sound is labeled **Custom sound**. Choosing a sound keeps the
 progression, key, voicing and other chord settings. On a sound change old chord
 gates release and their effects can ring out. A short output fade smooths the
 change. Play the pad again to hear the new sound.
+
+In SP-16 version **0.4.4-sp16.7** the bottom row contains Undertow Wah, Opal Rain,
+Lantern Ferry, Cinder Cello and Cloud Loom. The same sounds appear under **PRESETS**.
+Undertow Wah sweeps a low Choir and Hollow Pulse through an envelope-driven phaser.
+For its reference chord, select Bow and Gourd in D with Quartal voicing, a 30 ms
+strum, 5% Humanize and 70% Bass, then hold pad 3 for about 0.7 seconds.
 
 Use freesp16's **SCALE** pad mode with Chromatic, Key Shift 0 and the default
 window to play Reverie from the physical pads. This sends notes 60–75. Each

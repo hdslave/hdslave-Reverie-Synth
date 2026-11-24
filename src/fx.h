@@ -1,4 +1,4 @@
-// Reverie's effects, in the order they run: an ensemble (three modulated delays a side, a slow and a quick LFO, as
+// Reverie's effects, in the order they run: a stereo phaser on SP-16, an ensemble (three modulated delays a side, a slow and a quick LFO, as
 // the string machines' ensembles did), a ping-pong delay locked to the tempo (filtered feedback), and a reverb: an
 // eight-line feedback delay network (Hadamard mixing, each line damped and slowly modulated, lengths set by Size and
 // gains by Decay), with input diffusion, a pre-delay, a high-pass ahead of it to keep the low end clear, and Shimmer:
@@ -111,6 +111,98 @@ struct DelayLine
 };
 
 inline float onePoleCoef (float hz, float rate) { return 1.0f - std::exp (-6.2831853f * hz / rate); }
+
+// Six first-order allpasses in series give three moving notches when mixed with the dry path.
+// Each channel keeps its own history. A zero LFO rate parks both lanes for an envelope-only sweep.
+class Phaser
+{
+public:
+    void prepare (float sampleRate)
+    {
+        tickSeconds = (float) tickSize / sampleRate;
+        radiansPerHz = 3.14159265f / sampleRate;
+        maxHz = sampleRate * 0.40f;
+        envelopeLag = 1.0f - std::exp (-tickSeconds / 0.008f);
+        reset();
+    }
+
+    void reset()
+    {
+        if (! active) return;
+        for (auto& lane : lanes) lane = {};
+        phase = envelope = blend = feedback = 0.0f;
+        active = false;
+    }
+
+    void control (float mix, float rateHz, float resonance, float envAmount, float filterEnv)
+    {
+        if (mix == 0.0f)
+        {
+            reset();
+            return;
+        }
+
+        // A new strummed chord can take over halfway through the preceding chord's release.
+        envelope += (filterEnv - envelope) * envelopeLag;
+        const float envelopeOctaves = 3.4f * envAmount * (envelope - 0.5f);
+        const float lfoDepth = 1.25f * std::min (1.0f, 20.0f * rateHz);
+        phase += rateHz * tickSeconds;
+        phase -= std::floor (phase);
+        for (int c = 0; c < 2; ++c)
+        {
+            Lane& lane = lanes[c];
+            const float lfo = fast::sin (6.2831853f * (phase + 0.10f * (float) c));
+            const float hz = std::min (maxHz, 465.0f * fast::exp2 (envelopeOctaves + lfoDepth * lfo));
+            const float g = fast::tan (radiansPerHz * hz);
+            const float target = (g - 1.0f) / (g + 1.0f);
+            if (! active) lane.coefficient = target;
+            lane.step = (target - lane.coefficient) / (float) tickSize;
+        }
+
+        const float targetFeedback = 0.78f * resonance;
+        feedbackStep = (targetFeedback - feedback) / (float) tickSize;
+        // Compensate the dry/wet balance for the feedback so the notches stay deep at full Mix.
+        const float targetBlend = 0.5f * mix * (1.0f + targetFeedback);
+        blendStep = (targetBlend - blend) / (float) tickSize;
+        active = true;
+    }
+
+    void process (float* left, float* right, int n)
+    {
+        if (! active) return;
+        for (int i = 0; i < n; ++i)
+        {
+            feedback += feedbackStep;
+            blend += blendStep;
+            left[i] = lanes[0].process (left[i], feedback, blend);
+            right[i] = lanes[1].process (right[i], feedback, blend);
+        }
+    }
+
+private:
+    struct Lane
+    {
+        float state[6] {}, previous = 0.0f, coefficient = 0.0f, step = 0.0f;
+
+        float process (float input, float feedback, float blend)
+        {
+            coefficient += step;
+            float x = input + feedback * (previous - input);
+            for (float& z : state)
+            {
+                const float y = coefficient * x + z;
+                z = x - coefficient * y;
+                x = y;
+            }
+            previous = x;
+            return input + blend * (x - input);
+        }
+    };
+    Lane lanes[2] {};
+    float tickSeconds = 0.0f, radiansPerHz = 0.0f, maxHz = 0.0f, envelopeLag = 0.0f;
+    float phase = 0.0f, envelope = 0.0f, feedback = 0.0f, feedbackStep = 0.0f, blend = 0.0f, blendStep = 0.0f;
+    bool active = false;
+};
 
 // --- Ensemble ---------------------------------------------------------------------------------------------------
 class Ensemble

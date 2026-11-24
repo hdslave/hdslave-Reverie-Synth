@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <utility>
 
 namespace
 {
@@ -72,6 +73,23 @@ struct Fixture
         return v;
     }
 
+    void setValue (uint32_t id, double value)
+    {
+        clap_event_param_value event { { sizeof (event), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 },
+                                       id, nullptr, -1, -1, -1, -1, value };
+        clap_input_events changes { &event,
+            [] (const clap_input_events*) { return 1u; },
+            [] (const clap_input_events* e, uint32_t) { return &static_cast<const clap_event_param_value*> (e->ctx)->header; } };
+        params->flush (plugin, &changes, nullptr);
+    }
+
+    std::array<double, count> values()
+    {
+        std::array<double, count> result {};
+        for (uint32_t id = 0; id < count; ++id) result[id] = value (id);
+        return result;
+    }
+
     bool touch (int phase, int x, int y) { return screen->touch (plugin, phase, x, y); }
 
     bool frame (bool forced = false)
@@ -118,6 +136,101 @@ struct Fixture
         return held;
     }
 };
+// Read the actual CLAP provider as the host does, including the display name and stable load key.
+void checkFactoryList (const clap_plugin_entry_t* entry)
+{
+    const auto* factory = static_cast<const clap_preset_discovery_factory*> (entry->get_factory (CLAP_PRESET_DISCOVERY_FACTORY_ID));
+    assert (factory && factory->count (factory) == 1);
+    clap_preset_discovery_indexer indexer {};
+    indexer.clap_version = CLAP_VERSION;
+    indexer.name = "Screen test";
+    indexer.declare_location = [] (const clap_preset_discovery_indexer*, const clap_preset_discovery_location* location) {
+        return location && location->kind == CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN;
+    };
+    const auto* provider = factory->create (factory, &indexer, factory->get_descriptor (factory, 0)->id);
+    assert (provider && provider->init (provider));
+    std::vector<std::pair<std::string, std::string>> sounds;
+    clap_preset_discovery_metadata_receiver receiver {};
+    receiver.receiver_data = &sounds;
+    receiver.begin_preset = [] (const clap_preset_discovery_metadata_receiver* r, const char* name, const char* key) {
+        static_cast<decltype (sounds)*> (r->receiver_data)->emplace_back (name, key);
+        return true;
+    };
+    receiver.add_plugin_id = [] (const clap_preset_discovery_metadata_receiver*, const clap_universal_plugin_id*) {};
+    receiver.set_flags = [] (const clap_preset_discovery_metadata_receiver*, uint32_t) {};
+    receiver.add_creator = [] (const clap_preset_discovery_metadata_receiver*, const char*) {};
+    assert (provider->get_metadata (provider, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &receiver));
+    provider->destroy (provider);
+    const std::pair<std::string, std::string> additions[] = {
+        { "Undertow Wah", "undertow-wah" }, { "Opal Rain", "opal-rain" }, { "Lantern Ferry", "lantern-ferry" },
+        { "Cinder Cello", "cinder-cello" }, { "Cloud Loom", "cloud-loom" }
+    };
+    assert (sounds.size() == reverie::presetCount && sounds.size() >= 25);
+    assert (std::equal (std::begin (additions), std::end (additions), sounds.begin() + 20));
+}
+
+void checkUndertow (Fixture& f, const char* out)
+{
+    const auto* loader = static_cast<const clap_plugin_preset_load*> (f.plugin->get_extension (f.plugin, CLAP_EXT_PRESET_LOAD));
+    assert (loader);
+    auto load = [&] (const char* key) {
+        return loader->from_location (f.plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, key);
+    };
+    auto openSounds = [&] { assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21)); };
+    f.setValue (strum, 0.45);
+    const auto original = f.values();
+    assert (load ("undertow-wah"));
+    const auto expected = f.values();
+    assert (std::equal (original.begin(), original.begin() + chordSection, expected.begin()));
+    assert (expected[phaserMix] == 0.78f && expected[phaserRate] == 0.0f && expected[phaserEnv] == 0.69f);
+    openSounds();
+    assert (f.frame());
+    f.capture (out, "sounds-undertow");
+    assert (f.screen->selector_turn (f.plugin, -1) && f.screen->selector_push (f.plugin));
+    assert (f.values() != expected);
+    // The host load placed focus on Undertow, so one step back lands on Satin Keys.
+    const auto preceding = f.values();
+    assert (load ("satin-keys") && f.values() == preceding);
+    openSounds();
+    assert (f.screen->selector_turn (f.plugin, 1) && f.screen->selector_push (f.plugin));
+    assert (f.values() == expected);
+    assert (load ("reverie"));
+    openSounds();
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 86, 262)); // first tile in the fifth row
+    assert (f.values() == expected);
+    assert (load ("reverie"));
+}
+
+void checkUndertowAudio (const clap_plugin_factory_t& factory)
+{
+    Fixture host, touch;
+    host.attach (factory);
+    touch.attach (factory);
+    const auto* loader = static_cast<const clap_plugin_preset_load*> (host.plugin->get_extension (host.plugin, CLAP_EXT_PRESET_LOAD));
+    assert (loader && loader->from_location (host.plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "undertow-wah"));
+    assert (touch.touch (SIXTEEN_TOUCH_DOWN, 638, 21) && touch.touch (SIXTEEN_TOUCH_DOWN, 86, 262));
+    float peak = 0.0f;
+    for (int b = 0; b < 80; ++b)
+    {
+        const int event = b == 0 ? CLAP_EVENT_NOTE_ON : -1;
+        peak = std::max (peak, host.block (event, 62));
+        touch.block (event, 62);
+        assert (std::equal (std::begin (host.left), std::end (host.left), touch.left));
+        assert (std::equal (std::begin (host.right), std::end (host.right), touch.right));
+    }
+    assert (peak > 0.01f);
+    touch.setValue (phaserMix, 0.0);
+    float difference = 0.0f;
+    for (int b = 0; b < 32; ++b)
+    {
+        host.block();
+        touch.block();
+        for (int i = 0; i < 256; ++i) difference = std::max (difference, std::abs (host.left[i] - touch.left[i]));
+    }
+    assert (difference > 0.001f);
+    touch.stop();
+    host.stop();
+}
 } // namespace
 
 int main (int argc, char** argv)
@@ -129,6 +242,8 @@ int main (int argc, char** argv)
     assert (entry && entry->init (argv[1]));
     const auto* factory = static_cast<const clap_plugin_factory_t*> (entry->get_factory (CLAP_PLUGIN_FACTORY_ID));
     assert (factory);
+    checkFactoryList (entry);
+    checkUndertowAudio (*factory);
     Fixture f;
     f.attach (*factory);
 
@@ -161,7 +276,7 @@ int main (int argc, char** argv)
         expectSound (i % reverie::presetCount);
     }
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 527, 21));
-    expectSound (19);
+    expectSound (reverie::presetCount - 1);
     const auto* load = static_cast<const clap_plugin_preset_load_t*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
     assert (load && load->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "glass-cathedral"));
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
@@ -175,7 +290,7 @@ int main (int argc, char** argv)
     plugin->reset (plugin);
 
     // Every parameter belongs to exactly one bank. Each page keeps the bank selected last.
-    constexpr int bankCounts[] = { 2, 4, 4, 2, 2, 2 };
+    constexpr int bankCounts[] = { 2, 4, 4, 2, 2, 3 };
     constexpr const char* pageNames[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
     std::array<int, count> uses {};
     for (int p = 0; p < 6; ++p)
@@ -285,6 +400,15 @@ int main (int argc, char** argv)
     assert (screen->selector_turn (plugin, -16));
     assert (screen->selector_push (plugin)); // back to Reverie's default sound
     assert (f.value (osc1Wave) == before);
+    checkUndertow (f, out);
+    // Every tile in the new bottom row selects the same sound as its factory key.
+    for (int col = 0; col < 5; ++col)
+    {
+        assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
+        assert (f.touch (SIXTEEN_TOUCH_DOWN, 86 + col * 152, 262));
+        expectSound (20 + col);
+    }
+    assert (load->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "reverie"));
     // freesp16's unshifted chromatic SCALE mode sends 60–75. Legacy bank A
     // still sends 36–51. Both ranges address the same pads in the same order.
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 16, 97));
@@ -356,6 +480,6 @@ int main (int argc, char** argv)
     entry->deinit();
     dlclose (dylib);
     if (! bothRangesMatch || ! oldChordReleased || ! retriggerKept || transitionJump > 1.0e-5f) return 1;
-    std::puts ("SP-16 screen, 80 bindings, chord pads, MIDI independence, Motion and sound switching passed");
+    std::puts ("SP-16 screen, 84 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
     return 0;
 }

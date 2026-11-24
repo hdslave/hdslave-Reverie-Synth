@@ -96,7 +96,7 @@ $(OUT)/Reverie-sp16-preview.clap: $(SP16_DEPS)
 	$(CXX) $(CXXFLAGS) $(WARN) $(SP16_FLAGS) $(SP16_SOURCES) $(LDFLAGS) -o $@
 
 $(OUT)/sp16-test: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/presets.h src/params.h Makefile
-	$(CXX) -std=c++17 -O2 $(WARN) -Ithird_party/clap/include -Isrc $< -ldl -o $@
+	$(CXX) -std=c++17 -O2 $(WARN) -Ithird_party/clap/include -Isrc -DREVERIE_SP16 $< -ldl -o $@
 
 $(OUT)/sp16-test-arm: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/presets.h src/params.h Makefile
-	$(SP16_CXX) -std=c++17 -O2 $(WARN) -march=armv7-a -Ithird_party/clap/include -Isrc $< -static-libstdc++ -static-libgcc -ldl -o $@
+	$(SP16_CXX) -std=c++17 -O2 $(WARN) -march=armv7-a -Ithird_party/clap/include -Isrc -DREVERIE_SP16 $< -static-libstdc++ -static-libgcc -ldl -o $@

@@ -17,7 +17,8 @@ constexpr int viewsY = 43;
 constexpr int padX = 8, padY = 118, padW = 90, padH = 30, padDX = 94, padDY = 33;
 constexpr int globeX = 397, globeY = 121, globeSize = 150;
 constexpr int globeCenterX = globeX + 75, globeCenterY = globeY + 67, globeRadius = 56;
-constexpr int soundCols = 5, soundX = 13, soundY = 123, soundDX = 152, soundDY = 35, soundW = 146, soundH = 33;
+constexpr int soundCols = 5, soundX = 13, soundY = 123, soundDX = 152, soundDY = 31, soundW = 146, soundH = 30;
+static_assert (soundY + (presetCount - 1) / soundCols * soundDY + soundH <= h, "Factory sound tiles must fit the touchscreen");
 
 struct Bank
 {
@@ -54,6 +55,7 @@ constexpr Bank ampBanks[] = {
 constexpr Bank fxBanks[] = {
     { "Ens / Delay", "FX / ENS + DELAY", { ensMix, ensDepth, ensRate, dlyMix, dlyTime, dlyFeedback } },
     { "Reverb", "FX / REVERB", { revMix, revSize, revDecay, revDamp, revPredelay, shimmer } },
+    { "Phaser", "FX / PHASER", { phaserMix, phaserRate, phaserFeedback, phaserEnv, none, none } },
 };
 
 struct Page
@@ -580,6 +582,15 @@ void Sp16Screen::output (const Raster& r, bool sounding) const
     r.box (397, 245, 148, 13, ink::deep);
     plots.outputMeter (r, 397, 245);
     field (r, 397, 260, 148, "Volume", volume);
+    if (fxBanks[banks[Screen::fxPage]].ids[0] == phaserMix)
+    {
+        section (r, 551, 117, 220, "Stereo phaser");
+        field (r, 551, 139, 220, "Mix", phaserMix);
+        field (r, 551, 168, 220, "Rate", phaserRate);
+        field (r, 551, 197, 220, "Feedback", phaserFeedback);
+        field (r, 551, 226, 220, "Filter env", phaserEnv);
+        return;
+    }
     constexpr const char* labels[] = { "Ensemble", "Tempo delay", "Shimmer reverb" };
     constexpr const char* detail[] = { "Depth", "Time", "Decay" };
     constexpr uint32_t mixes[] = { ensMix, dlyMix, revMix }, ids[] = { ensDepth, dlyTime, revDecay };
