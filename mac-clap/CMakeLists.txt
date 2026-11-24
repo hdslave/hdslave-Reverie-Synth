@@ -48,17 +48,33 @@ set(SHELL_SRCS
 if(APPLE)
     list(APPEND SHELL_SRCS "${DESKTOP_DIR}/gui_macos.mm")
 elseif(WIN32)
-    list(APPEND SHELL_SRCS "${DESKTOP_DIR}/gui_win32.cpp" "${DESKTOP_DIR}/win32/clap.def")
+    list(APPEND SHELL_SRCS "${DESKTOP_DIR}/gui_win32.cpp")
 endif()
 
-add_library(${TARGET_NAME} MODULE
-    $<TARGET_OBJECTS:${SLUG}_inner>
-    ${SHELL_SRCS}
-)
-target_include_directories(${TARGET_NAME} PRIVATE
-    "${CLAP_INCLUDE_DIR}"
-    "${DESKTOP_DIR}"
-)
+# Hosts may load both formats in one process. Give each editor its own native class.
+function(add_reverie_editor target view_class)
+    add_library(${target} MODULE $<TARGET_OBJECTS:${SLUG}_inner> ${SHELL_SRCS})
+    target_include_directories(${target} PRIVATE "${CLAP_INCLUDE_DIR}" "${DESKTOP_DIR}")
+    if(APPLE)
+        target_compile_definitions(${target} PRIVATE HDSLAVE_OBJC_VIEW_CLASS=${view_class})
+        target_compile_options(${target} PRIVATE -O3 -fvisibility=hidden)
+        target_link_libraries(${target} PRIVATE "-framework Cocoa" "-framework CoreGraphics" "-framework QuartzCore")
+    elseif(WIN32)
+        target_compile_definitions(${target} PRIVATE HDSLAVE_WIN32_CLASS_NAME=L"${view_class}" UNICODE _UNICODE)
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /O2 /EHsc /W3 /wd4244 /wd4267 /wd4996)
+        else()
+            target_compile_options(${target} PRIVATE -O3)
+        endif()
+        target_link_libraries(${target} PRIVATE user32 gdi32)
+    endif()
+endfunction()
+
+if(APPLE)
+    add_reverie_editor(${TARGET_NAME} HdslavePanelView_${SLUG})
+else()
+    add_reverie_editor(${TARGET_NAME} HdslaveDesktopClapView_${SLUG})
+endif()
 
 if(APPLE)
     set(BUNDLE_NAME "${TARGET_NAME}")
@@ -66,15 +82,6 @@ if(APPLE)
     set(PLIST_OUT "${CMAKE_BINARY_DIR}/plists/${TARGET_NAME}-Info.plist")
     configure_file("${DESKTOP_DIR}/macos/Info.plist.in" "${PLIST_OUT}" @ONLY)
 
-    target_compile_definitions(${TARGET_NAME} PRIVATE
-        HDSLAVE_OBJC_VIEW_CLASS=HdslavePanelView_${SLUG}
-    )
-    target_compile_options(${TARGET_NAME} PRIVATE -O3 -fvisibility=hidden)
-    target_link_libraries(${TARGET_NAME} PRIVATE
-        "-framework Cocoa"
-        "-framework CoreGraphics"
-        "-framework QuartzCore"
-    )
     set_target_properties(${TARGET_NAME} PROPERTIES
         BUNDLE TRUE
         BUNDLE_EXTENSION "clap"
@@ -84,17 +91,7 @@ if(APPLE)
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/clap"
     )
 elseif(WIN32)
-    target_compile_definitions(${TARGET_NAME} PRIVATE
-        HDSLAVE_WIN32_CLASS_NAME=L"HdslaveDesktopClapView_${SLUG}"
-        UNICODE
-        _UNICODE
-    )
-    if(MSVC)
-        target_compile_options(${TARGET_NAME} PRIVATE /O2 /EHsc /W3 /wd4244 /wd4996)
-    else()
-        target_compile_options(${TARGET_NAME} PRIVATE -O3)
-    endif()
-    target_link_libraries(${TARGET_NAME} PRIVATE user32 gdi32)
+    target_sources(${TARGET_NAME} PRIVATE "${DESKTOP_DIR}/win32/clap.def")
     set_target_properties(${TARGET_NAME} PROPERTIES
         PREFIX ""
         SUFFIX ".clap"
@@ -102,6 +99,11 @@ elseif(WIN32)
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/clap"
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/clap"
     )
+endif()
+
+option(REVERIE_BUILD_VST3 "Build the self-contained VST3 instrument" OFF)
+if(REVERIE_BUILD_VST3)
+    include(cmake/ReverieVST3.cmake)
 endif()
 
 add_executable(host_test "${CMAKE_SOURCE_DIR}/tests/host_test.cpp")

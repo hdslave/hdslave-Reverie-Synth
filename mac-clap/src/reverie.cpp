@@ -6,6 +6,7 @@
 #include "params.h"
 #include "presets.h"
 #include "screen.h"
+#include "sample_rate.h"
 
 #include <clap/clap.h>
 
@@ -453,7 +454,7 @@ void pluginDestroy (const clap_plugin* plugin)
 bool pluginActivate (const clap_plugin* plugin, double rate, uint32_t, uint32_t maxFrames)
 {
     auto& p = of (plugin);
-    if (! (rate >= 8000.0 && rate <= 192000.0))
+    if (! supportsSampleRate(rate))
         return false;
     for (int i = 0; i < paramCount; ++i)
     {

@@ -1,6 +1,6 @@
-# hdslave Reverie — macOS (and Windows) Desktop CLAP Plug-in
+# hdslave Reverie for desktop
 
-Separate desktop CLAP build of **hdslave Reverie** for **FL Studio** (2024+) and any other CLAP host on macOS (Apple Silicon / Intel) and Windows (x64).
+**hdslave Reverie** is a VST3 and CLAP instrument for macOS (Apple Silicon and Intel) and Windows (x64). Both formats include the complete synth and editor and can be installed independently.
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
@@ -10,14 +10,16 @@ Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments
 
 ## Download and install
 
-| Platform | Download | Where to put the extracted `Reverie.clap` |
+| Platform | Download | Installation folder |
 | --- | --- | --- |
-| macOS 11 or later, Apple Silicon or Intel | [Mac ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/CLAP/` |
-| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-Windows-x64.zip) | `C:\Program Files\Common Files\CLAP\` |
+| macOS 11 or later, Apple Silicon or Intel | [VST3 ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-VST3-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` |
+| macOS 11 or later, Apple Silicon or Intel | [CLAP ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/CLAP` |
+| Windows x64 | [VST3 ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-VST3-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` |
+| Windows x64 | [CLAP ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-Windows-x64.zip) | `C:\Program Files\Common Files\CLAP` |
 
-Quit your DAW before copying the plug-in. Create the CLAP folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The Mac bundle is ad-hoc signed and has no Apple notarization.
+Quit your DAW and extract the ZIP. For VST3, copy the entire `Reverie.vst3` bundle or folder. For CLAP, copy `Reverie.clap`. Create the installation folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The macOS downloads are ad-hoc signed and unnotarized.
 
-## Build & Install (macOS)
+## Build CLAP on macOS
 
 Requires Xcode Command Line Tools and CMake 3.20+ (Ninja optional):
 
@@ -29,7 +31,7 @@ cd mac-clap
 
 `install-macos.sh` builds, ad-hoc signs, tests, and installs `Reverie.clap` to `/Library/Audio/Plug-Ins/CLAP/` (pass `--user` to install to `~/Library/Audio/Plug-Ins/CLAP/`). Quit and reopen FL Studio after reinstalling so macOS reloads the updated bundle.
 
-## Build (Windows x64)
+## Build CLAP on Windows x64
 
 ```powershell
 cd mac-clap
@@ -37,3 +39,24 @@ cd mac-clap
 ```
 
 Copy `build\windows\clap\Release\Reverie.clap` to `C:\Program Files\Common Files\CLAP\`.
+
+## Build VST3
+
+Run these commands from `mac-clap/` with CMake 3.21 or later, Ninja, Git and a C++17 toolchain. CMake fetches the pinned adapter and SDK on first configure.
+
+On macOS, build both architectures and sign the bundle locally.
+
+```sh
+cmake -S . -B build/vst3-mac -G Ninja -DCMAKE_BUILD_TYPE=Release -DREVERIE_BUILD_VST3=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+cmake --build build/vst3-mac --target ReverieVST3
+codesign --force --sign - build/vst3-mac/vst3/Reverie.vst3
+```
+
+On Windows, use an x64 MinGW-w64 shell with GCC and Ninja on the path.
+
+```sh
+cmake -S . -B build/vst3-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DREVERIE_BUILD_VST3=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_MODULE_LINKER_FLAGS=-static
+cmake --build build/vst3-win --target ReverieVST3
+```
+
+Copy the complete `vst3/Reverie.vst3` directory from the chosen build folder to the VST3 installation folder above.
