@@ -235,6 +235,24 @@ inline const PresetValue tideAtlas[] = {
     { echoTaps, 0.78f }, { echoDuck, 0.64f }, { echoTone, 0.39f },
     { revMix, 0.31f }, { revSize, 0.79f }, { revDecay, decayKnob (5.1f) }, { revDamp, dampKnob (4900) },
     { shimmer, 0.12f }, { volume, 0.55f } };
+
+// The pad sustains all chord tones while the upper voice picks them out one at a time.
+inline const PresetValue satinLantern[] = {
+    { osc1Wave, 8 }, { osc1Pos, 0.21f }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (4) }, { osc1Level, 0.60f },
+    { osc2Wave, 3 }, { osc2Pos, 0.15f }, { osc2Unison, 2 }, { osc2Fine, -3 }, { osc2Level, 0.24f },
+    { width, 0.76f }, { air, 0.008f }, { drift, driftKnob (1.1f) },
+    { seqMode, Sequence::loop }, { layerArp, 1 }, { seqLevel, 0.95f }, { seqOctave, 1 }, { seqDivision, 2 }, { seqFade, 0.19f },
+    { seqWave1, 5 }, { seqWave2, 11 }, { seqWave3, 4 }, { seqWave4, 7 },
+    { cutoff, cutoffKnob (3600) }, { resonance, 0.08f }, { filterEnv, 0.10f }, { keyTrack, 0.31f }, { velCutoff, 0.15f },
+    { fltAttack, envKnob (750) }, { fltDecay, envKnob (1800) }, { fltSustain, 0.60f },
+    { ampAttack, envKnob (370) }, { ampDecay, envKnob (1400) }, { ampSustain, 0.87f }, { ampRelease, envKnob (2450) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::tide }, { motionDepth, 0.20f }, { motionRate, motionKnob (0.072f) },
+    { xDest1, Dest::wave1 }, { xAmt1, 0.20f }, { xDest2, Dest::off }, { yDest1, Dest::wave2 }, { yAmt1, 0.16f }, { yDest2, Dest::off },
+    { ensMix, 0.18f }, { dlyMix, 0.19f }, { dlyTime, 7 }, { dlyFeedback, 0.25f },
+    { echoTaps, 0.32f }, { echoDuck, 0.46f }, { echoTone, 0.38f },
+    { revMix, 0.26f }, { revSize, 0.78f }, { revDecay, decayKnob (4.6f) }, { revDamp, dampKnob (4600) },
+    { shimmer, 0.055f }, { volume, 0.74f } };
 #endif
 } // namespace presetdata
 
@@ -268,6 +286,7 @@ inline const Preset presetTable[] = {
     REVERIE_PRESET ("cloud-loom", "Cloud Loom", cloudLoom),
     REVERIE_PRESET ("prism-choir", "Prism Choir", prismChoir),
     REVERIE_PRESET ("tide-atlas", "Tide Atlas", tideAtlas),
+    REVERIE_PRESET ("satin-lantern", "Satin Lantern", satinLantern),
 #endif
 };
 #undef REVERIE_PRESET

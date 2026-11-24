@@ -164,9 +164,9 @@ void checkFactoryList (const clap_plugin_entry_t* entry)
     const std::pair<std::string, std::string> additions[] = {
         { "Undertow Wah", "undertow-wah" }, { "Opal Rain", "opal-rain" }, { "Lantern Ferry", "lantern-ferry" },
         { "Cinder Cello", "cinder-cello" }, { "Cloud Loom", "cloud-loom" },
-        { "Prism Choir", "prism-choir" }, { "Tide Atlas", "tide-atlas" }
+        { "Prism Choir", "prism-choir" }, { "Tide Atlas", "tide-atlas" }, { "Satin Lantern", "satin-lantern" }
     };
-    assert (sounds.size() == reverie::presetCount && sounds.size() >= 25);
+    assert (sounds.size() == reverie::presetCount && sounds.size() >= 28);
     assert (std::equal (std::begin (additions), std::end (additions), sounds.begin() + 20));
 }
 
@@ -277,6 +277,8 @@ int main (int argc, char** argv)
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 86, 137)); expectSound (25);
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 238, 137)); expectSound (26);
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21));
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 385, 137)); expectSound (27);
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 754, 21)); expectSound (0);
     for (int i = 1; i <= reverie::presetCount; ++i)
     {
@@ -488,6 +490,6 @@ int main (int argc, char** argv)
     entry->deinit();
     dlclose (dylib);
     if (! bothRangesMatch || ! oldChordReleased || ! retriggerKept || transitionJump > 1.0e-5f) return 1;
-    std::puts ("SP-16 screen, 96 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
+    std::puts ("SP-16 screen, 97 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
     return 0;
 }

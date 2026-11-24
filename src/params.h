@@ -16,7 +16,7 @@
 
 #ifndef REVERIE_VERSION
 #ifdef REVERIE_SP16
-#define REVERIE_VERSION "0.4.4-sp16.8"
+#define REVERIE_VERSION "0.4.4-sp16.9"
 #else
 #define REVERIE_VERSION "0.4.4"
 #endif
@@ -54,13 +54,13 @@ enum : uint32_t
     phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
     seqMode = 84, seqLevel, seqDivision, seqFade, seqOctave,
     seqWave1, seqWave2, seqWave3, seqWave4,
-    echoTaps, echoDuck, echoTone,
+    echoTaps, echoDuck, echoTone, layerArp,
 #endif
     count
 };
 static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79, "the ids are fixed");
 #ifdef REVERIE_SP16
-static_assert (phaserMix == 80 && phaserEnv == 83 && echoTone == 95 && count == 96, "the phaser ids are fixed");
+static_assert (phaserMix == 80 && phaserEnv == 83 && echoTone == 95 && layerArp == 96 && count == 97, "the phaser ids are fixed");
 #else
 static_assert (count == 80, "the MPC parameter ids are fixed");
 #endif
@@ -275,6 +275,7 @@ inline const Param* makeTable()
     b.add (echoTaps, "Stereo Echo Taps", "TAPS", "Delay", 0, 1, 0, K::continuous, U::unit);
     b.add (echoDuck, "Echo Ducking", "DUCK", "Delay", 0, 1, 0, K::continuous, U::unit);
     b.add (echoTone, "Echo Tone", "TONE", "Delay", 0, 1, 0.5f, K::continuous, U::unit);
+    b.add (layerArp, "Layer Arp", "ARP", "Wave Sequence", 0, 1, 0, K::choice, U::onOff, offOn);
 #endif
     return b.list;
 }

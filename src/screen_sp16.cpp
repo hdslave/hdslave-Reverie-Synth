@@ -46,7 +46,7 @@ constexpr Bank oscBanks[] = {
     { "OSC 1", "OSC / OSC 1", { osc1Octave, osc1Semi, osc1Fine, osc1Unison, osc1Detune, none } },
     { "OSC 2", "OSC / OSC 2", { osc2Octave, osc2Semi, osc2Fine, osc2Unison, osc2Detune, none } },
     { "Voice", "OSC / VOICE", { width, air, airTone, drift, none, none } },
-    { "Layer", "OSC / LAYER", { seqMode, seqLevel, seqDivision, seqFade, seqOctave, none } },
+    { "Layer", "OSC / LAYER", { seqMode, seqLevel, seqDivision, seqFade, seqOctave, layerArp } },
     { "Steps", "OSC / STEPS", { seqWave1, seqWave2, seqWave3, seqWave4, none, none } },
 };
 constexpr Bank filterBanks[] = {
@@ -577,6 +577,7 @@ void Sp16Screen::synthesis (const Raster& r, bool sounding) const
         field (r, 8, 193, 181, "Step time", seqDivision);
         field (r, 8, 220, 181, "Crossfade", seqFade);
         field (r, 8, 247, 181, "Octave", seqOctave);
+        field (r, 199, 259, 182, "Layer arp", layerArp);
         constexpr const char* labels[] = { "Wave 1", "Wave 2", "Wave 3", "Wave 4" };
         for (int i = 0; i < 4; ++i) field (r, 199, 139 + 32 * i, 182, labels[i], seqWave1 + i);
     }

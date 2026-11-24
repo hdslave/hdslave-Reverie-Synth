@@ -425,18 +425,18 @@ the selector steps through banks. Pressing it advances to the next section.
 
 Touch and hold a chord or lift to audition it. The pad goes amber and the
 keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
-Tap the patch name in the upper right to browse all 27 factory sounds. Its
+Tap the patch name in the upper right to browse all 28 factory sounds. Its
 arrows load the previous or next sound. An asterisk marks edits to a known factory sound. A recalled patch with no
 matching factory sound is labeled **Custom sound**. Choosing a sound keeps the
 progression, key, voicing and other chord settings. On a sound change old chord
 gates release and their effects can ring out. A short output fade smooths the
 change. Play the pad again to hear the new sound.
 
-In SP-16 version **0.4.4-sp16.8**, the arrows beside the Sounds page number switch between two grids.
+In SP-16 version **0.4.4-sp16.9**, the arrows beside the Sounds page number switch between two grids.
 The first grid ends with Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
-The second contains **Prism Choir** and **Tide Atlas**. All 27 sounds also appear under **PRESETS**.
+The second contains **Prism Choir**, **Tide Atlas** and **Satin Lantern**. All 28 sounds also appear under **PRESETS**.
 
-On **Synth → Layer**, set the sequence mode, level, octave, step time and crossfade.
+On **Synth → Layer**, set the sequence mode, level, octave, step time and crossfade. In Loop mode, **Layer Arp** plays one chord tone per step over the sustained pad. **Satin Lantern** uses it for an octave-up eighth-note line over warm strings.
 **Steps** assigns any of the twelve source waves to each of four steps. Each note starts
 its own layer. Loop repeats all four waves, One Shot sustains the last, and Strike
 fades the attack into the main oscillators. On **Output → Echo**, Taps adds stereo repeats
