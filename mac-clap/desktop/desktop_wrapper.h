@@ -119,7 +119,7 @@ struct DesktopPlugin
     const clap_plugin_params_t* innerParams = nullptr;
     const clap_plugin_state_t* innerState = nullptr;
     const clap_plugin_preset_load_t* innerPresetLoad = nullptr;
-    const clap_plugin_melodee_screen_t* innerScreen = nullptr;
+    const melodee_screen_t* innerScreen = nullptr;
     const clap_plugin_hdslave_tiles_t* innerTiles = nullptr;
 
     // The real host's extensions, always called with realHost.
@@ -159,7 +159,7 @@ struct DesktopPlugin
     uint32_t tileCount = 0;
     int tileCols = 3;
     int tileRows = 2;
-    int tileScreenH = MELODEE_SCREEN_HEIGHT;
+    int tileScreenH = MELODEE_SCREEN_PAGE_HEIGHT;
     std::vector<std::vector<uint32_t>> tilePixels;
     clap_id tileKnobIds[16][3] {};
     bool screenWholeNeeded = true;

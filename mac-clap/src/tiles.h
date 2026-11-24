@@ -30,19 +30,19 @@ struct TilesAccess
         return tile < kTileCount ? kTitles[tile] : "";
     }
 
-    static bool CLAP_ABI paint (const clap_plugin_t* plugin, uint32_t tile, const melodee_screen_canvas_t* canvas, clap_id knobs_out[3])
+    static bool CLAP_ABI paint (const clap_plugin_t* plugin, uint32_t tile, const melodee_screen_frame_t* frame, clap_id knobs_out[3])
     {
-        if (tile >= kTileCount || !canvas || !canvas->pixels) return false;
+        if (tile >= kTileCount || !frame || !frame->pixels) return false;
         auto& p = of (plugin);
         const int savedPage = p.screen.page;
         p.screen.page = (int) tile;
         p.screen.shownPage = -1;
-        melodee_screen_canvas_t c = *canvas;
-        c.whole = true;
+        melodee_screen_frame_t c = *frame;
+        c.redraw_all = 1;
         const hdui::Host h = hostOf (&c);
         const bool drew = p.screen.paint (h, c.pixels, (int) c.stride, true);
         if (knobs_out)
-            screenKnobs (plugin, knobs_out);
+            screenControls (plugin, knobs_out);
         p.screen.page = savedPage;
         return drew;
     }
