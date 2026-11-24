@@ -126,6 +126,7 @@ struct DesktopPlugin
     // The real host's extensions, always called with realHost.
     const clap_host_params_t* hostParams = nullptr;
     const clap_host_preset_load_t* hostPresetLoad = nullptr;
+    const clap_host_gui_t* hostGui = nullptr;
     const clap_host_state_t* hostState = nullptr;
     const clap_host_log_t* hostLog = nullptr;
     const clap_host_thread_check_t* hostThreadCheck = nullptr;
@@ -173,6 +174,10 @@ struct DesktopPlugin
     PlatformGui* platformGui = nullptr;
     uint32_t guiWidth = kDefaultGuiWidth;
     uint32_t guiHeight = kDefaultGuiHeight;
+
+    bool requestingResize = false;
+    void fitGuiSize (uint32_t& width, uint32_t& height) const;
+    bool acceptGuiSize (uint32_t width, uint32_t height);
 
     DesktopPlugin();
     ~DesktopPlugin();

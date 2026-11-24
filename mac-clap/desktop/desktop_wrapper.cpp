@@ -801,30 +801,29 @@ bool CLAP_ABI guiGetSize (const clap_plugin_t* p, uint32_t* width, uint32_t* hei
 
 bool CLAP_ABI guiCanResize (const clap_plugin_t*) { return true; }
 
-bool CLAP_ABI guiGetResizeHints (const clap_plugin_t*, clap_gui_resize_hints_t* hints)
+bool CLAP_ABI guiGetResizeHints (const clap_plugin_t* p, clap_gui_resize_hints_t* hints)
 {
     if (!hints) return false;
     hints->can_resize_horizontally = true;
     hints->can_resize_vertically = true;
-    hints->preserve_aspect_ratio = false;
-    hints->aspect_ratio_width = 16;
-    hints->aspect_ratio_height = 10;
+    const auto* surface = of (p).surface;
+    hints->preserve_aspect_ratio = surface != nullptr;
+    hints->aspect_ratio_width = surface ? surface->metrics.width : 0;
+    hints->aspect_ratio_height = surface ? surface->metrics.height : 0;
     return true;
 }
 
-bool CLAP_ABI guiAdjustSize (const clap_plugin_t*, uint32_t* width, uint32_t* height)
+bool CLAP_ABI guiAdjustSize (const clap_plugin_t* p, uint32_t* width, uint32_t* height)
 {
     if (!width || !height) return false;
-    *width = std::clamp (*width, kMinGuiWidth, kMaxGuiWidth);
-    *height = std::clamp (*height, kMinGuiHeight, kMaxGuiHeight);
+    of (p).fitGuiSize (*width, *height);
     return true;
 }
 
 bool CLAP_ABI guiSetSize (const clap_plugin_t* p, uint32_t width, uint32_t height)
 {
     auto& dp = of (p);
-    dp.guiWidth = std::clamp (width, kMinGuiWidth, kMaxGuiWidth);
-    dp.guiHeight = std::clamp (height, kMinGuiHeight, kMaxGuiHeight);
+    if (!dp.acceptGuiSize (width, height)) return false;
     if (dp.ui)
         dp.ui->setSize (int (dp.guiWidth), int (dp.guiHeight), dp.ui->scale());
     if (dp.platformGui)
@@ -1231,6 +1230,44 @@ DesktopPlugin::~DesktopPlugin()
     mergedFlush = nullptr;
 }
 
+void DesktopPlugin::fitGuiSize (uint32_t& width, uint32_t& height) const
+{
+    width = std::clamp (width, kMinGuiWidth, kMaxGuiWidth);
+    height = std::clamp (height, kMinGuiHeight, kMaxGuiHeight);
+    if (!surface) return;
+
+    const double aspect = double (surface->metrics.width) / surface->metrics.height;
+    // Accept the rounding of either dimension, including a repeated host negotiation.
+    if (height == std::lround (width / aspect) || width == std::lround (height * aspect))
+        return;
+    const double minWidth = std::max (double (kMinGuiWidth), kMinGuiHeight * aspect);
+    const double fitWidth = std::max (minWidth, std::min (double (width), height * aspect));
+    width = uint32_t (std::lround (fitWidth));
+    height = uint32_t (std::lround (fitWidth / aspect));
+}
+
+bool DesktopPlugin::acceptGuiSize (uint32_t width, uint32_t height)
+{
+    uint32_t w = width, h = height;
+    fitGuiSize (w, h);
+    if (surface && (w != width || h != height))
+    {
+        // Some hosts resize the parent directly or restore an old rectangular editor.
+        // For an edge drag, let the dimension the user moved drive the other one.
+        if (height == guiHeight && width != guiWidth) { w = width; h = kMaxGuiHeight; }
+        else if (width == guiWidth && height != guiHeight) { w = kMaxGuiWidth; h = height; }
+        fitGuiSize (w, h);
+        if (requestingResize || !hostGui || !hostGui->request_resize) return false;
+        requestingResize = true;
+        const bool accepted = hostGui->request_resize (realHost, w, h);
+        requestingResize = false;
+        if (!accepted) return false;
+    }
+    guiWidth = w;
+    guiHeight = h;
+    return true;
+}
+
 void DesktopPlugin::resolveHostExtensions()
 {
     if (hostExtsResolved || !realHost || !realHost->get_extension)
@@ -1240,6 +1277,7 @@ void DesktopPlugin::resolveHostExtensions()
     hostPresetLoad = static_cast<const clap_host_preset_load_t*> (realHost->get_extension (realHost, CLAP_EXT_PRESET_LOAD));
     if (!hostPresetLoad)
         hostPresetLoad = static_cast<const clap_host_preset_load_t*> (realHost->get_extension (realHost, CLAP_EXT_PRESET_LOAD_COMPAT));
+    hostGui = static_cast<const clap_host_gui_t*> (realHost->get_extension (realHost, CLAP_EXT_GUI));
     hostState = static_cast<const clap_host_state_t*> (realHost->get_extension (realHost, CLAP_EXT_STATE));
     hostLog = static_cast<const clap_host_log_t*> (realHost->get_extension (realHost, CLAP_EXT_LOG));
     hostThreadCheck = static_cast<const clap_host_thread_check_t*> (realHost->get_extension (realHost, CLAP_EXT_THREAD_CHECK));

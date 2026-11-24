@@ -4,7 +4,7 @@ Separate desktop CLAP build of **hdslave Reverie** for **FL Studio** (2024+) and
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.1.3** opens at **1280 × 864**. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 80 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Desktop version **0.1.4** opens at **1280 × 864** and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 80 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
 

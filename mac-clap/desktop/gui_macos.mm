@@ -107,8 +107,29 @@ static uint32_t modsFromEvent (NSEvent* event)
     [self pumpFrame];
 }
 
+- (void)resizeWithOldSuperviewSize:(NSSize)oldSize
+{
+    if (!_plugin || !_plugin->surface)
+    {
+        [super resizeWithOldSuperviewSize:oldSize];
+        return;
+    }
+    // A CLAP host may update its container before or after calling set_size.
+    // Following its absolute bounds avoids applying the resize delta twice.
+    if (NSEqualSizes (oldSize, self.frame.size))
+        [self setFrameSize:self.superview.bounds.size];
+}
+
 - (void)setFrameSize:(NSSize)newSize
 {
+    if (_plugin && _plugin->surface && self.superview)
+    {
+        const auto w = uint32_t (std::max (0L, std::lround (newSize.width)));
+        const auto h = uint32_t (std::max (0L, std::lround (newSize.height)));
+        if (w != _plugin->guiWidth || h != _plugin->guiHeight)
+            _plugin->acceptGuiSize (w, h);
+        newSize = NSMakeSize (_plugin->guiWidth, _plugin->guiHeight);
+    }
     [super setFrameSize:newSize];
     [self syncSize];
     [self pumpFrame];
