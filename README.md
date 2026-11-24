@@ -421,8 +421,9 @@ Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Stri
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
 Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Velvet Wah.
 
-Velvet Wah pairs a saw and a reed through a resonant band-pass. Each chord opens with a short filter swell.
-Hold a pad for the slower wah or move Motion Y to sweep the filter by hand.
+Velvet Wah layers a low choir with a quieter choir an octave above it. Each strike moves from Oo through Oh
+to Ah as the resonant low-pass opens. Hold a pad to hear the vowel return, or turn Motion Depth down and use X
+to move through the vowels by hand.
 
 ## Cost
 
