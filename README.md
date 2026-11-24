@@ -15,7 +15,7 @@
   </tr>
 </table>
 
-[Download Reverie for MPC Sample, SP-16, macOS or Windows](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7). The release lists the matching firmware or desktop format for each build.
+[Download Reverie for MPC Sample, SP-16, macOS or Windows](https://github.com/hdslave/hdslave-Reverie-Synth/releases/latest). The release lists the matching firmware or desktop format for each build.
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, an envelope-controlled stereo phaser, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 

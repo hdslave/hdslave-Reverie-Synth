@@ -14,14 +14,12 @@ The last four entries in the 25-sound preset menu are Opal Rain, Lantern Ferry, 
 
 ## Download and install
 
-The published downloads below are version 0.1.7. The build instructions produce the version in this checkout.
+Each desktop ZIP contains CLAP, VST3 and the four new pads as VST3 preset files. All 25 sounds are available in Reverie’s preset menu.
 
-| Platform | Download | Installation folder |
-| --- | --- | --- |
-| macOS 11 or later, Apple Silicon or Intel | [VST3 ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-VST3-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` |
-| macOS 11 or later, Apple Silicon or Intel | [CLAP ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows x64 | [VST3 ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-VST3-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` |
-| Windows x64 | [CLAP ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-Windows-x64.zip) | `C:\Program Files\Common Files\CLAP` |
+| Platform | Version 0.2.3 download | VST3 installation folder | CLAP installation folder |
+| --- | --- | --- | --- |
+| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/four-pad-v0.5.3/Reverie-0.2.3-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
+| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/four-pad-v0.5.3/Reverie-0.2.3-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
 
 Quit your DAW and extract the ZIP. For VST3, copy the entire `Reverie.vst3` bundle or folder. For CLAP, copy `Reverie.clap`. Create the installation folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The macOS downloads are ad-hoc signed and unnotarized.
 
