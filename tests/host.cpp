@@ -1477,6 +1477,19 @@ void testScreen()
     uint32_t ids[3];
     inst.screen->controls (inst.plugin, ids);
     CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
+    inst.flush ({ { paramTable[ParamId::mood].id, 1 } });
+    CHECK (inst.screen->draw (inst.plugin, &c));
+    inst.screen->controls (inst.plugin, ids);
+    CHECK (std::all_of (ids, ids + 3, [] (uint32_t id) { return id == MELODEE_SCREEN_NO_CONTROL; }));
+    melodee_screen_input_t advance { MELODEE_SCREEN_WHEEL, 1, 0 };
+    CHECK (inst.screen->input (inst.plugin, &advance));
+    inst.screen->controls (inst.plugin, ids);
+    CHECK (ids[0] == ParamId::octave);
+    inst.flush ({ { paramTable[ParamId::mood].id, 0 } });
+    advance = { MELODEE_SCREEN_WHEEL, -3, 0 };
+    CHECK (inst.screen->input (inst.plugin, &advance));
+    inst.screen->controls (inst.plugin, ids);
+    CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
     // a chord sounding, then each page drawn
     inst.render (24000, { On (0, 36), On (0, 44) });
     static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };

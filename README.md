@@ -39,7 +39,7 @@ the legato pedal is down.
 
 Choose a set with **Mood** on the Chords page. The 18 SQUID chord sets retain the original bass notes, inversions and octave doublings on all 16 pads. Pad 1 plays database pad 1, through pad 16, following the pad numbers printed on Reverie. For example, in **Dawn**, pad 1 plays A3–C4–E4 and pad 9 plays F3–Ab3–C4. **Mood Shift** transposes the set from −12 to +12 semitones. At zero shift and octave, each pad plays in its original register.
 
-**Off** restores the selected progression, key and voicing. Octave, Bass, Strum, Humanize, Velocity, Latch and Glide work in both modes. A sound change keeps the selected Mood. Saving the project remembers both the set and its transposition.
+The three Progression, Voicing and Key encoder slots are inactive while a Mood is selected. Choose **Off** to use their stored settings again. Octave, Bass, Strum, Humanize, Velocity, Latch and Glide work in both modes. A sound change keeps the selected Mood. Saving the project remembers both the set and its transposition.
 
 On the SP-16, open **Perform → Chord pads → Mood**. The first encoder selects the set and the second transposes it.
 

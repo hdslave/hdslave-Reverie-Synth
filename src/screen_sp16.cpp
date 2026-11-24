@@ -185,7 +185,9 @@ void section (const Raster& r, int x, int y, int width, const char* label)
 void Sp16Screen::knobs (uint32_t ids[6], char name[SIXTEEN_TAB_NAME_SIZE]) const
 {
     const Bank& bank = pages[page].banks[banks[page]];
-    std::transform (bank.ids.begin(), bank.ids.end(), ids, [] (uint32_t row) { return row == none ? none : paramTable[row].id; });
+    std::transform (bank.ids.begin(), bank.ids.end(), ids, [this] (uint32_t row) {
+        return row == none || !plots.controlEnabled (row) ? none : paramTable[row].id;
+    });
     std::snprintf (name, SIXTEEN_TAB_NAME_SIZE, "%s", bank.strip);
 }
 

@@ -275,6 +275,12 @@ int main (int argc, char** argv)
     assert (screen->knobs (plugin, moodIds, bankName) && moodIds[0] == 97 && moodIds[1] == 98);
     f.setValue (moodIds[0], 2);
     f.setValue (moodIds[1], -3);
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 240, 97));
+    uint32_t progIds[6];
+    assert (screen->knobs (plugin, progIds, bankName));
+    assert (progIds[0] == SIXTEEN_INVALID_PARAM_ID && progIds[1] == SIXTEEN_INVALID_PARAM_ID && progIds[2] == SIXTEEN_INVALID_PARAM_ID);
+    assert (progIds[3] == octave && progIds[4] == strum && progIds[5] == latch);
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 367, 97));
     assert (f.frame (true));
     const auto moodIdle = f.pixels;
     f.capture (out, "mood");
@@ -297,6 +303,9 @@ int main (int argc, char** argv)
     f.setValue (moodIds[0], 0);
     f.setValue (moodIds[1], 0);
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 240, 97)); // progression bank
+
+    assert (screen->knobs (plugin, progIds, bankName));
+    assert (progIds[0] == progression && progIds[1] == voicing && progIds[2] == key);
 
     // Desktop patch strip. The old button location is scenery. Fast arrow taps,
     // external host loads, browser focus and cancelling all follow the same factory order.
