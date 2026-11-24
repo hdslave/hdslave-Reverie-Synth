@@ -418,22 +418,34 @@ the selector steps through banks. Pressing it advances to the next section.
 | --- | --- |
 | Chords | Progression, Feel |
 | Motion | Path, Clock, X Routes, Y Routes |
-| Osc | Morph, Osc 1, Osc 2, Voice |
+| Osc | Morph, Osc 1, Osc 2, Voice, Layer, Steps |
 | Filter | Response, Envelope |
 | Amp | Envelope (with output volume), LFO |
-| FX | Ensemble / Delay, Reverb, Phaser |
+| FX | Ensemble / Delay, Reverb, Phaser, Echo |
 
 Touch and hold a chord or lift to audition it. The pad goes amber and the
 keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
-Tap the patch name in the upper right to browse all 25 factory sounds. Its
+Tap the patch name in the upper right to browse all 27 factory sounds. Its
 arrows load the previous or next sound. An asterisk marks edits to a known factory sound. A recalled patch with no
 matching factory sound is labeled **Custom sound**. Choosing a sound keeps the
 progression, key, voicing and other chord settings. On a sound change old chord
 gates release and their effects can ring out. A short output fade smooths the
 change. Play the pad again to hear the new sound.
 
-In SP-16 version **0.4.4-sp16.7** the bottom row contains Undertow Wah, Opal Rain,
-Lantern Ferry, Cinder Cello and Cloud Loom. The same sounds appear under **PRESETS**.
+In SP-16 version **0.4.4-sp16.8**, the arrows beside the Sounds page number switch between two grids.
+The first grid ends with Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
+The second contains **Prism Choir** and **Tide Atlas**. All 27 sounds also appear under **PRESETS**.
+
+On **Synth → Layer**, set the sequence mode, level, octave, step time and crossfade.
+**Steps** assigns any of the twelve source waves to each of four steps. Each note starts
+its own layer. Loop repeats all four waves, One Shot sustains the last, and Strike
+fades the attack into the main oscillators. On **Output → Echo**, Taps adds stereo repeats
+at half and three quarters of the delay time. Duck lowers the echo under the playing chord.
+Tone sets the brightness of the feedback.
+
+Prism Choir layers a crystal strike over sustained choir and strings. Tide Atlas cycles from reed
+to breath, bell and octave harmonics over a warm chord.
+
 Undertow Wah sweeps a low Choir and Hollow Pulse through an envelope-driven phaser.
 For its reference chord, select Bow and Gourd in D with Quartal voicing, a 30 ms
 strum, 5% Humanize and 70% Bass, then hold pad 3 for about 0.7 seconds.

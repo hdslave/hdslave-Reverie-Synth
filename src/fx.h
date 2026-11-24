@@ -317,12 +317,16 @@ public:
         filled = true;
         lowCoef = onePoleCoef (4200.0f, rate);
         highCoef = onePoleCoef (160.0f, rate);
+        tone = 0.5f;
+        attack = 1.0f - std::exp (-1.0f / (0.008f * rate));
+        release = 1.0f - std::exp (-1.0f / (0.22f * rate));
     }
     void reset() // as the ensemble's
     {
         if (clean) return;
         line[0].clear(), line[1].clear();
         filled = false;
+        envelope = 0.0f;
         lp[0] = lp[1] = hp[0] = hp[1] = 0.0f;
         primed = false;
         clean = true;
@@ -340,6 +344,17 @@ public:
         const float next = time + (target - time) * std::min (1.0f, (float) tickSize / (0.06f * rate));
         step = (next - time) / (float) tickSize;
     }
+    void color (float tapMix, float duckAmount, float brightness)
+    {
+        taps = tapMix;
+        duck = duckAmount;
+        if (duck == 0.0f) envelope = 0.0f;
+        if (tone != brightness)
+        {
+            tone = brightness;
+            lowCoef = onePoleCoef (4200.0f * std::exp2 (3.0f * (tone - 0.5f)), rate);
+        }
+    }
     bool active() const { return wet > 0.0f; }
     void process (float* l, float* r, int n)
     {
@@ -349,7 +364,18 @@ public:
             if (wet > 0.0f) // both lines tapped at the time, before each push
             {
                 float d = time;
-                for (int i = 0; i < n; ++i) line[0].silenceStale (d, (uint32_t) i), line[1].silenceStale (d, (uint32_t) i), d += step;
+                for (int i = 0; i < n; ++i, d += step)
+                {
+                    for (auto& channel : line)
+                    {
+                        channel.silenceStale (d, (uint32_t) i);
+                        if (taps > 0.0f)
+                        {
+                            channel.silenceStale (d * 0.5f, (uint32_t) i);
+                            channel.silenceStale (d * 0.75f, (uint32_t) i);
+                        }
+                    }
+                }
             }
             line[0].wrote ((uint32_t) n), line[1].wrote ((uint32_t) n);
             filled = line[0].full() && line[1].full();
@@ -362,26 +388,56 @@ private:
     {
         if (wet <= 0.0f)
         {
+            envelope = 0.0f;
             for (int i = 0; i < n; ++i) line[0].push (0.0f), line[1].push (0.0f), time += step;
+            return;
+        }
+        if (taps > 0.0f || duck > 0.0f)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                const float a = line[0].tapFrac (time), b = line[1].tapFrac (time);
+                float echoL = a, echoR = b;
+                if (taps > 0.0f)
+                {
+                    const float earlyL = line[0].tapFrac (time * 0.75f) + 0.45f * line[1].tapFrac (time * 0.5f);
+                    const float earlyR = line[0].tapFrac (time * 0.5f) + 0.45f * line[1].tapFrac (time * 0.75f);
+                    echoL += taps * (0.55f * earlyL - 0.35f * a);
+                    echoR += taps * (0.55f * earlyR - 0.35f * b);
+                }
+                time += step;
+                const float peak = std::max (std::fabs (l[i]), std::fabs (r[i]));
+                envelope += (peak - envelope) * (peak > envelope ? attack : release);
+                const float send = wet * (1.0f - 0.85f * duck * std::min (1.0f, 3.0f * envelope));
+                feed (a, b, (l[i] + r[i]) * 0.5f);
+                l[i] += send * echoL;
+                r[i] += send * echoR;
+            }
             return;
         }
         for (int i = 0; i < n; ++i)
         {
             const float a = line[0].tapFrac (time), b = line[1].tapFrac (time);
             time += step;
-            // the feedback filtered: a gentle low-pass and high-pass, so the repeats darken and thin
-            lp[0] += (b - lp[0]) * lowCoef;
-            hp[0] += (lp[0] - hp[0]) * highCoef;
-            lp[1] += (a - lp[1]) * lowCoef;
-            hp[1] += (lp[1] - hp[1]) * highCoef;
-            const float mono = (l[i] + r[i]) * 0.5f;
-            line[0].push (mono + fb * (lp[0] - hp[0]));
-            line[1].push (fb * (lp[1] - hp[1]));
+            feed (a, b, (l[i] + r[i]) * 0.5f);
             l[i] += wet * a;
             r[i] += wet * b;
         }
     }
 
+    void feed (float a, float b, float mono)
+    {
+        // the feedback filtered: a gentle low-pass and high-pass, so the repeats darken and thin
+        lp[0] += (b - lp[0]) * lowCoef;
+        hp[0] += (lp[0] - hp[0]) * highCoef;
+        lp[1] += (a - lp[1]) * lowCoef;
+        hp[1] += (lp[1] - hp[1]) * highCoef;
+        line[0].push (mono + fb * (lp[0] - hp[0]));
+        line[1].push (fb * (lp[1] - hp[1]));
+    }
+
+    float taps = 0.0f, duck = 0.0f, tone = 0.5f;
+    float attack = 0.0f, release = 0.0f, envelope = 0.0f;
     float rate = 48000.0f;
     DelayLine line[2];
     float time = 0.0f, step = 0.0f, wet = 0.0f, fb = 0.0f, lowCoef = 0.0f, highCoef = 0.0f;

@@ -199,6 +199,42 @@ inline const PresetValue cloudLoom[] = {
     { yDest1, Dest::wave1 }, { yAmt1, 0.31f }, { yDest2, Dest::air }, { yAmt2, 0.09f },
     { ensMix, 0.37f }, { ensDepth, 0.61f }, { ensRate, ensKnob (0.16f) }, { dlyMix, 0.0f },
     { revMix, 0.43f }, { revSize, 0.92f }, { revDecay, decayKnob (8.1f) }, { revDamp, dampKnob (4600) }, { shimmer, 0.22f }, { volume, 0.90f } };
+
+// A quick chime gives way to a warm choir and bowed strings under the same chord.
+inline const PresetValue prismChoir[] = {
+    { osc1Wave, 2 }, { osc1Pos, 0.32f }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (6) }, { osc1Level, 0.73f },
+    { osc2Wave, 3 }, { osc2Pos, 0.23f }, { osc2Unison, 2 }, { osc2Fine, -4 }, { osc2Level, 0.47f },
+    { width, 0.74f }, { air, 0.018f }, { drift, driftKnob (1.5f) },
+    { seqMode, Sequence::strike }, { seqLevel, 0.91f }, { seqDivision, 2 }, { seqFade, 0.54f }, { seqOctave, 1 },
+    { seqWave1, 5 }, { seqWave2, 4 }, { seqWave3, 9 }, { seqWave4, 11 },
+    { cutoff, cutoffKnob (1850) }, { resonance, 0.14f }, { filterEnv, 0.26f }, { keyTrack, 0.38f }, { velCutoff, 0.28f },
+    { fltAttack, envKnob (4) }, { fltDecay, envKnob (530) }, { fltSustain, 0.24f }, { fltRelease, envKnob (2300) },
+    { ampAttack, envKnob (11) }, { ampDecay, envKnob (850) }, { ampSustain, 0.78f }, { ampRelease, envKnob (2500) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::tide }, { motionDepth, 0.31f }, { motionRate, motionKnob (0.115f) },
+    { xDest1, Dest::wave1 }, { xAmt1, 0.36f }, { xDest2, Dest::off }, { yDest1, Dest::oscMix }, { yAmt1, 0.21f }, { yDest2, Dest::off },
+    { ensMix, 0.22f }, { dlyMix, 0.25f }, { dlyTime, 7 }, { dlyFeedback, 0.34f },
+    { echoTaps, 0.63f }, { echoDuck, 0.73f }, { echoTone, 0.34f },
+    { revMix, 0.25f }, { revSize, 0.68f }, { revDecay, decayKnob (3.9f) }, { revDamp, dampKnob (4800) },
+    { shimmer, 0.06f }, { volume, 0.71f } };
+
+// A held foundation leaves room for reed, breath, bells and octave harmonics to crossfade above it.
+inline const PresetValue tideAtlas[] = {
+    { osc1Wave, 8 }, { osc1Pos, 0.38f }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (5) }, { osc1Level, 0.64f },
+    { osc2Wave, 1 }, { osc2Pos, 0.16f }, { osc2Unison, 1 }, { osc2Fine, 3 }, { osc2Level, 0.25f },
+    { width, 0.79f }, { air, 0.015f }, { drift, driftKnob (1.2f) },
+    { seqMode, Sequence::loop }, { seqLevel, 0.94f }, { seqDivision, 4 }, { seqFade, 0.68f }, { seqOctave, 1 },
+    { seqWave1, 10 }, { seqWave2, 9 }, { seqWave3, 5 }, { seqWave4, 7 },
+    { cutoff, cutoffKnob (3300) }, { resonance, 0.11f }, { filterEnv, 0.13f }, { keyTrack, 0.30f }, { velCutoff, 0.16f },
+    { fltAttack, envKnob (1100) }, { fltDecay, envKnob (2300) }, { fltSustain, 0.59f },
+    { ampAttack, envKnob (420) }, { ampDecay, envKnob (1800) }, { ampSustain, 0.83f }, { ampRelease, envKnob (3200) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::pendulum }, { motionRate, motionKnob (0.09f) }, { motionDepth, 0.38f },
+    { xDest1, Dest::width }, { xAmt1, 0.21f }, { xDest2, Dest::off }, { yDest1, Dest::wave2 }, { yAmt1, 0.33f }, { yDest2, Dest::off },
+    { ensMix, 0.25f }, { dlyMix, 0.26f }, { dlyTime, 8 }, { dlyFeedback, 0.36f },
+    { echoTaps, 0.78f }, { echoDuck, 0.64f }, { echoTone, 0.39f },
+    { revMix, 0.31f }, { revSize, 0.79f }, { revDecay, decayKnob (5.1f) }, { revDamp, dampKnob (4900) },
+    { shimmer, 0.12f }, { volume, 0.55f } };
 #endif
 } // namespace presetdata
 
@@ -230,6 +266,8 @@ inline const Preset presetTable[] = {
     REVERIE_PRESET ("lantern-ferry", "Lantern Ferry", lanternFerry),
     REVERIE_PRESET ("cinder-cello", "Cinder Cello", cinderCello),
     REVERIE_PRESET ("cloud-loom", "Cloud Loom", cloudLoom),
+    REVERIE_PRESET ("prism-choir", "Prism Choir", prismChoir),
+    REVERIE_PRESET ("tide-atlas", "Tide Atlas", tideAtlas),
 #endif
 };
 #undef REVERIE_PRESET

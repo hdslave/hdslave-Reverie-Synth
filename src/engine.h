@@ -12,6 +12,9 @@
 #include "fx.h"
 #include "params.h"
 #include "voicings.h"
+#ifdef REVERIE_SP16
+#include "wave_sequence.h"
+#endif
 #include "waves.h"
 
 #include <algorithm>
@@ -504,6 +507,9 @@ private:
         float velocity = 1.0f, gain = 1.0f, jitter = 1.0f, level = 1.0f;
         float pitch = 60.0f, target = 60.0f;
         uint64_t born = 0;
+#ifdef REVERIE_SP16
+        WaveSequenceVoice layer;
+#endif
         uint32_t phase[maxStreams] {}, inc[maxStreams] {};
         const float* seg[2] {}; // each oscillator's segment (waves.h): its unison share it
         uint32_t shift[2] {};
@@ -565,6 +571,10 @@ private:
     Phaser phaser;
 #endif
     Ensemble ensemble;
+#ifdef REVERIE_SP16
+    WaveSequenceSettings sequence;
+    double sequenceIncrement = 0.0;
+#endif
     PingPong delay;
     Reverb reverb;
     Rng rng;
@@ -733,6 +743,9 @@ private:
             v.phase[s] = rng.next();
             v.wobble[s] = rng.bipolar();
         }
+#ifdef REVERIE_SP16
+        v.layer.start (v.phase[0]);
+#endif
         if (wait == 0)
         {
             begin (v);
@@ -807,6 +820,10 @@ private:
             if (v.active && (v.waitTicks == 0 || v.waitTicks == 1)
                 && (newestVoice == nullptr || v.born > newestVoice->born || (v.born == newestVoice->born && v.index < newestVoice->index)))
                 newestVoice = &v;
+#ifdef REVERIE_SP16
+        if (sequence.mode != Sequence::off)
+            sequenceIncrement = std::clamp (tempo, 1.0, 1000.0) / (60.0 * rate * sequence.beats);
+#endif
         int active = 0;
         for (auto& v : voices)
         {
@@ -892,6 +909,16 @@ private:
             sh.detune[o] = detuneCents (p[b + 6]) * 0.01f;
             sh.level[o] = p[b + 7];
         }
+#ifdef REVERIE_SP16
+        sequence.mode = (int) p[seqMode];
+        sequence.level = p[seqLevel];
+        sequence.beats = sequenceBeats[(int) p[seqDivision]];
+        sequenceIncrement = std::clamp (tempo, 1.0, 1000.0) / (60.0 * rate * sequence.beats);
+        sequence.fade = p[seqFade];
+        sequence.octave = p[seqOctave];
+        for (int i = 0; i < 4; ++i) sequence.waves[i] = (int) p[seqWave1 + i];
+        delay.color (p[echoTaps], p[echoDuck], p[echoTone]);
+#endif
         sh.width = p[width];
         sh.air = p[air] * p[air] * 0.35f;
         sh.airCoef = onePoleCoef (900.0f * std::pow (18.0f, p[airTone]), rate);
@@ -1013,6 +1040,13 @@ private:
         const float mix = std::clamp (mod[Dest::oscMix], -1.0f, 1.0f);
         const float oscGain[2] = { sh.level[0] * (1.0f - std::max (0.0f, mix)), sh.level[1] * (1.0f + std::min (0.0f, mix)) };
         const float pitchMod = v.pitch + bend + lfo * sh.lfoPitch + mod[Dest::pitch] * 2.0f;
+#ifdef REVERIE_SP16
+        if (sequence.mode != Sequence::off || v.layer.enabled())
+        {
+            const float pan = v.isBass ? 0.0f : (v.index & 1 ? 0.22f : -0.22f) * sh.width;
+            v.layer.control (sequence, pitchMod, rate, sequenceIncrement, left, pan);
+        }
+#endif
         float width = std::clamp (sh.width + mod[Dest::width], 0.0f, 1.0f) * (v.isBass ? 0.2f : 1.0f);
         if (std::fabs (width - v.panAt) > 1e-4f || v.panUnison[0] != sh.unison[0] || v.panUnison[1] != sh.unison[1])
         {
@@ -1154,6 +1188,9 @@ private:
                 v.phase[i] = ph;
             }
         }
+#ifdef REVERIE_SP16
+        if (v.layer.audible()) v.layer.render (lr, n);
+#endif
         // the filter (two in series for LP 24: the first without resonance)
         if (v.filterMode == Filter::lp24)
         {

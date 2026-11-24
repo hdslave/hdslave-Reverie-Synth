@@ -18,7 +18,10 @@ constexpr int padX = 8, padY = 118, padW = 90, padH = 30, padDX = 94, padDY = 33
 constexpr int globeX = 397, globeY = 121, globeSize = 150;
 constexpr int globeCenterX = globeX + 75, globeCenterY = globeY + 67, globeRadius = 56;
 constexpr int soundCols = 5, soundX = 13, soundY = 123, soundDX = 152, soundDY = 31, soundW = 146, soundH = 30;
-static_assert (soundY + (presetCount - 1) / soundCols * soundDY + soundH <= h, "Factory sound tiles must fit the touchscreen");
+constexpr int soundsPerPage = soundCols * 5;
+constexpr int soundPages = (presetCount + soundsPerPage - 1) / soundsPerPage;
+constexpr int previousPageX = 622, nextPageX = 722, pageButtonW = 46;
+static_assert (soundY + 4 * soundDY + soundH <= h, "Factory sound tiles must fit the touchscreen");
 
 struct Bank
 {
@@ -43,6 +46,8 @@ constexpr Bank oscBanks[] = {
     { "OSC 1", "OSC / OSC 1", { osc1Octave, osc1Semi, osc1Fine, osc1Unison, osc1Detune, none } },
     { "OSC 2", "OSC / OSC 2", { osc2Octave, osc2Semi, osc2Fine, osc2Unison, osc2Detune, none } },
     { "Voice", "OSC / VOICE", { width, air, airTone, drift, none, none } },
+    { "Layer", "OSC / LAYER", { seqMode, seqLevel, seqDivision, seqFade, seqOctave, none } },
+    { "Steps", "OSC / STEPS", { seqWave1, seqWave2, seqWave3, seqWave4, none, none } },
 };
 constexpr Bank filterBanks[] = {
     { "Response", "FILTER / RESPONSE", { filterType, cutoff, resonance, filterEnv, keyTrack, velCutoff } },
@@ -56,6 +61,7 @@ constexpr Bank fxBanks[] = {
     { "Ens / Delay", "FX / ENS + DELAY", { ensMix, ensDepth, ensRate, dlyMix, dlyTime, dlyFeedback } },
     { "Reverb", "FX / REVERB", { revMix, revSize, revDecay, revDamp, revPredelay, shimmer } },
     { "Phaser", "FX / PHASER", { phaserMix, phaserRate, phaserFeedback, phaserEnv, none, none } },
+    { "Echo", "FX / ECHO", { echoTaps, echoDuck, echoTone, none, none, none } },
 };
 
 struct Page
@@ -285,10 +291,20 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
         }
         if (soundsOpen)
         {
-            for (int i = 0; i < presetCount; ++i)
+            const int pg = focusedSound / soundsPerPage;
+            if (inside (x, y, previousPageX, headerH, pageButtonW, bodyTop - headerH)
+                || inside (x, y, nextPageX, headerH, pageButtonW, bodyTop - headerH))
+            {
+                const int next = (pg + (x >= nextPageX ? 1 : -1) + soundPages) % soundPages;
+                focusedSound = next * soundsPerPage;
+                dirty = result.used = true;
+                return result;
+            }
+            const int first = pg * soundsPerPage;
+            for (int i = 0; i < std::min (soundsPerPage, presetCount - first); ++i)
                 if (inside (x, y, soundX + i % soundCols * soundDX, soundY + i / soundCols * soundDY, soundW, soundH))
                 {
-                    focusedSound = result.sound = i;
+                    focusedSound = result.sound = first + i;
                     soundsOpen = false;
                     dirty = true;
                     break;
@@ -439,6 +455,13 @@ void Sp16Screen::header (const Raster& r, int sound) const
     if (soundsOpen)
     {
         title (r, 13, 87, "Factory sounds");
+        char pageLabel[24];
+        std::snprintf (pageLabel, sizeof (pageLabel), "%d / %d", focusedSound / soundsPerPage + 1, soundPages);
+        button (r, previousPageX, 84, pageButtonW, 25, false);
+        button (r, nextPageX, 84, pageButtonW, 25, false);
+        centered<18> (r, previousPageX + pageButtonW / 2, 86, "<", ink::white);
+        centered<18> (r, nextPageX + pageButtonW / 2, 86, ">", ink::white);
+        centered<14> (r, (previousPageX + pageButtonW + nextPageX) / 2, 88, pageLabel, ink::white);
         return;
     }
     for (int side = 0; side < 2; ++side)
@@ -479,12 +502,13 @@ void Sp16Screen::header (const Raster& r, int sound) const
 
 void Sp16Screen::sounds (const Raster& r) const
 {
-    for (int i = 0; i < presetCount; ++i)
+    const int first = focusedSound / soundsPerPage * soundsPerPage;
+    for (int i = 0; i < std::min (soundsPerPage, presetCount - first); ++i)
     {
         const int x = soundX + i % soundCols * soundDX, y = soundY + i / soundCols * soundDY;
-        if (i == focusedSound) button (r, x + 1, y + 2, soundW - 2, soundH - 4, true);
+        if (first + i == focusedSound) button (r, x + 1, y + 2, soundW - 2, soundH - 4, true);
         else r.box (x + 4, y + soundH - 1, soundW - 8, 1, ink::rule);
-        centered<14> (r, x + soundW / 2, y + 6, presetTable[i].name, ink::text);
+        centered<14> (r, x + soundW / 2, y + 6, presetTable[first + i].name, ink::text);
     }
 }
 
@@ -543,14 +567,30 @@ void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held)
 void Sp16Screen::synthesis (const Raster& r, bool sounding) const
 {
     constexpr int column = 184;
-    for (int o = 0; o < 2; ++o)
+    const auto& bank = oscBanks[banks[Screen::oscPage]];
+    if (bank.ids[0] == seqMode || bank.ids[0] == seqWave1)
     {
-        const int x = 8 + o * 189;
-        plots.scope (r, x, 119, column, 65, o);
-        field (r, x, 189, column, "Wave", ParamId::osc (o, 0));
-        field (r, x, 212, column, "Position", ParamId::osc (o, 1));
-        field (r, x, 235, column, "Level", ParamId::osc (o, 7));
-        field (r, x, 258, column, "Detune", ParamId::osc (o, 6));
+        section (r, 8, 117, 181, "Wave sequence");
+        section (r, 199, 117, 182, "Step waves");
+        field (r, 8, 139, 181, "Mode", seqMode);
+        field (r, 8, 166, 181, "Level", seqLevel);
+        field (r, 8, 193, 181, "Step time", seqDivision);
+        field (r, 8, 220, 181, "Crossfade", seqFade);
+        field (r, 8, 247, 181, "Octave", seqOctave);
+        constexpr const char* labels[] = { "Wave 1", "Wave 2", "Wave 3", "Wave 4" };
+        for (int i = 0; i < 4; ++i) field (r, 199, 139 + 32 * i, 182, labels[i], seqWave1 + i);
+    }
+    else
+    {
+        for (int o = 0; o < 2; ++o)
+        {
+            const int x = 8 + o * 189;
+            plots.scope (r, x, 119, column, 65, o);
+            field (r, x, 189, column, "Wave", ParamId::osc (o, 0));
+            field (r, x, 212, column, "Position", ParamId::osc (o, 1));
+            field (r, x, 235, column, "Level", ParamId::osc (o, 7));
+            field (r, x, 258, column, "Detune", ParamId::osc (o, 6));
+        }
     }
     plots.response (r, 397, 119, 168, 76);
     plots.envelope (r, 397, 201, 168, 76, fltAttack, telemetry.fltEnv.load (std::memory_order_relaxed), ink::lime, sounding);
@@ -582,6 +622,14 @@ void Sp16Screen::output (const Raster& r, bool sounding) const
     r.box (397, 245, 148, 13, ink::deep);
     plots.outputMeter (r, 397, 245);
     field (r, 397, 260, 148, "Volume", volume);
+    if (fxBanks[banks[Screen::fxPage]].ids[0] == echoTaps)
+    {
+        section (r, 551, 117, 220, "Stereo echo return");
+        field (r, 551, 139, 220, "Taps", echoTaps);
+        field (r, 551, 168, 220, "Ducking", echoDuck);
+        field (r, 551, 197, 220, "Tone", echoTone);
+        return;
+    }
     if (fxBanks[banks[Screen::fxPage]].ids[0] == phaserMix)
     {
         section (r, 551, 117, 220, "Stereo phaser");
