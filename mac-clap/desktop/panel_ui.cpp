@@ -316,9 +316,9 @@ void PanelUI::drawTile (int tileIdx)
     c_.frame (bezel, isFocused ? mix (th.border, th.accent, 0.5f) : th.border);
 
     const uint32_t* srcPx = nullptr;
-    if (tileIdx < (int) p_->tilePixels.size() && p_->tilePixels[(size_t) tileIdx].size() == size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT))
+    if (tileIdx < (int) p_->tilePixels.size() && p_->tilePixels[(size_t) tileIdx].size() == size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT))
         srcPx = p_->tilePixels[(size_t) tileIdx].data();
-    else if (p_->screenPixels.size() == size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT))
+    else if (p_->screenPixels.size() == size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT))
         srcPx = p_->screenPixels.data();
 
     if (srcPx)

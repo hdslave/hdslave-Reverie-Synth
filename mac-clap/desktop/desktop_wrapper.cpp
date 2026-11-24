@@ -131,12 +131,12 @@ DesktopPlugin& of (const clap_plugin_t* p) { return *static_cast<DesktopPlugin*>
 
 DesktopPlugin* fromHost (const clap_host_t* host) { return host ? static_cast<DesktopPlugin*> (host->host_data) : nullptr; }
 
-void CLAP_ABI proxyScreenRequestPaint (const clap_host_t* host)
+void proxyScreenRedraw (const void* host, uint32_t /*flags*/)
 {
-    if (auto* dp = fromHost (host))
+    if (auto* dp = fromHost (static_cast<const clap_host_t*> (host)))
         dp->screenRequested.store (true, std::memory_order_release);
 }
-const clap_host_melodee_screen_t kProxyHostScreen { proxyScreenRequestPaint };
+const melodee_screen_host_t kProxyHostScreen { proxyScreenRedraw };
 
 void scheduleMainThreadFlush (DesktopPlugin* dp)
 {
@@ -235,7 +235,7 @@ const void* CLAP_ABI proxyGetExtension (const clap_host_t* host, const char* ext
     auto* dp = fromHost (host);
     if (!dp || !extensionId) return nullptr;
     dp->resolveHostExtensions();
-    if (std::strcmp (extensionId, CLAP_EXT_MELODEE_SCREEN_HOST) == 0) return &kProxyHostScreen;
+    if (std::strcmp (extensionId, MELODEE_SCREEN_CLAP_HOST) == 0) return &kProxyHostScreen;
     if (std::strcmp (extensionId, CLAP_EXT_PARAMS) == 0) return dp->hostParams ? &kProxyHostParams : nullptr;
     if (std::strcmp (extensionId, CLAP_EXT_PRESET_LOAD) == 0 || std::strcmp (extensionId, CLAP_EXT_PRESET_LOAD_COMPAT) == 0)
         return dp->hostPresetLoad ? &kProxyHostPresetLoad : nullptr;
@@ -874,7 +874,7 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
     dp.innerPresetLoad = static_cast<const clap_plugin_preset_load_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_PRESET_LOAD));
     if (!dp.innerPresetLoad)
         dp.innerPresetLoad = static_cast<const clap_plugin_preset_load_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_PRESET_LOAD_COMPAT));
-    dp.innerScreen = static_cast<const clap_plugin_melodee_screen_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_MELODEE_SCREEN));
+    dp.innerScreen = static_cast<const melodee_screen_t*> (dp.inner->get_extension (dp.inner, MELODEE_SCREEN_CLAP));
     dp.innerTiles = static_cast<const clap_plugin_hdslave_tiles_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_HDSLAVE_TILES));
 
     dp.resolveHostExtensions();
@@ -912,19 +912,19 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
 
     if (dp.innerScreen)
     {
-        dp.screenPixels.assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT), 0xFF0A0C10u);
+        dp.screenPixels.assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT), 0xFF0A0C10u);
         dp.refreshScreenKnobs();
     }
     if (dp.innerTiles && dp.innerTiles->count)
     {
         dp.tileCount = dp.innerTiles->count (dp.inner, &dp.tileCols, &dp.tileRows);
-        dp.tileScreenH = (dp.innerTiles->content_h >= 120 && dp.innerTiles->content_h <= MELODEE_SCREEN_HEIGHT)
+        dp.tileScreenH = (dp.innerTiles->content_h >= 120 && dp.innerTiles->content_h <= MELODEE_SCREEN_PAGE_HEIGHT)
                              ? (int) dp.innerTiles->content_h
-                             : MELODEE_SCREEN_HEIGHT;
+                             : MELODEE_SCREEN_PAGE_HEIGHT;
         dp.tilePixels.resize (dp.tileCount);
         for (uint32_t t = 0; t < dp.tileCount; ++t)
         {
-            dp.tilePixels[t].assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT), 0xFF0A0C10u);
+            dp.tilePixels[t].assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT), 0xFF0A0C10u);
             for (int k = 0; k < 3; ++k)
                 dp.tileKnobIds[t][k] = CLAP_INVALID_ID;
         }
@@ -1393,18 +1393,18 @@ int DesktopPlugin::countMappedCc() const
 
 void DesktopPlugin::refreshScreenKnobs()
 {
-    if (!innerScreen || !innerScreen->knobs)
+    if (!innerScreen || !innerScreen->controls)
         return;
-    clap_id ids[3] { CLAP_INVALID_ID, CLAP_INVALID_ID, CLAP_INVALID_ID };
-    innerScreen->knobs (inner, ids);
+    uint32_t ids[3] { MELODEE_SCREEN_NO_CONTROL, MELODEE_SCREEN_NO_CONTROL, MELODEE_SCREEN_NO_CONTROL };
+    innerScreen->controls (inner, ids);
     for (int i = 0; i < 3; ++i)
-        screenKnobIds[i] = ids[i];
+        screenKnobIds[i] = ids[i] == MELODEE_SCREEN_NO_CONTROL ? CLAP_INVALID_ID : ids[i];
 }
 
 void DesktopPlugin::sendScreenInput (uint32_t kind, int32_t value)
 {
     if (!innerScreen || !innerScreen->input) return;
-    melodee_screen_input_t inp { kind, value, screenShift };
+    melodee_screen_input_t inp { kind, value, screenShift ? 1u : 0u };
     inScreenInput = true;
     innerScreen->input (inner, &inp);
     inScreenInput = false;
@@ -1430,19 +1430,23 @@ bool DesktopPlugin::paintAllTiles (uint64_t now)
     {
         tilePixels.resize (tileCount);
         for (uint32_t t = 0; t < tileCount; ++t)
-            tilePixels[t].assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT), 0xFF0A0C10u);
+            tilePixels[t].assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT), 0xFF0A0C10u);
     }
 
     bool anyDrew = false;
     for (uint32_t t = 0; t < tileCount && t < 16; ++t)
     {
-        melodee_screen_canvas_t canvas {};
-        canvas.pixels = tilePixels[t].data();
-        canvas.width = MELODEE_SCREEN_WIDTH;
-        canvas.height = MELODEE_SCREEN_HEIGHT;
-        canvas.stride = MELODEE_SCREEN_WIDTH;
-        canvas.now_ms = now;
-        canvas.accent = theme.accent;
+        melodee_screen_frame_t frame {};
+        frame.pixels = tilePixels[t].data();
+        frame.width = MELODEE_SCREEN_WIDTH;
+        frame.height = MELODEE_SCREEN_PAGE_HEIGHT;
+        frame.stride = MELODEE_SCREEN_WIDTH;
+        frame.area = MELODEE_SCREEN_PAGE;
+        frame.redraw_all = 1;
+        frame.colour = theme.accent & 0x00FFFFFFu;
+        frame.time_ms = now;
+        frame.playing = transportPlaying.load (std::memory_order_relaxed) ? 1 : 0;
+        frame.shift = screenShift ? 1 : 0;
         for (int i = 0; i < 3; ++i)
         {
             const int idx = (tileKnobIds[t][i] != CLAP_INVALID_ID) ? findParamIndex (tileKnobIds[t][i]) : -1;
@@ -1451,20 +1455,17 @@ bool DesktopPlugin::paintAllTiles (uint64_t now)
                 const auto& p = params[size_t (idx)];
                 const double r = p.range();
                 const double n = r > 0.0 ? std::clamp ((displayValue (idx) - p.minVal) / r, 0.0, 1.0) : 0.0;
-                canvas.knobs[i].position = int16_t (std::round (n * 127.0));
-                canvas.knobs[i].engaged = true;
+                frame.pots[i] = int16_t (std::round (n * 127.0));
+                frame.pots_live[i] = 1;
             }
             else
             {
-                canvas.knobs[i].position = -1;
-                canvas.knobs[i].engaged = false;
+                frame.pots[i] = -1;
+                frame.pots_live[i] = 0;
             }
         }
-        canvas.shift = screenShift;
-        canvas.playing = transportPlaying.load (std::memory_order_relaxed);
-        canvas.whole = true;
 
-        anyDrew |= innerTiles->paint (inner, t, &canvas, tileKnobIds[t]);
+        anyDrew |= innerTiles->paint (inner, t, &frame, tileKnobIds[t]);
     }
     screenWholeNeeded = false;
     screenRequested.store (false, std::memory_order_release);
@@ -1473,22 +1474,26 @@ bool DesktopPlugin::paintAllTiles (uint64_t now)
 
 bool DesktopPlugin::paintScreen (uint64_t now)
 {
-    if (!innerScreen || !innerScreen->paint) return false;
-    if (screenPixels.size() != size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT))
+    if (!innerScreen || !innerScreen->draw) return false;
+    if (screenPixels.size() != size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT))
     {
-        screenPixels.assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_HEIGHT), 0xFF0A0C10u);
+        screenPixels.assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT), 0xFF0A0C10u);
         screenWholeNeeded = true;
     }
 
     refreshScreenKnobs();
 
-    melodee_screen_canvas_t canvas {};
-    canvas.pixels = screenPixels.data();
-    canvas.width = MELODEE_SCREEN_WIDTH;
-    canvas.height = MELODEE_SCREEN_HEIGHT;
-    canvas.stride = MELODEE_SCREEN_WIDTH;
-    canvas.now_ms = now;
-    canvas.accent = theme.accent;
+    melodee_screen_frame_t frame {};
+    frame.pixels = screenPixels.data();
+    frame.width = MELODEE_SCREEN_WIDTH;
+    frame.height = MELODEE_SCREEN_PAGE_HEIGHT;
+    frame.stride = MELODEE_SCREEN_WIDTH;
+    frame.area = MELODEE_SCREEN_PAGE;
+    frame.redraw_all = screenWholeNeeded ? 1u : 0u;
+    frame.colour = theme.accent & 0x00FFFFFFu;
+    frame.time_ms = now;
+    frame.playing = transportPlaying.load (std::memory_order_relaxed) ? 1 : 0;
+    frame.shift = screenShift ? 1 : 0;
     for (int i = 0; i < 3; ++i)
     {
         const int idx = (screenKnobIds[i] != CLAP_INVALID_ID) ? findParamIndex (screenKnobIds[i]) : -1;
@@ -1497,20 +1502,17 @@ bool DesktopPlugin::paintScreen (uint64_t now)
             const auto& p = params[size_t (idx)];
             const double r = p.range();
             const double n = r > 0.0 ? std::clamp ((displayValue (idx) - p.minVal) / r, 0.0, 1.0) : 0.0;
-            canvas.knobs[i].position = int16_t (std::round (n * 127.0));
-            canvas.knobs[i].engaged = true;
+            frame.pots[i] = int16_t (std::round (n * 127.0));
+            frame.pots_live[i] = 1;
         }
         else
         {
-            canvas.knobs[i].position = -1;
-            canvas.knobs[i].engaged = false;
+            frame.pots[i] = -1;
+            frame.pots_live[i] = 0;
         }
     }
-    canvas.shift = screenShift;
-    canvas.playing = transportPlaying.load (std::memory_order_relaxed);
-    canvas.whole = screenWholeNeeded;
 
-    const bool drew = innerScreen->paint (inner, &canvas);
+    const bool drew = innerScreen->draw (inner, &frame);
     screenWholeNeeded = false;
     screenRequested.store (false, std::memory_order_release);
     refreshScreenKnobs();

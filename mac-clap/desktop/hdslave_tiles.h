@@ -38,8 +38,8 @@ typedef struct clap_plugin_hdslave_tiles
     // Short title for tile (0 .. count-1).
     const char* (CLAP_ABI* title) (const clap_plugin_t* plugin, uint32_t tile);
 
-    // Paints 320x218 MPC screen tile into canvas->pixels and fills knobs_out[3] with that tile's K1-K3 parameter IDs.
-    bool (CLAP_ABI* paint) (const clap_plugin_t* plugin, uint32_t tile, const melodee_screen_canvas_t* canvas, clap_id knobs_out[3]);
+    // Paints 320x218 MPC screen tile into frame->pixels and fills knobs_out[3] with that tile's K1-K3 parameter IDs.
+    bool (CLAP_ABI* paint) (const clap_plugin_t* plugin, uint32_t tile, const melodee_screen_frame_t* frame, clap_id knobs_out[3]);
 
     // Hit-tests (x, y) in 320x218 tile coordinates and fills out_spot.
     bool (CLAP_ABI* hit_test) (const clap_plugin_t* plugin, uint32_t tile, int x, int y, hdslave_tile_hotspot_t* out_spot);
@@ -50,6 +50,6 @@ typedef struct clap_plugin_hdslave_tiles
     // Executes a custom screen action (when hit_test returned HDSLAVE_HOTSPOT_ACTION), or wheel delta when wheel_delta != 0.
     void (CLAP_ABI* action) (const clap_plugin_t* plugin, uint32_t tile, int32_t custom_id, int32_t wheel_delta, bool shift);
 
-    // Active screen height without the MPC hardware K1-K3 footer panel (defaults to MELODEE_SCREEN_HEIGHT = 218 when 0).
+    // Active screen height without the MPC hardware K1-K3 footer panel (defaults to MELODEE_SCREEN_PAGE_HEIGHT = 218 when 0).
     uint32_t content_h;
 } clap_plugin_hdslave_tiles_t;

@@ -49,15 +49,15 @@ int main (int argc, char** argv)
     std::vector<float> l (block), r (block);
     float* channels[2] = { l.data(), r.data() };
     clap_audio_buffer buffer { channels, nullptr, 2, 0, 0 };
-    const auto* screen = static_cast<const clap_plugin_melodee_screen*> (plugin->get_extension (plugin, CLAP_EXT_MELODEE_SCREEN));
+    const auto* screen = static_cast<const melodee_screen_t*> (plugin->get_extension (plugin, MELODEE_SCREEN_CLAP));
     if (mode == "motion")
     {
-        melodee_screen_input_t nudge { MELODEE_SCREEN_NUDGE, 1, false };
+        melodee_screen_input_t nudge { MELODEE_SCREEN_STEP, 1, 0 };
         screen->input (plugin, &nudge);
     }
     std::vector<uint32_t> pixels (320 * 218);
-    melodee_screen_canvas_t canvas {};
-    canvas.pixels = pixels.data(), canvas.width = 320, canvas.height = 218, canvas.stride = 320;
+    melodee_screen_frame_t frame {};
+    frame.pixels = pixels.data(), frame.width = 320, frame.height = 218, frame.stride = 320, frame.area = MELODEE_SCREEN_PAGE;
     const long blocks = (long) (seconds * rate / block);
     const long chordEvery = (long) (2.0 * rate / block);
     const auto t0 = std::chrono::steady_clock::now();
@@ -87,7 +87,7 @@ int main (int argc, char** argv)
         p.out_events = &out;
         plugin->process (plugin, &p);
         if ((mode == "paint" || mode == "motion") && b >= 40 && (b - 40) % 15 == 0)
-            canvas.now_ms = (uint64_t) (b * 1000 / 375), canvas.whole = false, screen->paint (plugin, &canvas);
+            frame.time_ms = (uint64_t) (b * 1000 / 375), frame.redraw_all = 0, screen->draw (plugin, &frame);
     }
     const double took = std::chrono::duration<double> (std::chrono::steady_clock::now() - t0).count();
     std::printf ("%-8s %.1f us a block here (%.2f%% of real time)\n", mode.c_str(), took / (double) (40 + blocks) * 1e6,

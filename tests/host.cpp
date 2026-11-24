@@ -49,12 +49,12 @@ const void* hostExtension (const clap_host*, const char* id)
                                               rescans += (f & CLAP_PARAM_RESCAN_VALUES) != 0;
                                               textRescans += (f & CLAP_PARAM_RESCAN_TEXT) != 0; },
                                            [] (const clap_host*, clap_id, clap_param_clear_flags) {}, [] (const clap_host*) { ++flushes; } };
-    static const clap_host_melodee_screen screen { [] (const clap_host*) { ++paints; } };
+    static const melodee_screen_host_t screen { [] (const void*, uint32_t) { ++paints; } };
     static const clap_host_preset_load presetLoad {
         [] (const clap_host*, uint32_t, const char*, const char*, int32_t, const char*) { ++presetErrors; },
         [] (const clap_host*, uint32_t, const char*, const char*) { ++presetsLoaded; },
     };
-    if (std::strcmp (id, CLAP_EXT_MELODEE_SCREEN_HOST) == 0) return &screen;
+    if (std::strcmp (id, MELODEE_SCREEN_CLAP_HOST) == 0) return &screen;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &params;
     if (std::strcmp (id, CLAP_EXT_PRESET_LOAD) == 0) return &presetLoad;
     return nullptr;
@@ -116,7 +116,7 @@ struct Instance
     const clap_plugin_params* params = nullptr;
     const clap_plugin_state* state = nullptr;
     const clap_plugin_preset_load* presets = nullptr;
-    const clap_plugin_melodee_screen* screen = nullptr;
+    const melodee_screen_t* screen = nullptr;
     double rate;
     std::vector<clap_process_status> statuses;
     std::vector<std::pair<clap_id, double>> told; // the output param events
@@ -129,7 +129,7 @@ struct Instance
         params = static_cast<const clap_plugin_params*> (plugin->get_extension (plugin, CLAP_EXT_PARAMS));
         state = static_cast<const clap_plugin_state*> (plugin->get_extension (plugin, CLAP_EXT_STATE));
         presets = static_cast<const clap_plugin_preset_load*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
-        screen = static_cast<const clap_plugin_melodee_screen*> (plugin->get_extension (plugin, CLAP_EXT_MELODEE_SCREEN));
+        screen = static_cast<const melodee_screen_t*> (plugin->get_extension (plugin, MELODEE_SCREEN_CLAP));
         if (activate)
         {
             CHECK (plugin->activate (plugin, rate, 1, maxFrames));
@@ -1456,34 +1456,34 @@ void testScreen()
     constexpr int stride = 327;
     constexpr uint32_t guard = 0x12345678;
     std::vector<uint32_t> px (stride * 218, guard);
-    melodee_screen_canvas_t c {};
-    c.pixels = px.data(), c.width = 320, c.height = 218, c.stride = stride, c.whole = true, c.accent = 0xff8a5cff;
-    for (auto& k : c.knobs) k.position = -1, k.engaged = true;
-    CHECK (inst.screen->paint (inst.plugin, &c));
-    c.whole = false;
-    CHECK (! inst.screen->paint (inst.plugin, &c)); // nothing changed
+    melodee_screen_frame_t c {};
+    c.pixels = px.data(), c.width = 320, c.height = 218, c.stride = stride, c.area = MELODEE_SCREEN_PAGE, c.redraw_all = 1, c.colour = 0x008a5cffu;
+    for (int k = 0; k < 3; ++k) c.pots[k] = -1, c.pots_live[k] = 1;
+    CHECK (inst.screen->draw (inst.plugin, &c));
+    c.redraw_all = 0;
+    CHECK (! inst.screen->draw (inst.plugin, &c)); // nothing changed
     // K1-K3 on the CHORDS page: Progression, Voicing, Key
-    clap_id ids[3];
-    inst.screen->knobs (inst.plugin, ids);
+    uint32_t ids[3];
+    inst.screen->controls (inst.plugin, ids);
     CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
     // a chord sounding, then each page drawn
     inst.render (24000, { On (0, 36), On (0, 44) });
     static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
     for (int p = 0; p < 6; ++p)
     {
-        c.now_ms += 100;
-        c.whole = true;
-        CHECK (inst.screen->paint (inst.plugin, &c));
+        c.time_ms += 100;
+        c.redraw_all = 1;
+        CHECK (inst.screen->draw (inst.plugin, &c));
         writePng ((outDir + "/screen-" + names[p] + ".png").c_str(), px.data(), 320, 218, stride, 2);
         // An animated partial repaint must produce exactly the complete picture, including panel edges.
         inst.render (1920);
-        c.now_ms += 40;
-        c.whole = false;
-        inst.screen->paint (inst.plugin, &c);
+        c.time_ms += 40;
+        c.redraw_all = 0;
+        inst.screen->draw (inst.plugin, &c);
         const auto incremental = px;
         std::fill (px.begin(), px.end(), guard);
-        c.whole = true;
-        CHECK (inst.screen->paint (inst.plugin, &c));
+        c.redraw_all = 1;
+        CHECK (inst.screen->draw (inst.plugin, &c));
         CHECK (incremental == px);
         bool complete = true;
         for (int y = 0; y < 218; ++y)
@@ -1492,15 +1492,15 @@ void testScreen()
         CHECK (complete);
         if (p == 1)
         {
-            inst.screen->knobs (inst.plugin, ids);
+            inst.screen->controls (inst.plugin, ids);
             CHECK (ids[0] == ParamId::motionX && ids[1] == ParamId::motionY && ids[2] == ParamId::motionDepth);
         }
-        melodee_screen_input_t next { MELODEE_SCREEN_NUDGE, 1, false };
+        melodee_screen_input_t next { MELODEE_SCREEN_STEP, 1, 0 };
         CHECK (inst.screen->input (inst.plugin, &next));
         inst.render (128);
     }
     // back on CHORDS: the wheel moves to KEY, Push edits it, the wheel turns it, and the host hears of it
-    melodee_screen_input_t wheel { MELODEE_SCREEN_WHEEL, 1, false }, push { MELODEE_SCREEN_PUSH, 0, false };
+    melodee_screen_input_t wheel { MELODEE_SCREEN_WHEEL, 1, 0 }, push { MELODEE_SCREEN_PUSH, 0, 0 };
     CHECK (inst.screen->input (inst.plugin, &wheel));
     CHECK (inst.screen->input (inst.plugin, &wheel));
     CHECK (inst.screen->input (inst.plugin, &push));
@@ -1516,19 +1516,19 @@ void testScreen()
     CHECK (inst.screen->input (inst.plugin, &push)); // done
     // Push on a switch (LATCH) flips it
     for (int i = 0; i < 6; ++i) inst.screen->input (inst.plugin, &wheel);
-    inst.screen->knobs (inst.plugin, ids);
+    inst.screen->controls (inst.plugin, ids);
     CHECK (ids[0] == ParamId::latch);
     CHECK (inst.screen->input (inst.plugin, &push));
     CHECK_NEAR (inst.value (ParamId::latch), 1, 0);
     // Shift draws the legend
-    c.shift = true;
-    c.now_ms += 100;
-    CHECK (inst.screen->paint (inst.plugin, &c));
+    c.shift = 1;
+    c.time_ms += 100;
+    CHECK (inst.screen->draw (inst.plugin, &c));
     writePng ((outDir + "/screen-legend.png").c_str(), px.data(), 320, 218, stride, 2);
     // a bad canvas is refused
-    melodee_screen_canvas_t bad = c;
+    melodee_screen_frame_t bad = c;
     bad.width = 100;
-    CHECK (! inst.screen->paint (inst.plugin, &bad));
+    CHECK (! inst.screen->draw (inst.plugin, &bad));
 }
 } // namespace
 
