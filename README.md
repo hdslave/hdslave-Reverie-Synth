@@ -401,6 +401,61 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ![The OSC page: Velvet Saw and Choir at their positions](docs/reverie-osc.png)
 
+## SP-16
+
+The SP-16 build uses the `org.sixteen.screen/1` extension on freesp16's
+`feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
+host's track header and its six-encoder strip on the 800 × 480 display.
+
+In the track menu, choose **TRACK TYPE → PLUGIN → SELECT PLUGIN → hdslave
+Reverie → OPEN UI**. Tap a page or one of its named banks. Turning the selector
+steps through banks. Pressing it advances to the next page.
+
+| Page | Banks |
+| --- | --- |
+| Chords | Progression, Feel |
+| Motion | Path, Clock, X Routes, Y Routes |
+| Osc | Morph, Osc 1, Osc 2, Voice |
+| Filter | Response, Envelope |
+| Amp | Envelope (with output volume), LFO |
+| FX | Ensemble / Delay, Reverb |
+
+Touch and hold a chord or lift to audition it. The pad goes amber and the
+keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
+**SOUNDS** opens all 20 factory sounds inside Reverie. Choosing a sound keeps the
+progression, key, voicing and other chord settings. On a sound change old chord
+gates release and their effects can ring out. A short output fade smooths the
+change. Play the pad again to hear the new sound.
+
+Use freesp16's **SCALE** pad mode with Chromatic, Key Shift 0 and the default
+window to play Reverie from the physical pads. This sends notes 60–75. Each
+physical pad plays the onscreen chord or lift with the same number and the same
+octave. Direct CLAP notes 36–51 also address chords 1–8 and lifts 1–8 at their
+programmed octave. In standard Play mode the physical pads play their corresponding tracks.
+
+### Build and check the SP-16 CLAP
+
+Generate the art on the Mac and run `make sp16` in the freesp16 toolchain
+image. The voicing generator uses the MPC build's AArch64 flags to preserve
+the table across the two builds.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 uv run --script tools/bake_sp16_art.py
+docker --context colima run --rm -v "$PWD:/work" -w /work --ulimit stack=268435456 \
+    sp16-toolchain:gcc11-egl sh -ec '
+        make sp16 build/sp16-test-arm
+        sp16-check-glibc build/Reverie-sp16.clap
+        qemu-arm -cpu cortex-a9 -L /opt/sp16/sysroot build/sp16-test-arm build/Reverie-sp16.clap
+    '
+```
+
+The build output is `build/Reverie-sp16.clap`. The filename on a freesp16 USB
+stick can be `freesp16-data/freesp16/Plugins/Reverie.clap`. The ARMv7
+candidate passed the screen and audio smoke test under QEMU and the glibc
+2.13 check. freesp16's Linux host opened the native preview build on
+`40747ce` and exercised the touchscreen, encoders and sound selection. Unit
+playback and real-time CPU load remain unverified.
+
 ## Sounds
 
 Twenty, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord

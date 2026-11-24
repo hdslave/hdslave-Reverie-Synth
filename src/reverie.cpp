@@ -6,6 +6,9 @@
 #include "params.h"
 #include "presets.h"
 #include "screen.h"
+#ifdef REVERIE_SP16
+#include "screen_sp16.h"
+#endif
 
 #include <clap/clap.h>
 
@@ -63,6 +66,66 @@ struct RowBits
     void clear() { for (auto& w : word) w.store (0, std::memory_order_relaxed); }
 };
 
+#ifdef REVERIE_SP16
+// One touch can be held. Preserve a strike even if its release arrives before the next audio block.
+constexpr uint32_t auditionHeld = 1u << 8, auditionStrike = 1u << 9, auditionSlotMask = 0xffu;
+
+// A sound can change oscillator or filter settings abruptly while the old
+// release and effects tails still ring. Match the previous output at the
+// boundary, then remove the correction over three milliseconds.
+struct PresetFade
+{
+    void prepare (double rate)
+    {
+        length = static_cast<uint32_t> (rate * 0.003);
+        reset();
+    }
+
+    void reset()
+    {
+        lastL = lastR = 0.0f;
+        remaining = 0;
+        starting = false;
+    }
+
+    void begin() { starting = true; }
+    bool active() const { return starting || remaining != 0; }
+
+    void apply (float* left, float* right, uint32_t frames)
+    {
+        if (frames == 0) return;
+        if (starting)
+        {
+            remaining = std::max (std::abs (lastL), std::abs (lastR)) > 1.0e-5f ? length : 0;
+            offsetL = lastL - left[0];
+            offsetR = lastR - right[0];
+            starting = false;
+        }
+        const uint32_t n = std::min (frames, remaining);
+        if (n != 0)
+        {
+            const float inverse = 1.0f / static_cast<float> (length);
+            for (uint32_t i = 0; i < n; ++i, --remaining)
+            {
+                const float t = static_cast<float> (remaining) * inverse;
+                const float gain = t * t * (3.0f - 2.0f * t);
+                left[i] = std::clamp (left[i] + offsetL * gain, -1.0f, 1.0f);
+                right[i] = std::clamp (right[i] + offsetR * gain, -1.0f, 1.0f);
+            }
+        }
+        lastL = left[frames - 1];
+        lastR = right[frames - 1];
+    }
+
+private:
+    float lastL = 0.0f, lastR = 0.0f, offsetL = 0.0f, offsetR = 0.0f;
+    uint32_t length = 0, remaining = 0;
+    bool starting = false;
+};
+#endif
+
+enum MainChange : uint32_t { valuesChanged = 1, releasePresetNotes = 2 };
+
 struct Plugin
 {
     Plugin() { for (auto& id : noteIdByKey) id = -1; }
@@ -71,7 +134,7 @@ struct Plugin
     // Every parameter's value. The audio thread writes it from events; the main thread reads it, and writes it when a
     // state or a sound is loaded or the page edits. The engine notices those at the next block.
     std::atomic<float> values[paramCount];
-    std::atomic<bool> mainChanged { false };
+    std::atomic<uint32_t> mainChanges { 0 };
     // The Key's text follows the progression's mode (Db in a major one, C# in a minor one): set when the host moved
     // the progression to the other mode, so the main thread tells the host to read the text again.
     std::atomic<bool> keyTextMoved { false };
@@ -83,6 +146,16 @@ struct Plugin
     const clap_host_params* hostParams = nullptr;
     const melodee_screen_host_t* hostScreen = nullptr;
     Screen screen { values, telemetry };
+#ifdef REVERIE_SP16
+    Sp16Screen sp16Screen { values, telemetry, screen };
+    std::atomic<uint32_t> audition { 0 }, auditionHeartbeat { 0 };
+    // The host calls on_close when unloading the CLAP. A screen navigation can
+    // instead stop rendering without a touch-up, so a held chord needs a timeout.
+    uint32_t auditionTimeout = 0;
+    uint32_t auditionFrames = 0, seenAuditionHeartbeat = 0; // audio thread
+    int auditionKey = -1;
+    PresetFade presetFade;
+#endif
     RowBits outgoing;
     bool valuesMoved = false;
     uint32_t shownStrikes = 0, shownSounding = 0, shownHeld = 0;
@@ -221,6 +294,8 @@ int keyOf (Plugin& p, const clap_event_note& n, bool forget)
 {
     if (n.key >= 0 && n.key < 128)
     {
+        if (n.note_id >= 0 && p.noteIdByKey[n.key] != n.note_id)
+            return -2;
         if (forget) p.noteIdByKey[n.key] = -1; // let go by key: its id must not name a later strike of the pad
         return n.key;
     }
@@ -357,13 +432,13 @@ bool readAll (const clap_istream* s, void* data, uint64_t size)
 
 // Every value at once, from the main thread (a state or a sound loaded). Edits the page still had to tell are
 // dropped: the loaded values win.
-void setAll (Plugin& p, const float* values)
+void setAll (Plugin& p, const float* values, uint32_t changes = valuesChanged)
 {
     const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
     p.outgoing.clear();
     for (int i = 0; i < paramCount; ++i)
         p.values[i].store (values[i], std::memory_order_relaxed);
-    p.mainChanged.store (true, std::memory_order_release);
+    p.mainChanges.fetch_or (changes, std::memory_order_release);
     if (! p.active)
         for (int i = 0; i < paramCount; ++i)
             p.applied[i] = values[i], p.engine.set ((uint32_t) i, values[i]);
@@ -430,7 +505,15 @@ bool presetFromLocation (const clap_plugin* plugin, uint32_t kind, const char*, 
     float values[paramCount];
     for (int i = 0; i < paramCount; ++i) values[i] = p.values[i].load (std::memory_order_relaxed);
     presetValuesOf (*preset, values);
+#ifdef REVERIE_SP16
+    // End the old sound's gates even when the host has yet to deliver the pad release.
+    p.audition.store (0, std::memory_order_relaxed);
+    setAll (p, values, valuesChanged | releasePresetNotes);
+    if (p.host->request_process != nullptr)
+        p.host->request_process (p.host);
+#else
     setAll (p, values);
+#endif
     if (p.hostParams != nullptr && p.hostParams->rescan != nullptr)
         p.hostParams->rescan (p.host, CLAP_PARAM_RESCAN_VALUES);
     if (hostPresets != nullptr && hostPresets->loaded != nullptr)
@@ -507,9 +590,15 @@ bool pluginActivate (const clap_plugin* plugin, double rate, uint32_t, uint32_t 
         p.applied[i] = v;
         p.engine.set ((uint32_t) i, v);
     }
-    p.mainChanged.store (false, std::memory_order_relaxed);
+    p.mainChanges.store (0, std::memory_order_relaxed);
     p.spare.assign (std::max<uint32_t> (maxFrames, 1) + 16, 0.0f);
     p.engine.prepare (rate);
+#ifdef REVERIE_SP16
+    p.auditionTimeout = static_cast<uint32_t> (rate * 0.75);
+    p.presetFade.prepare (rate);
+    p.auditionFrames = 0;
+    p.auditionKey = -1;
+#endif
     p.active = true;
     return true;
 }
@@ -527,6 +616,12 @@ void pluginReset (const clap_plugin* plugin)
     auto& p = of (plugin);
     for (auto& id : p.noteIdByKey) id = -1; // no note survives a reset, so no id may name a later one
     p.engine.reset();
+#ifdef REVERIE_SP16
+    p.audition.store (0, std::memory_order_relaxed);
+    p.auditionKey = -1;
+    p.auditionFrames = 0;
+    p.presetFade.reset();
+#endif
 }
 
 // Denormals: flushed to zero for the block (filters, envelopes and reverb tails decay into them).
@@ -536,12 +631,45 @@ struct FlushDenormals
     uint64_t saved;
     FlushDenormals() { asm volatile ("mrs %0, fpcr" : "=r"(saved)); asm volatile ("msr fpcr, %0" ::"r"(saved | (1ull << 24))); }
     ~FlushDenormals() { asm volatile ("msr fpcr, %0" ::"r"(saved)); }
+#elif defined(__arm__) && defined(REVERIE_SP16)
+    uint32_t saved;
+    FlushDenormals() { asm volatile ("vmrs %0, fpscr" : "=r"(saved)); asm volatile ("vmsr fpscr, %0" ::"r"(saved | (1u << 24))); }
+    ~FlushDenormals() { asm volatile ("vmsr fpscr, %0" ::"r"(saved)); }
 #elif defined(__SSE__)
     unsigned saved;
     FlushDenormals() { saved = __builtin_ia32_stmxcsr(); __builtin_ia32_ldmxcsr (saved | 0x8040); }
     ~FlushDenormals() { __builtin_ia32_ldmxcsr (saved); }
 #endif
 };
+
+#ifdef REVERIE_SP16
+void playAudition (Plugin& p, uint32_t frames)
+{
+    uint32_t touch = p.audition.load (std::memory_order_acquire);
+    if (touch & auditionStrike)
+        touch = p.audition.fetch_and (~auditionStrike, std::memory_order_acq_rel);
+    const bool strike = (touch & auditionStrike) != 0;
+    if (! strike && p.auditionKey < 0)
+        return;
+    const uint32_t heartbeat = p.auditionHeartbeat.load (std::memory_order_relaxed);
+    if (strike || heartbeat != p.seenAuditionHeartbeat)
+    {
+        p.seenAuditionHeartbeat = heartbeat;
+        p.auditionFrames = 0;
+    }
+    if (p.auditionKey >= 0 && (strike || (touch & auditionHeld) == 0 || p.auditionFrames >= p.auditionTimeout))
+    {
+        p.engine.noteOff (p.auditionKey);
+        p.auditionKey = -1;
+    }
+    if (strike)
+    {
+        p.auditionKey = auditionKeyBase + int (touch & auditionSlotMask);
+        p.engine.noteOn (p.auditionKey, 0.8f);
+    }
+    p.auditionFrames += frames;
+}
+#endif
 
 clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process* process)
 {
@@ -566,7 +694,17 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
         p.engine.transport (playing && placed, placed ? (double) t->song_pos_beats / (double) CLAP_BEATTIME_FACTOR : 0.0,
                             tempo ? std::min (std::max (t->tempo, 20.0), 999.0) : 120.0);
     }
-    if (p.mainChanged.exchange (false, std::memory_order_acquire))
+    const uint32_t changes = p.mainChanges.exchange (0, std::memory_order_acquire);
+#ifdef REVERIE_SP16
+    if (changes & releasePresetNotes)
+    {
+        p.engine.allNotesOff();
+        std::fill (std::begin (p.noteIdByKey), std::end (p.noteIdByKey), -1);
+        p.auditionKey = -1;
+        p.presetFade.begin();
+    }
+#endif
+    if (changes & valuesChanged)
         for (int i = 0; i < paramCount; ++i)
         {
             const float v = p.values[i].load (std::memory_order_relaxed);
@@ -585,13 +723,25 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
         const uint32_t time = std::min (e->time, frames);
         if (time > at)
         {
+#ifdef REVERIE_SP16
+            if (at == 0) playAudition (p, frames);
+#endif
             p.engine.render (left + at, right + at, time - at);
             at = time;
         }
         handle (p, e);
     }
     if (at < frames)
+    {
+#ifdef REVERIE_SP16
+        if (at == 0) playAudition (p, frames);
+#endif
         p.engine.render (left + at, right + at, frames - at);
+    }
+
+#ifdef REVERIE_SP16
+    p.presetFade.apply (left, right, frames);
+#endif
 
     // The page: a chord struck, notes starting or ending, or a value the host moved; it paces its own animation.
     const uint32_t strikes = p.telemetry.strikes.load (std::memory_order_relaxed);
@@ -603,6 +753,10 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
         requestPaint (p);
     }
     p.valuesMoved = false;
+#ifdef REVERIE_SP16
+    if (p.presetFade.active())
+        return CLAP_PROCESS_CONTINUE;
+#endif
     return p.engine.quiet() && count == 0 ? CLAP_PROCESS_SLEEP : CLAP_PROCESS_CONTINUE;
 }
 
@@ -635,13 +789,8 @@ bool screenDraw (const void* plugin, const melodee_screen_frame_t* f)
     return drew;
 }
 
-bool screenInput (const void* plugin, const melodee_screen_input_t* e)
+bool applyScreenEdits (Plugin& p, const hdui::Edits& edits)
 {
-    if (plugin == nullptr || e == nullptr || e->kind > MELODEE_SCREEN_STEP)
-        return false;
-    auto& p = of (static_cast<const clap_plugin*> (plugin));
-    hdui::Edits edits;
-    const bool used = p.screen.input ((hdui::Key) e->kind, e->value, e->shift != 0, edits);
     const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
     bool changed = false;
     for (int i = 0; i < edits.count; ++i)
@@ -650,9 +799,12 @@ bool screenInput (const void* plugin, const melodee_screen_input_t* e)
         const int index = paramIndex (edit.id);
         if (index < 0)
             continue;
-        p.values[index].store (clampParam (paramTable[index], edit.value), std::memory_order_relaxed);
+        const float value = clampParam (paramTable[index], edit.value);
+        if (p.values[index].load (std::memory_order_relaxed) == value)
+            continue;
+        p.values[index].store (value, std::memory_order_relaxed);
         p.outgoing.set ((uint32_t) index);
-        p.mainChanged.store (true, std::memory_order_release);
+        p.mainChanges.fetch_or (valuesChanged, std::memory_order_release);
         if (! p.active)
             p.applied[index] = p.values[index].load (std::memory_order_relaxed), p.engine.set ((uint32_t) index, p.applied[index]);
         changed = true;
@@ -665,6 +817,17 @@ bool screenInput (const void* plugin, const melodee_screen_input_t* e)
         if (p.hostParams->request_flush != nullptr)
             p.hostParams->request_flush (p.host);
     }
+    return changed;
+}
+
+bool screenInput (const void* plugin, const melodee_screen_input_t* e)
+{
+    if (plugin == nullptr || e == nullptr || e->kind > MELODEE_SCREEN_STEP)
+        return false;
+    auto& p = of (static_cast<const clap_plugin*> (plugin));
+    hdui::Edits edits;
+    const bool used = p.screen.input ((hdui::Key) e->kind, e->value, e->shift != 0, edits);
+    const bool changed = applyScreenEdits (p, edits);
     if (changed && p.host != nullptr && p.host->request_process != nullptr)
         p.host->request_process (p.host);
     if (used)
@@ -684,8 +847,82 @@ void screenControls (const void* plugin, uint32_t ids[3])
 
 const melodee_screen_t screenExtension { screenDraw, screenInput, screenControls };
 
+#ifdef REVERIE_SP16
+void wakeSp16 (Plugin& p)
+{
+    if (p.host->request_process != nullptr)
+        p.host->request_process (p.host);
+}
+
+void sp16Close (const void* plugin)
+{
+    auto& p = of (static_cast<const clap_plugin*> (plugin));
+    p.sp16Screen.close();
+    if (p.audition.exchange (0, std::memory_order_acq_rel) != 0)
+        wakeSp16 (p);
+}
+
+bool sp16Render (const void* plugin, const sixteen_screen_surface_t* surface, bool full)
+{
+    if (plugin == nullptr || surface == nullptr)
+        return false;
+    auto& p = of (static_cast<const clap_plugin*> (plugin));
+    if (p.audition.load (std::memory_order_relaxed) & auditionHeld)
+        p.auditionHeartbeat.fetch_add (1, std::memory_order_relaxed);
+    return p.sp16Screen.render (*surface, full);
+}
+
+void loadSp16Sound (const clap_plugin* plugin, int sound)
+{
+    if (sound >= 0)
+        presetFromLocation (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, presetTable[sound].key);
+}
+
+bool sp16Touch (const void* plugin, int32_t phase, int32_t x, int32_t y)
+{
+    if (phase < SIXTEEN_TOUCH_DOWN || phase > SIXTEEN_TOUCH_UP)
+        return false;
+    auto& p = of (static_cast<const clap_plugin*> (plugin));
+    const auto touch = p.sp16Screen.touch (phase, x, y);
+    loadSp16Sound (static_cast<const clap_plugin*> (plugin), touch.sound);
+    if (touch.pad >= 0)
+        p.audition.store (auditionHeld | auditionStrike | uint32_t (touch.pad), std::memory_order_release);
+    else if (touch.release)
+        p.audition.fetch_and (~auditionHeld, std::memory_order_release);
+    const bool edited = applyScreenEdits (p, touch.edits);
+    if (touch.pad >= 0 || touch.release || edited)
+        wakeSp16 (p);
+    return touch.used;
+}
+
+bool sp16Turn (const void* plugin, int32_t delta)
+{
+    return of (static_cast<const clap_plugin*> (plugin)).sp16Screen.turn (delta);
+}
+
+bool sp16Push (const void* plugin)
+{
+    const auto* clap = static_cast<const clap_plugin*> (plugin);
+    loadSp16Sound (clap, of (clap).sp16Screen.push());
+    return true;
+}
+
+bool sp16Knobs (const void* plugin, uint32_t ids[6], char label[SIXTEEN_TAB_NAME_SIZE])
+{
+    if (plugin == nullptr || ids == nullptr || label == nullptr)
+        return false;
+    of (static_cast<const clap_plugin*> (plugin)).sp16Screen.knobs (ids, label);
+    return true;
+}
+
+const sixteen_plugin_screen_t sp16Extension { nullptr, sp16Close, sp16Render, sp16Touch, sp16Turn, sp16Push, sp16Knobs };
+#endif
+
 const void* pluginExtension (const clap_plugin*, const char* id)
 {
+#ifdef REVERIE_SP16
+    if (std::strcmp (id, SIXTEEN_EXT_SCREEN) == 0) return &sp16Extension;
+#endif
     if (std::strcmp (id, MELODEE_SCREEN_CLAP) == 0) return &screenExtension;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &paramsExtension;
     if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &stateExtension;

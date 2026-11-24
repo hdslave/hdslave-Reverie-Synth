@@ -449,10 +449,18 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
     }();
     for (int j = 0; j < gh; ++j)
         std::copy_n (lens.data() + j * gw, gw, r.px + (y0 + j) * r.w + x0);
-    auto px = [&] (float v) { return x0 + w / 2 + (int) std::lround (v * 45); };
-    auto py = [&] (float v) { return y0 + 53 - (int) std::lround (v * 45); };
-    const float cx = live (ParamId::motionX), cy = live (ParamId::motionY);
     const int shape = choice (ParamId::motionShape);
+    motionTrace (r, x0 + w / 2, y0 + 53, 45, shape, sounding);
+    r.text (x0 + 5, y0 + h - 15, motionChoices[std::clamp (shape, 0, Motion::count - 1)], ink::white);
+    r.right (x0 + w - 5, y0 + h - 14, "X / Y", ink::ice, 10);
+}
+
+void Screen::motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding) const
+{
+    using namespace hdui;
+    auto px = [&] (float v) { return centerX + (int) std::lround (v * radius); };
+    auto py = [&] (float v) { return centerY - (int) std::lround (v * radius); };
+    const float cx = live (ParamId::motionX), cy = live (ParamId::motionY);
     const float depth = shape == Motion::off ? 0.0f : live (ParamId::motionDepth);
     if (depth > 0.0f)
     {
@@ -482,8 +490,6 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
             r.disc (x, y, 3, mix (ink::field, c, (int) (90 + 160 * lv)));
             r.dot (x - 1, y - 1, ink::white);
         }
-    r.text (x0 + 5, y0 + h - 15, motionChoices[std::clamp (shape, 0, Motion::count - 1)], ink::white);
-    r.right (x0 + w - 5, y0 + h - 14, "X / Y", ink::ice, 10);
 }
 
 void Screen::well (const Raster& r, int x, int y, int w, int h)
@@ -496,10 +502,10 @@ void Screen::well (const Raster& r, int x, int y, int w, int h)
 }
 
 // An oscillator's wave where its Position is now (the newest note's, else the knob's).
-void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
+void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o, bool drawWell) const
 {
     using namespace hdui;
-    well (r, x0, y0, w, h);
+    if (drawWell) well (r, x0, y0, w, h);
     r.box (x0, y0 + h / 2, w, 1, ink::grid);
     r.text (x0 + 4, y0 + 1, o == 0 ? "OSC 1" : "OSC 2", ink::ice, 10);
     x0 += 32;
@@ -531,10 +537,10 @@ void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
 }
 
 // The filter's response, 20 Hz to 20 kHz, -36 to +18 dB; the newest note's cutoff marked.
-void Screen::response (const Raster& r, int x0, int y0, int w, int h) const
+void Screen::response (const Raster& r, int x0, int y0, int w, int h, bool drawWell) const
 {
     using namespace hdui;
-    well (r, x0, y0, w, h);
+    if (drawWell) well (r, x0, y0, w, h);
     x0 += 2; y0 += 3; w -= 4; h -= 17;
     const int type = choice (ParamId::filterType);
     const float fc = cutoffHz (live (ParamId::cutoff));
@@ -577,10 +583,10 @@ void Screen::response (const Raster& r, int x0, int y0, int w, int h) const
 }
 
 // An ADSR from the four ids from `first`, with where the newest note is.
-void Screen::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const
+void Screen::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding, bool drawWell) const
 {
     using namespace hdui;
-    well (r, x0, y0, w, h);
+    if (drawWell) well (r, x0, y0, w, h);
     const float a = envMs (live (first)), d = envMs (live (first + 1)), s = live (first + 2), rl = envMs (live (first + 3));
     constexpr float holdMs = 500.f;
     const float total = a + d + holdMs + rl;
@@ -616,10 +622,10 @@ void Screen::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t f
     r.disc (x4, sy, 2, c);
 }
 
-void Screen::lfoPicture (const Raster& r, int x0, int y0, int w, int h) const
+void Screen::lfoPicture (const Raster& r, int x0, int y0, int w, int h, bool drawWell) const
 {
     using namespace hdui;
-    well (r, x0, y0, w, h);
+    if (drawWell) well (r, x0, y0, w, h);
     r.box (x0, y0 + h / 2, w, 1, ink::grid);
     const int shape = choice (ParamId::lfoShape);
     // Show two cycles (at least a second) with the delay on the same time axis.

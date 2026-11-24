@@ -76,3 +76,27 @@ bench: $(OUT)/bench
 
 clean:
 	rm -rf $(OUT)
+
+# SP-16 uses the MPC voicing table and a separate six-encoder screen. Run the
+# art generator on the build machine before making either SP-16 target.
+SP16_CXX ?= arm-linux-gnueabi-g++
+SP16_OPT := -O3 -march=armv7-a -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp -ffp-contract=fast -fno-math-errno -fno-trapping-math
+SP16_SOURCES := $(PLUGIN_SOURCES) src/screen_sp16.cpp
+SP16_FLAGS := -DREVERIE_SP16 -ffunction-sections -fdata-sections
+SP16_DEPS := $(SP16_SOURCES) $(HEADERS) $(OUT)/sp16_art.h src/exports.map Makefile
+
+.PHONY: sp16 sp16-preview
+sp16: $(OUT)/Reverie-sp16.clap
+sp16-preview: $(OUT)/Reverie-sp16-preview.clap
+
+$(OUT)/Reverie-sp16.clap: $(SP16_DEPS)
+	$(SP16_CXX) $(BASE) $(SP16_OPT) $(WARN) $(SP16_FLAGS) $(SP16_SOURCES) $(LDFLAGS) -o $@
+
+$(OUT)/Reverie-sp16-preview.clap: $(SP16_DEPS)
+	$(CXX) $(CXXFLAGS) $(WARN) $(SP16_FLAGS) $(SP16_SOURCES) $(LDFLAGS) -o $@
+
+$(OUT)/sp16-test: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/params.h Makefile
+	$(CXX) -std=c++17 -O2 $(WARN) -Ithird_party/clap/include -Isrc $< -ldl -o $@
+
+$(OUT)/sp16-test-arm: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/params.h Makefile
+	$(SP16_CXX) -std=c++17 -O2 $(WARN) -march=armv7-a -Ithird_party/clap/include -Isrc $< -static-libstdc++ -static-libgcc -ldl -o $@

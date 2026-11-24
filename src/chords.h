@@ -598,8 +598,22 @@ inline void voiceProgression (int progression, int voicing, int key, VoicingSet&
 // Which pad slot a key plays, and how far it moves it: pads A01-A16 (keys 36-51) the sixteen; the banks above and
 // below the same sixteen, an octave up a bank (at most two).
 struct PadKey { int slot; int shift; };
+#ifdef REVERIE_SP16
+// UI audition keys have the same pitches as MIDI bank A, with separate note ownership.
+constexpr int auditionKeyBase = 128;
+// freesp16 sends chromatic SCALE pads 1–16 as notes 60–75 at the default key and window.
+constexpr int sp16PadKeyBase = 60;
+constexpr int noteKeyCount = auditionKeyBase + padSlots;
+#else
+constexpr int noteKeyCount = 128;
+#endif
 inline PadKey padOf (int key)
 {
+#ifdef REVERIE_SP16
+    if (key >= auditionKeyBase) return { key - auditionKeyBase, 0 };
+    if (key >= sp16PadKeyBase && key < sp16PadKeyBase + padSlots)
+        return { key - sp16PadKeyBase, 0 };
+#endif
     const int from = key - 36;
     const int bank = from >= 0 ? from / padSlots : -((-from + padSlots - 1) / padSlots);
     return { from - bank * padSlots, 12 * std::clamp (bank, -2, 2) };

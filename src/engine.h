@@ -215,10 +215,16 @@ public:
     // --- Notes ------------------------------------------------------------------------------------------------------
     void noteOn (int key, float velocity)
     {
-        if (key < 0 || key > 127) return;
+        if (key < 0 || key >= noteKeyCount) return;
         velocity = std::clamp (velocity, 0.0f, 1.0f);
-        const int slideFrom = portamentoFrom; // a tie or slide (CC 84 named the held pad), spent on this note
+#ifdef REVERIE_SP16
+        // A touchscreen strike must leave an incoming MIDI tie for the next MIDI note.
+        const int slideFrom = key < auditionKeyBase ? portamentoFrom : -1;
+        if (key < auditionKeyBase) portamentoFrom = -1;
+#else
+        const int slideFrom = portamentoFrom; // CC 84 named the held pad for the next note
         portamentoFrom = -1;
+#endif
         // Asleep (or woken on this sample, nothing yet heard), a value sent with the note is the note's from its
         // first sample: no glide in from the one before.
         if ((dirty || smoothing) && ((! fxAwake && activeCount == 0) || wokeAt == now))
@@ -349,7 +355,7 @@ public:
             allNotesOff();
             return;
         }
-        if (key > 127) return;
+        if (key >= noteKeyCount) return;
         forgetStrike (key); // an off between two strikes on one sample is no same-sample duplicate
         keyDown[key] = false;
         releaseKey (key, false);
@@ -362,7 +368,7 @@ public:
         for (auto& v : voices)
             if (v.active && (key < 0 || v.key == key)) v.chokeNow();
         if (key < 0) std::fill (std::begin (keyDown), std::end (keyDown), false);
-        else if (key < 128) keyDown[key] = false;
+        else if (key < noteKeyCount) keyDown[key] = false;
     }
 
     // All Sound Off (CC 120): every voice choked and the effects' tails gone. The effects' resets do no work on their
@@ -552,7 +558,7 @@ private:
     uint64_t hostAt = 0;
     bool songPlaying = false;
     uint32_t groups = 0;
-    bool keyDown[128] {};
+    bool keyDown[noteKeyCount] {};
     bool sustain = false, legatoPedal = false; // CC 64 and CC 68
     int portamentoFrom = -1;                   // CC 84's pad, for the next strike
     float bend = 0.0f, wheel = 0.0f;
@@ -775,7 +781,7 @@ private:
                 if (v.active && v.latched)
                 {
                     v.latched = false;
-                    if (! (v.key >= 0 && v.key < 128 && keyDown[v.key])) v.releaseNow();
+                    if (! (v.key >= 0 && v.key < noteKeyCount && keyDown[v.key])) v.releaseNow();
                 }
         newestVoice = nullptr;
         for (const auto& v : voices)

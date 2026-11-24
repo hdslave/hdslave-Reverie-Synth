@@ -52,6 +52,7 @@ public:
     bool paint (const Host& h, uint32_t* pixels, int stride, bool whole);
 
 private:
+    friend class Sp16Screen;
     static constexpr int headH = 59, bodyH = 124, dockH = hdui::height - headH - bodyH;
 
     // --- Layout -----------------------------------------------------------------------------------------------------
@@ -74,11 +75,12 @@ private:
     void padGrid (const Raster& r, uint32_t held) const;
     void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
     void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
+    void motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding) const;
     static void well (const Raster& r, int x, int y, int w, int h);
-    void scope (const Raster& r, int x0, int y0, int w, int h, int o) const;
-    void response (const Raster& r, int x0, int y0, int w, int h) const;
-    void envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const;
-    void lfoPicture (const Raster& r, int x0, int y0, int w, int h) const;
+    void scope (const Raster& r, int x0, int y0, int w, int h, int o, bool drawWell = true) const;
+    void response (const Raster& r, int x0, int y0, int w, int h, bool drawWell = true) const;
+    void envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding, bool drawWell = true) const;
+    void lfoPicture (const Raster& r, int x0, int y0, int w, int h, bool drawWell = true) const;
     void outputMeter (const Raster& r, int x, int y) const;
     static void knob (const Raster& r, int x, int y, float unit, Ink trackColor);
     void dock (const Raster& r, const Host& h) const;
