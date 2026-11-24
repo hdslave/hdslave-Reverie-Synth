@@ -160,6 +160,7 @@ LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (gui && gui->plugin && gui->plugin->ui)
         {
             SetFocus (hwnd);
+            SetCapture (hwnd);
             const float lx = float (GET_X_LPARAM (lParam)) / float (gui->scale);
             const float ly = float (GET_Y_LPARAM (lParam)) / float (gui->scale);
             gui->plugin->ui->mouseDown (lx, ly, 1, currentMods(), 1);
@@ -192,13 +193,14 @@ LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         return 0;
 
+    case WM_RBUTTONUP:
     case WM_LBUTTONUP:
         if (gui && gui->plugin && gui->plugin->ui)
         {
             ReleaseCapture();
             const float lx = float (GET_X_LPARAM (lParam)) / float (gui->scale);
             const float ly = float (GET_Y_LPARAM (lParam)) / float (gui->scale);
-            gui->plugin->ui->mouseUp (lx, ly, 0, currentMods());
+            gui->plugin->ui->mouseUp (lx, ly, msg == WM_RBUTTONUP ? 1 : 0, currentMods());
             syncAndPump (gui);
         }
         return 0;

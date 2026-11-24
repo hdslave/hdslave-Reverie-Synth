@@ -8,7 +8,7 @@
 #include <vector>
 
 #define HDSLAVE_DESKTOP_SHELL 1
-#include "hdslave_tiles.h"
+#include "hdslave_surface.h"
 #include "plugin_theme.h"
 
 namespace hdslave_desktop
@@ -113,13 +113,14 @@ struct DesktopPlugin
     std::atomic<bool> pendingStateDirty { false };
     bool inInternalPresetLoad = false;
     bool inScreenInput = false;
-    clap_id openGestureParamId = CLAP_INVALID_ID;
+    std::vector<uint8_t> openGestures; // one host automation gesture per parameter, including both X/Y axes
 
     const clap_plugin_t* inner = nullptr;
     const clap_plugin_params_t* innerParams = nullptr;
     const clap_plugin_state_t* innerState = nullptr;
     const clap_plugin_preset_load_t* innerPresetLoad = nullptr;
     const melodee_screen_t* innerScreen = nullptr;
+    const clap_plugin_hdslave_surface_t* surface = nullptr;
     const clap_plugin_hdslave_tiles_t* innerTiles = nullptr;
 
     // The real host's extensions, always called with realHost.

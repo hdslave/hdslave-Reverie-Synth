@@ -1,6 +1,3 @@
-// The desktop panel: displays all of the plug-in's live 320x218 MPC screens simultaneously on one unified hardware
-// dashboard, with direct mouse, trackpad, and touch control over every parameter cell, row, bar, K1-K3 card, step
-// sequencer lane, pad, 2D X/Y field, 3D cube, rhythm wheel, and punch-card bit.
 #pragma once
 
 #include "desktop_wrapper.h"
@@ -49,6 +46,7 @@ class PanelUI
 {
 public:
     explicit PanelUI (DesktopPlugin* plugin);
+    ~PanelUI();
 
     void setSize (int w, int h, int scale);
     Rect update (uint64_t now);
@@ -69,6 +67,7 @@ public:
     void wheel (float x, float y, float dx, float dy, bool precise, uint32_t mods);
     void rotate (float x, float y, float degrees);
     void mouseExit();
+    void cancelInput();
     bool key (int k);
 
     double lastRenderMs() const { return lastRenderMs_; }
@@ -91,12 +90,24 @@ private:
     int focusedTile_ = 0;
     int zoomedTile_ = -1; // -1 = show all MPC screens at once; 0..N-1 = zoomed single screen
 
+    // One viewport for an integrated surface, or one per page for older instruments.
+    std::vector<uint32_t> surfacePixels_;
     void layout();
+    void layoutSurface();
+    void drawSurface();
+    void drawHighlight (int tileIdx);
+    std::string presetLabel() const;
+    int nativeWidth() const { return p_->surface ? p_->surface->metrics.width : MELODEE_SCREEN_WIDTH; }
+    int nativeHeight() const { return p_->surface ? p_->surface->metrics.height : p_->tileScreenH; }
+    bool hotspot (int tile, int x, int y, hdslave_tile_hotspot_t* out) const;
+    void focusAt (int tile, int x, int y, bool shift);
+    void action (int tile, int id, int steps, bool shift);
 
     // Interaction state
     enum class Drag : uint8_t
     {
         None = 0,
+        MenuPending,
         Param1D,
         Param2D,
         ParamAbsolute,
@@ -111,7 +122,6 @@ private:
     float downX_ = 0.0f, downY_ = 0.0f, lastX_ = 0.0f, lastY_ = 0.0f;
     double dragStartNorm_ = 0.0;
     double dragStartNormY_ = 0.0;
-    double dragAccum_ = 0.0;
     bool moved_ = false;
     int dragButton_ = 0;
     uint32_t downMods_ = 0;
@@ -157,6 +167,7 @@ private:
     void stepParam (int param, int steps);
     void endWheelGesture();
     void resetParam (int param);
+    void beginParamDrag (bool absolute);
     void applyAbsoluteSpot (int tileIdx, const hdslave_tile_hotspot_t& spot, float lx, float ly);
 
     // Hit testing helpers

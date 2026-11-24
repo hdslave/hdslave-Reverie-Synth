@@ -370,16 +370,10 @@ struct SafeOutputEvents
     bool pushGesture (uint32_t time, clap_id id, bool begin)
     {
         if (!dp || !hostOut || !hostOut->try_push) return false;
-        if (begin)
-        {
-            if (dp->openGestureParamId == id) return true;
-            if (dp->openGestureParamId != CLAP_INVALID_ID)
-                pushGesture (time, dp->openGestureParamId, false);
-        }
-        else
-        {
-            if (dp->openGestureParamId != id) return true;
-        }
+        const int index = dp->findParamIndex (id);
+        if (index < 0) return false;
+        auto& open = dp->openGestures[size_t (index)];
+        if (bool (open) == begin) return true;
         clap_event_param_gesture_t ev {};
         ev.header.size = sizeof (ev);
         ev.header.time = clampTime (time);
@@ -388,7 +382,7 @@ struct SafeOutputEvents
         ev.header.flags = 0;
         ev.param_id = id;
         const bool ok = pushRaw (&ev.header);
-        if (ok) dp->openGestureParamId = begin ? id : CLAP_INVALID_ID;
+        if (ok) open = begin;
         return ok;
     }
 
@@ -402,16 +396,8 @@ struct SafeOutputEvents
         value = std::clamp (value, p.minVal, p.maxVal);
 
         const uint32_t t = clampTime (time);
-        const bool alreadyOpen = (dp->openGestureParamId == id);
-        if (!alreadyOpen)
-        {
-            if (dp->openGestureParamId != CLAP_INVALID_ID)
-            {
-                // Keep another active UI drag clean: don't interleave a bare background edit mid-gesture.
-                return true;
-            }
-            if (!pushGesture (t, id, true)) return false;
-        }
+        const bool alreadyOpen = dp->openGestures[size_t (idx)] != 0;
+        if (!alreadyOpen && !pushGesture (t, id, true)) return false;
 
         clap_event_param_value_t ev {};
         ev.header.size = sizeof (ev);
@@ -678,6 +664,7 @@ bool CLAP_ABI wrapStateLoad (const clap_plugin_t* p, const clap_istream_t* strea
                 for (int i = 0; i < 128; ++i)
                     dp.ccMap[i].store (ccTable[i], std::memory_order_release);
             }
+            dp.currentPresetIndex = -1;
             dp.markAllDirty();
             return true;
         }
@@ -688,7 +675,10 @@ bool CLAP_ABI wrapStateLoad (const clap_plugin_t* p, const clap_istream_t* strea
     clap_istream_t memIn { &innerIn, MemIStream::readCb };
     bool ok = dp.innerState->load (dp.inner, &memIn);
     if (ok)
+    {
+        dp.currentPresetIndex = -1;
         dp.markAllDirty();
+    }
     return ok;
 }
 
@@ -701,7 +691,12 @@ bool CLAP_ABI wrapPresetLoadFromLocation (const clap_plugin_t* p, uint32_t locat
     if (!dp.innerPresetLoad) return false;
     bool ok = dp.innerPresetLoad->from_location (dp.inner, locationKind, location, loadKey);
     if (ok)
+    {
+        dp.currentPresetIndex = -1;
+        for (size_t i = 0; loadKey && i < dp.presets.size(); ++i)
+            if (dp.presets[i].loadKey == loadKey) { dp.currentPresetIndex = int (i); break; }
         dp.markAllDirty();
+    }
     return ok;
 }
 
@@ -855,6 +850,7 @@ bool CLAP_ABI guiShow (const clap_plugin_t* p)
 bool CLAP_ABI guiHide (const clap_plugin_t* p)
 {
     auto& dp = of (p);
+    if (dp.ui) dp.ui->cancelInput();
     return dp.platformGui && platformGuiHide (dp.platformGui);
 }
 
@@ -878,6 +874,7 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
     if (!dp.innerPresetLoad)
         dp.innerPresetLoad = static_cast<const clap_plugin_preset_load_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_PRESET_LOAD_COMPAT));
     dp.innerScreen = static_cast<const melodee_screen_t*> (dp.inner->get_extension (dp.inner, MELODEE_SCREEN_CLAP));
+    dp.surface = static_cast<const clap_plugin_hdslave_surface_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_HDSLAVE_SURFACE));
     dp.innerTiles = static_cast<const clap_plugin_hdslave_tiles_t*> (dp.inner->get_extension (dp.inner, CLAP_EXT_HDSLAVE_TILES));
 
     dp.resolveHostExtensions();
@@ -906,6 +903,7 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
             }
         }
     }
+    dp.openGestures.assign (dp.params.size(), 0);
     dp.uiValue.assign (dp.params.size(), 0.0);
     dp.uiHoldUntil.assign (dp.params.size(), 0);
     for (size_t i = 0; i < dp.params.size(); ++i)
@@ -918,7 +916,12 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
         dp.screenPixels.assign (size_t (MELODEE_SCREEN_WIDTH * MELODEE_SCREEN_PAGE_HEIGHT), 0xFF0A0C10u);
         dp.refreshScreenKnobs();
     }
-    if (dp.innerTiles && dp.innerTiles->count)
+    if (dp.surface)
+    {
+        dp.guiWidth = dp.surface->metrics.width * 2;
+        dp.guiHeight = dp.surface->metrics.height * 2;
+    }
+    else if (dp.innerTiles && dp.innerTiles->count)
     {
         dp.tileCount = dp.innerTiles->count (dp.inner, &dp.tileCols, &dp.tileRows);
         dp.tileScreenH = (dp.innerTiles->content_h >= 120 && dp.innerTiles->content_h <= MELODEE_SCREEN_PAGE_HEIGHT)
@@ -971,7 +974,7 @@ void CLAP_ABI wrapDeactivate (const clap_plugin_t* p)
     auto& dp = of (p);
     dp.processing.store (false, std::memory_order_release);
     dp.active.store (false, std::memory_order_release);
-    dp.openGestureParamId = CLAP_INVALID_ID;
+    std::fill (dp.openGestures.begin(), dp.openGestures.end(), 0);
     if (dp.inner) dp.inner->deactivate (dp.inner);
 }
 

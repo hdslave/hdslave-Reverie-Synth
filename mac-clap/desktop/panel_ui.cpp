@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 namespace hdslave_desktop
 {
@@ -36,8 +37,21 @@ void drawButtonBox (Canvas& c, const Rect& r, const std::string& label, const Pl
 PanelUI::PanelUI (DesktopPlugin* plugin)
     : p_ (plugin)
 {
-    if (!p_->params.empty())
+    if (!p_->surface && !p_->params.empty())
         lastTouched_ = 0;
+}
+
+PanelUI::~PanelUI() { cancelInput(); }
+
+void PanelUI::cancelInput()
+{
+    // A host can close the editor in the middle of a note or an automation gesture.
+    moved_ = true;
+    if (drag_ == Drag::MenuPending) drag_ = Drag::None;
+    else mouseUp (lastX_, lastY_, dragButton_, 0);
+    dragParam_ = dragParamY_ = -1;
+    closePopup();
+    endWheelGesture();
 }
 
 void PanelUI::setSize (int w, int h, int scale)
@@ -58,9 +72,59 @@ void PanelUI::setSize (int w, int h, int scale)
     fullDirty_ = true;
 }
 
+namespace
+{
+constexpr Item surfaceItems[] = {Item::PresetPrev, Item::PresetBox, Item::PresetNext,
+                                 Item::Learn, Item::ClearCc, Item::Readout};
+static_assert (std::size (surfaceItems) == (size_t) SurfaceControl::Count);
+}
+
+void PanelUI::layoutSurface()
+{
+    const int nw = nativeWidth(), nh = nativeHeight();
+    const int dw = std::min (w_, h_ * nw / nh);
+    const int dh = std::min (h_, w_ * nh / nw);
+    tiles_.resize (1);
+    tiles_[0].screenRect = {(w_ - dw) / 2, (h_ - dh) / 2, dw, dh};
+    surfacePixels_.resize (size_t (nw) * nh);
+    for (size_t i = 0; i < std::size (surfaceItems); ++i)
+    {
+        const auto& b = p_->surface->metrics.controls[i];
+        hdslave_tile_hotspot_t rect {};
+        rect.x = b.x; rect.y = b.y; rect.w = b.w; rect.h = b.h;
+        items_[(size_t) surfaceItems[i]] = spotToLogicalRect (0, rect);
+    }
+    closePopup();
+}
+
+bool PanelUI::hotspot (int tile, int x, int y, hdslave_tile_hotspot_t* out) const
+{
+    if (tile < 0) return false;
+    if (p_->surface) return p_->surface->hit_test (p_->inner, x, y, out);
+    return p_->innerTiles && p_->innerTiles->hit_test
+        && p_->innerTiles->hit_test (p_->inner, (uint32_t) tile, x, y, out);
+}
+
+void PanelUI::focusAt (int tile, int x, int y, bool shift)
+{
+    if (!p_->surface && p_->innerTiles && p_->innerTiles->focus)
+        p_->innerTiles->focus (p_->inner, (uint32_t) tile, x, y, shift);
+}
+
+void PanelUI::action (int tile, int id, int steps, bool shift)
+{
+    if (p_->surface)
+    {
+        if (p_->surface->action) p_->surface->action (p_->inner, id, steps, shift);
+    }
+    else if (p_->innerTiles && p_->innerTiles->action)
+        p_->innerTiles->action (p_->inner, (uint32_t) tile, id, steps, shift);
+}
+
 void PanelUI::layout()
 {
     layoutDirty_ = false;
+    if (p_->surface) return layoutSurface();
     top_ = { 8, 6, w_ - 16, 42 };
 
     // Top bar items
@@ -181,7 +245,7 @@ Rect PanelUI::update (uint64_t now)
 
     // Paint all MPC screen tiles every frame (~60 fps) when open or requested
     const auto t0 = std::chrono::steady_clock::now();
-    p_->paintAllTiles (now_);
+    if (!p_->surface) p_->paintAllTiles (now_);
     renderAll();
     const auto t1 = std::chrono::steady_clock::now();
     lastRenderMs_ = std::chrono::duration<double, std::milli> (t1 - t0).count();
@@ -194,6 +258,13 @@ void PanelUI::renderAll()
 {
     const auto& th = p_->theme;
     c_.resetClip();
+    if (p_->surface)
+    {
+        drawSurface();
+        drawHighlight (0);
+        if (popup_ != PopupKind::None) drawPopup();
+        return;
+    }
     c_.gradient ({ 0, 0, w_, h_ }, th.bgTop, th.bgBottom);
 
     drawHeaderBar();
@@ -219,6 +290,37 @@ void PanelUI::renderAll()
         drawPopup();
 }
 
+std::string PanelUI::presetLabel() const
+{
+    if (p_->surface && p_->currentPresetIndex < 0) return "Sound presets";
+    if (!p_->presets.empty())
+    {
+        const int idx = std::clamp (p_->currentPresetIndex, 0, int (p_->presets.size()) - 1);
+        char num[16];
+        std::snprintf (num, sizeof (num), "%02d/%02d ",
+                       p_->currentPresetIndex >= 0 ? idx + 1 : 0,
+                       int (p_->presets.size()));
+        return std::string (num) + (p_->currentPresetIndex >= 0 ? p_->presets[(size_t) idx].name : "DEFAULT");
+    }
+    return "INIT PATCH";
+}
+
+void PanelUI::drawSurface()
+{
+    const auto& dst = tiles_[0].screenRect;
+    if (dst.w != w_ || dst.h != h_) c_.fill ({0, 0, w_, h_}, p_->theme.bgBottom);
+
+    const auto preset = presetLabel();
+    bool learning = false;
+    const auto line = readoutText (learning);
+    SurfaceHeader header {preset.c_str(), line.c_str(), p_->countMappedCc(), learning,
+                          popup_ == PopupKind::Presets, SurfaceControl::Count};
+    for (size_t i = 0; i < std::size (surfaceItems); ++i)
+        if (hoverItem_ == surfaceItems[i]) header.hovered = (SurfaceControl) i;
+    p_->surface->paint (p_->inner, surfacePixels_.data(), &header);
+    c_.blitSharp (surfacePixels_.data(), nativeWidth(), nativeHeight(), dst);
+}
+
 void PanelUI::drawHeaderBar()
 {
     const auto& th = p_->theme;
@@ -241,17 +343,7 @@ void PanelUI::drawHeaderBar()
 
     // Preset selector
     drawButtonBox (c_, items_[(size_t) Item::PresetPrev], "<", th, false, hoverItem_ == Item::PresetPrev);
-    std::string presetLabel = "INIT PATCH";
-    if (!p_->presets.empty())
-    {
-        const int idx = std::clamp (p_->currentPresetIndex, 0, int (p_->presets.size()) - 1);
-        char num[16];
-        std::snprintf (num, sizeof (num), "%02d/%02d ",
-                       p_->currentPresetIndex >= 0 ? idx + 1 : 0,
-                       int (p_->presets.size()));
-        presetLabel = std::string (num) + (p_->currentPresetIndex >= 0 ? p_->presets[(size_t) idx].name : "DEFAULT");
-    }
-    drawButtonBox (c_, items_[(size_t) Item::PresetBox], presetLabel, th,
+    drawButtonBox (c_, items_[(size_t) Item::PresetBox], presetLabel(), th,
                    popup_ == PopupKind::Presets, hoverItem_ == Item::PresetBox);
     drawButtonBox (c_, items_[(size_t) Item::PresetNext], ">", th, false, hoverItem_ == Item::PresetNext);
 
@@ -324,6 +416,13 @@ void PanelUI::drawTile (int tileIdx)
     if (srcPx)
         c_.blitSharp (srcPx, MELODEE_SCREEN_WIDTH, std::max (120, p_->tileScreenH), tv.screenRect);
 
+    drawHighlight (tileIdx);
+}
+
+void PanelUI::drawHighlight (int tileIdx)
+{
+    const auto& tv = tiles_[(size_t) tileIdx];
+    const auto& th = p_->theme;
     // Interactive hotspot highlight overlay (hover or active drag)
     const bool draggingHere = (drag_ != Drag::None && dragTile_ == tileIdx && dragSpot_.kind != HDSLAVE_HOTSPOT_NONE);
     const bool hoveringHere = (drag_ == Drag::None && hoverTile_ == tileIdx && hoverSpot_.kind != HDSLAVE_HOTSPOT_NONE);
@@ -373,10 +472,10 @@ Rect PanelUI::spotToLogicalRect (int tileIdx, const hdslave_tile_hotspot_t& spot
         return {};
     const Rect& sr = tiles_[(size_t) tileIdx].screenRect;
     if (sr.empty()) return {};
-    const int scrH = std::max (120, p_->tileScreenH);
-    const int x0 = sr.x + (spot.x * sr.w) / MELODEE_SCREEN_WIDTH;
+    const int scrH = nativeHeight();
+    const int x0 = sr.x + (spot.x * sr.w) / nativeWidth();
     const int y0 = sr.y + (spot.y * sr.h) / scrH;
-    const int x1 = sr.x + ((spot.x + spot.w) * sr.w) / MELODEE_SCREEN_WIDTH;
+    const int x1 = sr.x + ((spot.x + spot.w) * sr.w) / nativeWidth();
     const int y1 = sr.y + ((spot.y + spot.h) * sr.h) / scrH;
     return { x0, y0, std::max (4, x1 - x0), std::max (4, y1 - y0) };
 }
@@ -384,7 +483,7 @@ Rect PanelUI::spotToLogicalRect (int tileIdx, const hdslave_tile_hotspot_t& spot
 int PanelUI::hitTileScreen (float x, float y, int& outMx, int& outMy) const
 {
     const int ix = int (x), iy = int (y);
-    const int scrH = std::max (120, p_->tileScreenH);
+    const int scrH = nativeHeight();
     for (size_t t = 0; t < tiles_.size(); ++t)
     {
         if (zoomedTile_ >= 0 && (int) t != zoomedTile_)
@@ -392,7 +491,7 @@ int PanelUI::hitTileScreen (float x, float y, int& outMx, int& outMy) const
         const Rect& sr = tiles_[t].screenRect;
         if (sr.contains (ix, iy) && sr.w > 0 && sr.h > 0)
         {
-            outMx = std::clamp ((ix - sr.x) * MELODEE_SCREEN_WIDTH / sr.w, 0, MELODEE_SCREEN_WIDTH - 1);
+            outMx = std::clamp ((ix - sr.x) * nativeWidth() / sr.w, 0, nativeWidth() - 1);
             outMy = std::clamp ((iy - sr.y) * scrH / sr.h, 0, scrH - 1);
             return (int) t;
         }
@@ -478,8 +577,8 @@ void PanelUI::applyAbsoluteSpot (int tileIdx, const hdslave_tile_hotspot_t& spot
     const Rect& sr = tiles_[(size_t) tileIdx].screenRect;
     if (sr.w <= 0 || sr.h <= 0) return;
 
-    const int scrH = std::max (120, p_->tileScreenH);
-    const float mx = (lx - float (sr.x)) * float (MELODEE_SCREEN_WIDTH) / float (sr.w);
+    const int scrH = nativeHeight();
+    const float mx = (lx - float (sr.x)) * float (nativeWidth()) / float (sr.w);
     const float my = (ly - float (sr.y)) * float (scrH) / float (sr.h);
 
     const float nx = spot.w > 1 ? std::clamp ((mx - float (spot.x)) / float (spot.w), 0.0f, 1.0f) : 0.5f;
@@ -499,6 +598,7 @@ void PanelUI::applyAbsoluteSpot (int tileIdx, const hdslave_tile_hotspot_t& spot
 
 void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks)
 {
+    if (drag_ != Drag::None) return;
     endWheelGesture();
     downX_ = lastX_ = x;
     downY_ = lastY_ = y;
@@ -564,7 +664,7 @@ void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks
                 const uint32_t cur = p_->midiLearnTarget.load (std::memory_order_relaxed);
                 if (cur != CLAP_INVALID_ID)
                     p_->midiLearnTarget.store (CLAP_INVALID_ID, std::memory_order_release);
-                else if (lastTouched_ >= 0 && lastTouched_ < int (p_->params.size()))
+                else if (!p_->surface && lastTouched_ >= 0 && lastTouched_ < int (p_->params.size()))
                     p_->midiLearnTarget.store (p_->params[(size_t) lastTouched_].id, std::memory_order_release);
                 else
                     p_->midiLearnTarget.store (DesktopPlugin::kLearnArmedNoParam, std::memory_order_release);
@@ -624,17 +724,16 @@ void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks
     // 5. Direct Mouse / Touch inside any 320x218 MPC Screen Tile
     int mx = 0, my = 0;
     const int tileIdx = hitTileScreen (x, y, mx, my);
-    if (tileIdx < 0 || !p_->innerTiles)
+    if (tileIdx < 0)
         return;
 
     focusedTile_ = tileIdx;
     const bool shift = ((mods & kModShift) != 0) || p_->screenShift;
 
-    if (p_->innerTiles->focus)
-        p_->innerTiles->focus (p_->inner, (uint32_t) tileIdx, mx, my, shift);
+    focusAt (tileIdx, mx, my, shift);
 
     hdslave_tile_hotspot_t spot {};
-    if (!p_->innerTiles->hit_test || !p_->innerTiles->hit_test (p_->inner, (uint32_t) tileIdx, mx, my, &spot)
+    if (!hotspot (tileIdx, mx, my, &spot)
         || spot.kind == HDSLAVE_HOTSPOT_NONE)
         return;
 
@@ -649,10 +748,17 @@ void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks
             p_->midiLearnTarget.store (spot.param_id, std::memory_order_release);
     }
 
-    // Right-click on a parameter opens its quick context menu (Reset / MIDI Learn / Choices)
-    if (button == 1 && pIdx >= 0 && spot.kind == HDSLAVE_HOTSPOT_PARAM)
+    // A right click opens the menu on release. Dragging instead edits at fine resolution.
+    if (button == 1)
     {
-        openMenu (pIdx, x, y);
+        if (pIdx >= 0 && spot.kind == HDSLAVE_HOTSPOT_PARAM)
+        {
+            dragTile_ = tileIdx;
+            dragSpot_ = spot;
+            dragParam_ = pIdx;
+            dragParamY_ = pIdxY;
+            drag_ = Drag::MenuPending;
+        }
         return;
     }
 
@@ -680,8 +786,7 @@ void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks
             break;
 
         case HDSLAVE_HOTSPOT_ACTION:
-            if (p_->innerTiles->action)
-                p_->innerTiles->action (p_->inner, (uint32_t) tileIdx, spot.custom_id, 0, shift || button == 1);
+            action (tileIdx, spot.custom_id, 0, shift || button == 1);
             break;
 
         case HDSLAVE_HOTSPOT_NOTE_PAD:
@@ -706,33 +811,28 @@ void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks
         case HDSLAVE_HOTSPOT_PARAM:
             if (pIdx >= 0)
             {
-                p_->beginEdit (pIdx);
-                dragStartNorm_ = norm (pIdx);
-                dragAccum_ = 0.0;
-                if (pIdxY >= 0)
-                {
-                    p_->beginEdit (pIdxY);
-                    dragStartNormY_ = norm (pIdxY);
-                }
-                if (spot.is_absolute)
-                {
-                    drag_ = Drag::ParamAbsolute;
-                    applyAbsoluteSpot (tileIdx, spot, x, y);
-                }
-                else if (pIdxY >= 0)
-                {
-                    drag_ = Drag::Param2D;
-                }
-                else
-                {
-                    drag_ = Drag::Param1D;
-                }
+                beginParamDrag (spot.is_absolute && !shift);
+                if (drag_ == Drag::ParamAbsolute) applyAbsoluteSpot (tileIdx, spot, x, y);
             }
             break;
 
         default:
             break;
     }
+}
+
+void PanelUI::beginParamDrag (bool absolute)
+{
+    p_->beginEdit (dragParam_);
+    dragStartNorm_ = norm (dragParam_);
+    drag_ = Drag::Param1D;
+    if (dragParamY_ >= 0)
+    {
+        p_->beginEdit (dragParamY_);
+        dragStartNormY_ = norm (dragParamY_);
+        drag_ = Drag::Param2D;
+    }
+    if (absolute) drag_ = Drag::ParamAbsolute;
 }
 
 void PanelUI::mouseMove (float x, float y, uint32_t mods)
@@ -755,6 +855,11 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
         if (std::fabs (x - downX_) > 2.5f || std::fabs (y - downY_) > 2.5f)
             moved_ = true;
 
+        if (drag_ == Drag::MenuPending)
+        {
+            if (!moved_) return;
+            beginParamDrag (false);
+        }
         const bool fine = ((mods & kModShift) != 0) || p_->screenShift || (dragButton_ == 1);
         const double sens = fine ? 950.0 : 170.0;
 
@@ -781,10 +886,10 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
         {
             int mx = 0, my = 0;
             const int tIdx = hitTileScreen (x, y, mx, my);
-            if (tIdx == dragTile_ && p_->innerTiles && p_->innerTiles->hit_test)
+            if (tIdx == dragTile_)
             {
                 hdslave_tile_hotspot_t sp {};
-                if (p_->innerTiles->hit_test (p_->inner, (uint32_t) tIdx, mx, my, &sp)
+                if (hotspot (tIdx, mx, my, &sp)
                     && sp.kind == HDSLAVE_HOTSPOT_BIT_TOGGLE && sp.param_id == dragSpot_.param_id)
                 {
                     const int bitIdx = std::clamp ((int) sp.custom_id, 0, 15);
@@ -799,10 +904,10 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
         {
             int mx = 0, my = 0;
             const int tIdx = hitTileScreen (x, y, mx, my);
-            if (tIdx == dragTile_ && p_->innerTiles && p_->innerTiles->hit_test)
+            if (tIdx == dragTile_)
             {
                 hdslave_tile_hotspot_t sp {};
-                if (p_->innerTiles->hit_test (p_->inner, (uint32_t) tIdx, mx, my, &sp)
+                if (hotspot (tIdx, mx, my, &sp)
                     && sp.kind == HDSLAVE_HOTSPOT_NOTE_PAD)
                 {
                     const int newNote = std::clamp ((int) sp.custom_id, 0, 127);
@@ -840,9 +945,9 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
     hoverSpot_.param_id_y = CLAP_INVALID_ID;
     hoverParam_ = -1;
 
-    if (hoverTile_ >= 0 && p_->innerTiles && p_->innerTiles->hit_test)
+    if (hoverTile_ >= 0)
     {
-        if (p_->innerTiles->hit_test (p_->inner, (uint32_t) hoverTile_, mx, my, &hoverSpot_))
+        if (hotspot (hoverTile_, mx, my, &hoverSpot_))
         {
             if (hoverSpot_.param_id != CLAP_INVALID_ID)
                 hoverParam_ = p_->findParamIndex (hoverSpot_.param_id);
@@ -850,10 +955,12 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
     }
 }
 
-void PanelUI::mouseUp (float, float, int, uint32_t mods)
+void PanelUI::mouseUp (float, float, int button, uint32_t mods)
 {
-    if (drag_ == Drag::None)
+    if (drag_ == Drag::None || button != dragButton_)
         return;
+
+    if (drag_ == Drag::MenuPending) openMenu (dragParam_, downX_, downY_);
 
     const bool shift = ((mods & kModShift) != 0) || ((downMods_ & kModShift) != 0) || p_->screenShift;
 
@@ -866,15 +973,13 @@ void PanelUI::mouseUp (float, float, int, uint32_t mods)
             const double cur = p_->displayValue (dragParam_);
             setParam (dragParam_, cur >= 0.5 ? 0.0 : 1.0);
         }
-        else if (pr.isStepped() && pr.range() <= 32.0)
+        else if (pr.isStepped())
         {
             const double cur = std::round (p_->displayValue (dragParam_));
-            const double span = pr.range() + 1.0;
             const double dir = shift ? -1.0 : 1.0;
             double next = cur + dir;
             if (next > pr.maxVal) next = pr.minVal;
             if (next < pr.minVal) next = pr.maxVal;
-            (void) span;
             setParam (dragParam_, next);
         }
     }
@@ -904,14 +1009,14 @@ void PanelUI::wheel (float x, float y, float, float dy, bool precise, uint32_t m
 
     int mx = 0, my = 0;
     const int tileIdx = hitTileScreen (x, y, mx, my);
-    if (tileIdx < 0 || !p_->innerTiles || !p_->innerTiles->hit_test)
+    if (tileIdx < 0)
         return;
 
     focusedTile_ = tileIdx;
     const bool shift = ((mods & kModShift) != 0) || p_->screenShift;
 
     hdslave_tile_hotspot_t spot {};
-    if (!p_->innerTiles->hit_test (p_->inner, (uint32_t) tileIdx, mx, my, &spot) || spot.kind == HDSLAVE_HOTSPOT_NONE)
+    if (!hotspot (tileIdx, mx, my, &spot) || spot.kind == HDSLAVE_HOTSPOT_NONE)
         return;
 
     wheelAccum_ += precise ? (dy * 0.15f) : dy;
@@ -920,9 +1025,9 @@ void PanelUI::wheel (float x, float y, float, float dy, bool precise, uint32_t m
         return;
     wheelAccum_ -= float (steps);
 
-    if (spot.kind == HDSLAVE_HOTSPOT_ACTION && p_->innerTiles->action)
+    if (spot.kind == HDSLAVE_HOTSPOT_ACTION)
     {
-        p_->innerTiles->action (p_->inner, (uint32_t) tileIdx, spot.custom_id, steps, shift);
+        action (tileIdx, spot.custom_id, steps, shift);
         return;
     }
 
@@ -931,8 +1036,7 @@ void PanelUI::wheel (float x, float y, float, float dy, bool precise, uint32_t m
         const int pIdx = p_->findParamIndex (spot.param_id);
         if (pIdx >= 0)
         {
-            if (p_->innerTiles->focus)
-                p_->innerTiles->focus (p_->inner, (uint32_t) tileIdx, mx, my, shift);
+            focusAt (tileIdx, mx, my, shift);
             stepParam (pIdx, steps);
         }
     }
@@ -993,7 +1097,7 @@ std::string PanelUI::readoutText (bool& learnLine) const
     {
         learnLine = true;
         if (learnTgt == DesktopPlugin::kLearnArmedNoParam)
-            return "MIDI LEARN: CLICK ANY PARAMETER ON ANY SCREEN";
+            return "Select a control for MIDI Learn";
         const int idx = p_->findParamIndex (learnTgt);
         if (idx >= 0)
             return "WAIT CC -> " + upper (p_->params[(size_t) idx].name);
@@ -1004,9 +1108,9 @@ std::string PanelUI::readoutText (bool& learnLine) const
     {
         const auto& pr = p_->params[(size_t) activeParam];
         std::string line;
-        if (!pr.module.empty())
+        if (!p_->surface && !pr.module.empty())
             line += upper (pr.module) + " / ";
-        line += upper (pr.name) + ": " + valueText (activeParam);
+        line += (p_->surface ? pr.name : upper (pr.name)) + "  " + valueText (activeParam);
 
         if (dragParamY_ >= 0 && dragParamY_ < int (p_->params.size()))
         {
@@ -1023,7 +1127,7 @@ std::string PanelUI::readoutText (bool& learnLine) const
         }
         return line;
     }
-    return "CLICK, DRAG, OR SCROLL ANY PARAMETER ON ANY MPC SCREEN";
+    return "Point at a control to see its value";
 }
 
 // Popups (Presets / Choices / Right-click Parameter Menu) -----------------------------------------------------
@@ -1173,7 +1277,7 @@ void PanelUI::drawPopup()
 {
     const auto& th = p_->theme;
     c_.fill (popupRect_.inset (-2), 0xFF000000u, 150);
-    c_.fillChamfer (popupRect_, 4, 0xFF0A0D14u);
+    c_.fillChamfer (popupRect_, 4, p_->surface ? 0xffe5f7f8 : 0xFF0A0D14u);
     c_.frameChamfer (popupRect_, 4, th.accent);
 
     for (size_t i = 0; i < popupItems_.size(); ++i)
@@ -1181,6 +1285,16 @@ void PanelUI::drawPopup()
         const Rect& r = popupRects_[i];
         const bool sel = (int (i) == popupSelected_);
         const bool hot = (int (i) == popupHover_);
+        if (p_->surface)
+        {
+            if (sel || hot)
+            {
+                c_.gradient (r, hot ? 0xffbdeaf6 : 0xffedffca, hot ? 0xff85cbd9 : 0xffb8e098);
+                c_.hline (r.x + 2, r.y, r.w - 4, 0xfff7ffff);
+            }
+            c_.textAligned (r.inset (4), popupItems_[i], 0xff104459, 1, 0);
+            continue;
+        }
         if (sel || hot)
             c_.fillChamfer (r, 2, hot ? th.accent : mix (th.panel, th.accent, 0.35f));
         const uint32_t fg = hot ? 0xFF06080Cu : (sel ? 0xFFFFFFFFu : th.text);

@@ -44,7 +44,8 @@ struct StrictHostCtx
     int presetLoadedCalls = 0;
     int stateDirtyCalls = 0;
     int callbackRequests = 0;
-    clap_id openGesture = CLAP_INVALID_ID;
+    std::set<clap_id> openGestures;
+    std::set<clap_id> edited;
     uint32_t lastOutTime = 0;
     int bareParamValues = 0;
     int outParamValues = 0;
@@ -141,14 +142,19 @@ bool CLAP_ABI strictOutPush (const clap_output_events_t* list, const clap_event_
     if (h->space_id == CLAP_CORE_EVENT_SPACE_ID)
     {
         if (h->type == CLAP_EVENT_PARAM_GESTURE_BEGIN)
-            ctx->openGesture = reinterpret_cast<const clap_event_param_gesture_t*> (h)->param_id;
+        {
+            if (!ctx->openGestures.insert (reinterpret_cast<const clap_event_param_gesture_t*> (h)->param_id).second) std::abort();
+        }
         else if (h->type == CLAP_EVENT_PARAM_GESTURE_END)
-            ctx->openGesture = CLAP_INVALID_ID;
+        {
+            if (!ctx->openGestures.erase (reinterpret_cast<const clap_event_param_gesture_t*> (h)->param_id)) std::abort();
+        }
         else if (h->type == CLAP_EVENT_PARAM_VALUE)
         {
             ++ctx->outParamValues;
             const auto* pv = reinterpret_cast<const clap_event_param_value_t*> (h);
-            if (ctx->openGesture != pv->param_id)
+            ctx->edited.insert (pv->param_id);
+            if (!ctx->openGestures.count (pv->param_id))
             {
                 ++ctx->bareParamValues;
                 std::fprintf (stderr, "FAIL: bare CLAP_EVENT_PARAM_VALUE without gesture (id=%u)!\n", pv->param_id);
@@ -402,25 +408,142 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
             if (plug->on_main_thread) plug->on_main_thread (plug);
         }
 
-        // Exercise live screen click/drag + process block to prove SafeOutputEvents brackets every tellHost push
-        dbg->ui_mouse (plug, 0, 200, 200, 0, 0, 0, 1);
-        dbg->ui_mouse (plug, 1, 260, 200, 0, 0, 0, 1);
-        dbg->ui_mouse (plug, 2, 260, 200, 0, 0, 0, 1);
-        dbg->ui_mouse (plug, 0, 200, 200, 0, 0, 0, 1);
-        dbg->ui_mouse (plug, 2, 200, 200, 0, 0, 0, 1);
-        ctx.lastOutTime = 0;
         clap_process_t proc {};
-        proc.steady_time = 1024;
         proc.frames_count = 256;
         proc.audio_inputs = &inBuf;
         proc.audio_inputs_count = 1;
         proc.audio_outputs = &outBuf;
         proc.audio_outputs_count = 1;
-        proc.in_events = &inEv;
         proc.out_events = &outEv;
-        plug->process (plug, &proc);
-        if (plug->on_main_thread) plug->on_main_thread (plug);
+        auto process = [&] (const clap_input_events_t* events) {
+            ctx.lastOutTime = 0;
+            proc.in_events = events;
+            plug->process (plug, &proc);
+            proc.steady_time += proc.frames_count;
+        };
 
+        // Cover the surface at a fractional zoom with letterboxing and a Retina backing store.
+        int w = 0, h = 0;
+        if (!dbg->ui_render (plug, 1100, 648, 2, &w, &h) || w != 2200 || h != 1296) return false;
+        auto mouse = [&] (int kind, int x, int y, int mods = 0, int button = 0) {
+            dbg->ui_mouse (plug, kind, 70 + x * 1.5f, y * 1.5f, button, mods, 0, 1);
+        };
+        auto click = [&] (int x, int y, int mods = 0, int button = 0) {
+            mouse (0, x, y, mods, button);
+            mouse (2, x, y, mods, button);
+        };
+        auto value = [&] (clap_id id) {
+            double v = 0;
+            if (!params->get_value (plug, id, &v)) std::abort();
+            return v;
+        };
+        // Alt-click each visible control bed. Every exposed ID must reach the host.
+        ctx.edited.clear();
+        auto scan = [&] (int left, int top, int right, int bottom) {
+            for (int y = top; y < bottom; y += 10)
+            {
+                for (int x = left; x < right; x += 35) click (x, y, 2);
+                process (&inEv);
+            }
+        };
+        scan (180, 85, 315, 184);     // chords
+        scan (452, 86, 635, 201);     // motion
+        scan (9, 248, 315, 318);      // both oscillators
+        scan (481, 236, 635, 313);    // filter and filter envelope
+        scan (161, 350, 315, 429);    // amp and LFO
+        scan (435, 351, 635, 428);    // effects
+        click (344, 420, 2);          // output level
+        process (&inEv);
+        if (ctx.edited.size() != pCount || !ctx.openGestures.empty())
+        {
+            std::fprintf (stderr, "FAIL: surface control coverage %zu/%u\n", ctx.edited.size(), pCount);
+            return false;
+        }
+
+        ctx.edited.clear();
+        mouse (0, 384, 136);
+        mouse (1, 420, 100);
+        mouse (2, 420, 100);
+        process (&inEv);
+        if (ctx.edited != std::set<clap_id> {57, 58} || !ctx.openGestures.empty()
+            || std::abs (value (57) - .8) > .001 || std::abs (value (58) - .8) > .001)
+        {
+            std::fprintf (stderr, "FAIL: motion pad gesture did not automate both axes\n");
+            return false;
+        }
+        click (384, 136, 2);
+        process (&inEv);
+        if (value (57) != 0 || value (58) != 0) return false;
+
+        // Bind the X parameter using its masthead Learn and Clear CC buttons.
+        click (465, 33);
+        click (467, 89);
+        clap_event_midi_t cc {};
+        cc.header = { sizeof (cc), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 };
+        cc.data[0] = 0xb0;
+        cc.data[1] = 24;
+        cc.data[2] = 127;
+        clap_input_events_t ccIn { &cc, oneNoteSize, oneNoteGet };
+        process (&ccIn);
+        if (value (57) != 1) { std::fprintf (stderr, "FAIL: masthead MIDI Learn\n"); return false; }
+        click (575, 33);
+        cc.data[2] = 0;
+        process (&ccIn);
+        if (value (57) != 1) { std::fprintf (stderr, "FAIL: masthead Clear CC\n"); return false; }
+        click (467, 89, 2);
+        process (&inEv);
+
+        // Click the printed pad, then release it from the host with the printed pad's MIDI key.
+        // The pressed face turns amber even under the translucent hover highlight.
+        auto padLit = [&] (int x, int y) {
+            const auto* px = dbg->ui_render (plug, 1100, 648, 2, &w, &h);
+            const uint32_t rgb = px[(y * 3) * w + 140 + x * 3];
+            return ((rgb >> 16) & 255) > (rgb & 255) + 60;
+        };
+        plug->reset (plug);
+        for (int slot = 0; slot < 16; ++slot)
+        {
+            const int x = 4 + slot % 4 * 42 + 22, y = 83 + (3 - slot / 4) * 25 + 8;
+            mouse (0, x, y);
+            process (&inEv);
+            if (!padLit (x, y)) { std::fprintf (stderr, "FAIL: chord pad %d note on\n", slot + 1); return false; }
+            testNote.header.type = CLAP_EVENT_NOTE_OFF;
+            testNote.key = int16_t (36 + slot);
+            process (&noteIn);
+            if (padLit (x, y)) { std::fprintf (stderr, "FAIL: chord pad %d key mapping\n", slot + 1); return false; }
+            mouse (2, x, y);
+            process (&inEv);
+        }
+        // White and black key geometry spans six octaves. Mouse-up must release both.
+        const struct { int x, y, key; } keys[] = {{14, 200, 24}, {19, 189, 25}, {304, 199, 95}};
+        for (auto key : keys)
+        {
+            const int slot = (key.key - 36 + 128) % 16;
+            const int x = 26 + slot % 4 * 42, y = 91 + (3 - slot / 4) * 25;
+            mouse (0, key.x, key.y);
+            process (&inEv);
+            if (!padLit (x, y)) { std::fprintf (stderr, "FAIL: keyboard note %d\n", key.key); return false; }
+            mouse (2, key.x, key.y);
+            process (&inEv);
+            if (padLit (x, y)) { std::fprintf (stderr, "FAIL: keyboard release %d\n", key.key); return false; }
+        }
+        // The preset controls run through the real host callback trampolines.
+        int rescans = ctx.paramRescans;
+        click (624, 14);
+        plug->on_main_thread (plug);
+        click (437, 14);
+        plug->on_main_thread (plug);
+        if (ctx.paramRescans != rescans + 2)
+        {
+            std::fprintf (stderr, "FAIL: preset arrows did not load two sounds\n");
+            return false;
+        }
+
+        // Leave an active chord in the snapshot, as the instrument looks while playing.
+        testNote.header.type = CLAP_EVENT_NOTE_ON;
+        testNote.key = 36;
+        process (&noteIn);
+        mouse (1, 201, 40);
         int pw = 0, ph = 0;
         const uint32_t* px = dbg->ui_render (plug, int (gw), int (gh), 1, &pw, &ph);
         if (!px || pw != int (gw) || ph != int (gh))

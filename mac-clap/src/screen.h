@@ -30,6 +30,7 @@ namespace reverie
 class Screen final
 {
     friend struct TilesAccess;
+    friend struct Surface;
     using Raster = hdui::Raster;
     using Host = hdui::Host;
     using Ink = hdui::Ink;
@@ -74,7 +75,7 @@ private:
     void cell (const Raster& r, const Cell& c, bool focused, bool edited) const;
     void padGrid (const Raster& r, uint32_t held) const;
     void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
-    void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
+    void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop = nullptr) const;
     static void well (const Raster& r, int x, int y, int w, int h);
     void scope (const Raster& r, int x0, int y0, int w, int h, int o) const;
     void response (const Raster& r, int x0, int y0, int w, int h) const;

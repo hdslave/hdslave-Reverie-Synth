@@ -26,6 +26,10 @@ target_include_directories(${SLUG}_inner PRIVATE
 )
 set_target_properties(${SLUG}_inner PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+if(MINGW)
+    target_compile_definitions(${SLUG}_inner PRIVATE _USE_MATH_DEFINES)
+endif()
+
 if(MSVC)
     target_include_directories(${SLUG}_inner PRIVATE "${DESKTOP_DIR}/win32/compat")
     target_compile_options(${SLUG}_inner PRIVATE /O2 /EHsc /W2 /FI"${DESKTOP_DIR}/win32/compat/msvc_compat.h" /wd4244 /wd4267 /wd4305 /wd4996)
@@ -36,7 +40,7 @@ else()
     target_compile_options(${SLUG}_inner PRIVATE -O3 -ffp-contract=fast -fno-math-errno -fno-trapping-math -fvisibility=hidden)
 endif()
 
-# Desktop multi-screen UI shell
+# Desktop panel and native window
 set(SHELL_SRCS
     "${DESKTOP_DIR}/desktop_wrapper.cpp"
     "${DESKTOP_DIR}/panel_ui.cpp"

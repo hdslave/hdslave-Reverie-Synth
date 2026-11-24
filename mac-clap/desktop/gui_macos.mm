@@ -253,6 +253,11 @@ static uint32_t modsFromEvent (NSEvent* event)
     [self pumpFrame];
 }
 
+- (void)rightMouseDragged:(NSEvent*)event
+{
+    [self mouseDragged:event];
+}
+
 - (void)mouseMoved:(NSEvent*)event
 {
     if (!_plugin || !_plugin->ui) return;
@@ -266,6 +271,14 @@ static uint32_t modsFromEvent (NSEvent* event)
     if (!_plugin || !_plugin->ui) return;
     NSPoint pt = [self localPoint:event];
     _plugin->ui->mouseUp (float (pt.x), float (pt.y), 0, modsFromEvent (event));
+    [self pumpFrame];
+}
+
+- (void)rightMouseUp:(NSEvent*)event
+{
+    if (!_plugin || !_plugin->ui) return;
+    NSPoint pt = [self localPoint:event];
+    _plugin->ui->mouseUp (float (pt.x), float (pt.y), 1, modsFromEvent (event));
     [self pumpFrame];
 }
 
