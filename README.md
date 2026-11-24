@@ -21,7 +21,7 @@ hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.scr
 
 ## The pads
 
-![The CHORDS page in hdslaveOS, pad 6 just struck](docs/reverie-chords.png)
+![The Chords page in hdslaveOS with the Dawn Mood selected and pad 6 playing](docs/reverie-chords.png)
 
 | Pads | What they play |
 |---|---|
@@ -410,6 +410,8 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 ![The OSC page: Velvet Saw and Choir at their positions](docs/reverie-osc.png)
 
 ## SP-16
+
+![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
 The SP-16 build, version **0.4.4-sp16.12**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
