@@ -8,7 +8,14 @@ Desktop version **0.1.7** opens at its smallest size, **960 × 648**, and keeps 
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
 
-- **Standalone from the MPC Sample build:** this directory is completely separate from the MPC Sample build in the repository root (`../src`, `../build.sh`). GitHub releases remain MPC Sample-only for now while the desktop builds are being finalized.
+## Download and install
+
+| Platform | Download | Where to put the extracted `Reverie.clap` |
+| --- | --- | --- |
+| macOS 11 or later, Apple Silicon or Intel | [Mac ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/CLAP/` |
+| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/desktop-v0.1.7/Reverie-0.1.7-Windows-x64.zip) | `C:\Program Files\Common Files\CLAP\` |
+
+Quit your DAW before copying the plug-in. Create the CLAP folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The Mac bundle is ad-hoc signed and has no Apple notarization.
 
 ## Build & Install (macOS)
 

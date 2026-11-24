@@ -4,7 +4,7 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-> **Desktop CLAP version (macOS & Windows):** A separate desktop CLAP build with all MPC screens on one interactive panel lives in [**`mac-clap/`**](mac-clap/) (`cd mac-clap && ./install-macos.sh`). Releases in this repo stay MPC Sample-only for now while the desktop builds are being finalized.
+> **Desktop CLAP for macOS and Windows.** Download [Reverie Desktop 0.1.7](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7) or see the [desktop panel and installation guide](mac-clap/).
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
