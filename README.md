@@ -421,9 +421,8 @@ Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Stri
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
 Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Velvet Wah.
 
-Velvet Wah layers a low choir with a quieter choir an octave above it. Each strike moves from Oo through Oh
-to Ah as the resonant low-pass opens. Hold a pad to hear the vowel return, or turn Motion Depth down and use X
-to move through the vowels by hand.
+Velvet Wah opens with a low resonant swell. Spectra plays an octave beneath the Warm oscillator, with a centred
+attack and a short stereo reverb tail. The filter opens over 240 ms. Motion Y shifts the band on held chords.
 
 ## Cost
 
