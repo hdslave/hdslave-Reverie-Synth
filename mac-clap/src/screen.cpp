@@ -154,11 +154,13 @@ Screen::Layout Screen::layout (int p)
         { lfoCutoff, FL, 106, FW, FH, "Cutoff" }, { lfoWave, FR, 106, FW, FH, "Wave" },
     };
     static const Cell fxCells[] = {
-        { ensMix, 112, 15, 68, 17, "Mix" }, { ensDepth, 180, 15, 68, 17, "Depth" }, { ensRate, 248, 15, 68, 17, "Rate" },
-        { dlyMix, 112, 50, 68, 17, "Mix" }, { dlyTime, 180, 50, 68, 17, "Time" }, { dlyFeedback, 248, 50, 68, 17, "Fdbk" },
-        { revMix, 112, 85, 68, 17, "Mix" }, { revSize, 180, 85, 68, 17, "Size" }, { revDecay, 248, 85, 68, 17, "Decay" },
-        { revDamp, 112, 103, 68, 17, "Tone" }, { revPredelay, 180, 103, 68, 17, "Pre" }, { shimmer, 248, 103, 68, 17, "Shim" },
-        { volume, 4, 103, 103, 17, "Volume" },
+        { ensMix, 112, 15, 68, 15, "Mix" }, { ensDepth, 180, 15, 68, 15, "Depth" }, { ensRate, 248, 15, 68, 15, "Rate" },
+        { dlyMix, 112, 45, 68, 15, "Mix" }, { dlyTime, 180, 45, 68, 15, "Time" }, { dlyFeedback, 248, 45, 68, 15, "Fdbk" },
+        { revMix, 112, 75, 68, 15, "Mix" }, { revSize, 180, 75, 68, 15, "Size" }, { revDecay, 248, 75, 68, 15, "Decay" },
+        { revDamp, 112, 90, 68, 15, "Tone" }, { revPredelay, 180, 90, 68, 15, "Pre" }, { shimmer, 248, 90, 68, 15, "Shim" },
+        { volume, 4, 106, 61, 15, "Vol" },
+        { phaserMix, 102, 106, 46, 15, "Mix" }, { phaserRate, 148, 106, 66, 15, "Rate" },
+        { phaserFeedback, 214, 106, 42, 15, "FB" }, { phaserEnv, 256, 106, 60, 15, "F.Env" },
     };
     switch (p)
     {
@@ -281,8 +283,9 @@ void Screen::body (const Raster& r, uint32_t sounding, uint32_t held)
             r.frame (4, 3, 103, 99, ink::guide);
             outputMeter (r, 4, 89);
             section (r, 112, 2, 316, "Ensemble");
-            section (r, 112, 37, 316, "Tempo delay");
-            section (r, 112, 72, 316, "Shimmer reverb");
+            section (r, 112, 32, 316, "Tempo delay");
+            section (r, 112, 62, 316, "Shimmer reverb");
+            section (r, 65, 108, 102, "Phaser");
             break;
     }
     const Layout l = layout (page);

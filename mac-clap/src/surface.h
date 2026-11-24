@@ -51,8 +51,8 @@ struct Surface
                 c.h = c.y < 395 ? 15 : 12;
                 break;
             case Screen::fxPage:
-                c.y = c.y == 15 ? 347 : c.y == 50 ? 375 : c.y == 85 ? 401 : 415;
-                c.h = 14;
+                c.h = c.y == 106 ? 14 : 12;
+                c.y = c.y == 106 ? 417 : 333 + c.y / 15 * 12;
                 break;
         }
         return c;
@@ -240,9 +240,10 @@ struct Surface
             std::copy_n (desktopArt::tank + y * 103, 103, pixels + (335 + y) * r.w + 324);
         r.frame (324, 335, 103, 63, ink::guide);
         s.outputMeter (r, 324, 399);
-        Screen::section (r, 432, 335, 636, "Ensemble");
-        Screen::section (r, 432, 363, 636, "Tempo delay");
-        Screen::section (r, 432, 389, 636, "Shimmer reverb");
+        Screen::section (r, 432, 334, 636, "Ensemble");
+        Screen::section (r, 432, 358, 636, "Tempo delay");
+        Screen::section (r, 432, 382, 636, "Shimmer reverb");
+        Screen::section (r, 385, 419, 422, "Phaser");
         for (int page = 0; page < Screen::pageCount; ++page)
         {
             const auto layout = Screen::layout (page);

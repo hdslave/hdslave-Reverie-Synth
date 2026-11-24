@@ -15,7 +15,7 @@
 #include "progressions.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.4.4"
+#define REVERIE_VERSION "0.5.3"
 #endif
 
 namespace reverie
@@ -46,9 +46,10 @@ enum : uint32_t
     dlyMix = 70, dlyTime, dlyFeedback,
     revMix = 73, revSize, revDecay, revDamp, revPredelay, shimmer,
     volume = 79,
-    count = 80
+    phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
+    count = 84
 };
-static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && count == 80, "the ids are fixed");
+static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79 && phaserEnv == 83 && count == 84, "the ids are fixed");
 constexpr uint32_t chordSection = 10; // ids below it belong to the chords, not the sound
 inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wave : osc2Wave) + field; }
 } // namespace ParamId
@@ -56,7 +57,7 @@ inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wav
 enum class Kind : uint8_t { continuous, integer, choice };
 // How a value reads.
 enum class Unit : uint8_t { unit, bipolar, choice, onOff, count, semis, octaves, cents, envTime, strumTime, glideTime, lfoRate,
-                            lfoDelay, motionRate, cutoff, gain, detune, drift, ensRate, predelay, decay, damp, amount };
+                            lfoDelay, motionRate, cutoff, gain, detune, drift, ensRate, predelay, decay, damp, amount, hertz };
 
 struct Param
 {
@@ -239,6 +240,10 @@ inline const Param* makeTable()
     b.add (revPredelay, "Pre-Delay", "PREDLY", "Reverb", 0, 1, 0.08f, K::continuous, U::predelay);
     b.add (shimmer, "Shimmer", "SHIMR", "Reverb", 0, 1, 0.15f, K::continuous, U::unit);
     b.add (volume, "Volume", "VOLUME", "Master", 0, 2, 0.7f, K::continuous, U::gain);
+    b.add (phaserMix, "Phaser Mix", "PHASER", "Phaser", 0, 1, 0, K::continuous, U::unit);
+    b.add (phaserRate, "Phaser Rate", "RATE", "Phaser", 0, 3, 0.18f, K::continuous, U::hertz);
+    b.add (phaserFeedback, "Phaser Feedback", "FDBK", "Phaser", 0, 1, 0.42f, K::continuous, U::unit);
+    b.add (phaserEnv, "Phaser Filter Env", "F.ENV", "Phaser", -1, 1, 0, K::continuous, U::bipolar);
     return b.list;
 }
 
@@ -292,6 +297,7 @@ inline void formatParam (const Param& p, float v, char* text, uint32_t size)
         case Unit::envTime: msText (envMs (v), text, size); break;
         case Unit::strumTime: msText (strumMs (v), text, size); break;
         case Unit::glideTime: if (v <= 0.0f) std::snprintf (text, size, "Off"); else msText (glideMs (v), text, size); break;
+        case Unit::hertz: hzText (v, text, size); break;
         case Unit::lfoRate: hzText (lfoHz (v), text, size); break;
         case Unit::lfoDelay: msText (lfoDelayMs (v), text, size); break;
         case Unit::motionRate: hzText (motionHz (v), text, size); break;
@@ -343,6 +349,7 @@ inline bool parseParam (const Param& p, const char* text, float& v)
         case Unit::envTime: v = envKnob ((float) ms); break;
         case Unit::strumTime: v = strumKnob ((float) ms); break;
         case Unit::glideTime: v = glideKnob ((float) ms); break;
+        case Unit::hertz: v = (float) hz; break;
         case Unit::lfoRate: v = lfoKnob ((float) hz); break;
         case Unit::lfoDelay: v = lfoDelayKnob ((float) ms); break;
         case Unit::motionRate: v = motionKnob ((float) hz); break;

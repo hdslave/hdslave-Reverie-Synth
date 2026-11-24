@@ -1,12 +1,12 @@
 // Reverie's cost: renders through the CLAP entry for SECONDS at 48 kHz in 128-frame blocks, as Melodee plays it.
 // tools/bench.sh runs it under callgrind for instruction counts (exact and repeatable, unlike timings on a computer
 // that is not the MPC).
-//   bench [worst|storm|pad|typical|silent|paint|motion] [SECONDS]   (REVERIE_BENCH_RATE=44100 for another host rate)
+//   bench [worst|storm|pad|wah|wah-off|typical|silent|paint|motion] [SECONDS]   (REVERIE_BENCH_RATE=44100 for another host rate)
 // worst: every voice busy (five Open-voiced lifted chords struck together and held: all 24 voices), unison 4 + 4,
 // LP 24, Motion on every destination, every effect up; storm: the same patch with its five held pads rotating
 // every block, so stolen voices keep fading beside the 24 (the steal transient worst never reaches); pad: the
 // default sound holding one chord; typical: the default sound playing its progression, a chord every two
-// seconds, the releases overlapping; silent: no notes;
+// seconds, the releases overlapping; wah and wah-off: the same Undertow Wah chord with and without the phaser; silent: no notes;
 // paint / motion: the CHORDS / MOTION page painted 25 times a second while the pad plays.
 #include "../src/reverie.cpp"
 
@@ -26,6 +26,12 @@ int main (int argc, char** argv)
     const auto* factory = static_cast<const clap_plugin_factory*> (clap_entry.get_factory (CLAP_PLUGIN_FACTORY_ID));
     const clap_plugin* plugin = factory->create_plugin (factory, &host, "com.hdslave.reverie");
     plugin->init (plugin);
+    const bool wah = mode == "wah" || mode == "wah-off";
+    if (wah)
+    {
+        const auto* presets = static_cast<const clap_plugin_preset_load*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
+        if (! presets->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "undertow-wah")) return 1;
+    }
     plugin->activate (plugin, rate, 1, block);
     plugin->start_processing (plugin);
 
@@ -34,15 +40,17 @@ int main (int argc, char** argv)
     std::vector<Any> first;
     auto param = [&] (uint32_t id, double v) { Any a {}; a.param = { { sizeof (clap_event_param_value), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, id, nullptr, -1, -1, -1, -1, v }; first.push_back (a); };
     auto note = [&] (std::vector<Any>& list, uint32_t t, uint8_t s, uint8_t k, uint8_t v) { Any a {}; a.midi.header = { sizeof (clap_event_midi), t, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 }; a.midi.data[0] = s, a.midi.data[1] = k, a.midi.data[2] = v; list.push_back (a); };
+    if (mode == "wah-off") param (phaserMix, 0);
     if (mode == "worst" || mode == "storm")
     {
         param (voicing, reverie::Voicing::open), param (osc1Unison, 4), param (osc2Unison, 4), param (filterType, reverie::Filter::lp24);
+        param (phaserMix, 1), param (phaserFeedback, 1), param (phaserRate, 0.8), param (phaserEnv, 1);
         param (resonance, 0.5), param (air, 0.4), param (ensMix, 1.0), param (dlyMix, 0.5), param (dlyFeedback, 0.7);
         param (revMix, 0.8), param (shimmer, 0.8), param (revDecay, 1.0), param (strum, 0.0);
         param (xDest1, reverie::Dest::waves), param (xDest2, reverie::Dest::detune), param (yDest1, reverie::Dest::cutoff), param (yDest2, reverie::Dest::width);
         for (int k : { 44, 45, 46, 47, 48 }) note (first, 0, 0x90, (uint8_t) k, 110);
     }
-    if (mode == "pad" || mode == "paint" || mode == "motion") note (first, 0, 0x90, 36, 100);
+    if (wah || mode == "pad" || mode == "paint" || mode == "motion") note (first, 0, 0x90, 36, 100);
 
     clap_input_events none { nullptr, [] (const clap_input_events*) { return 0u; }, [] (const clap_input_events*, uint32_t) -> const clap_event_header* { return nullptr; } };
     clap_output_events out { nullptr, [] (const clap_output_events*, const clap_event_header*) { return true; } };

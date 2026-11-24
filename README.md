@@ -17,11 +17,11 @@
 
 [Download Reverie for MPC Sample, SP-16, macOS or Windows](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7). The release lists the matching firmware or desktop format for each build.
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, an envelope-controlled stereo phaser, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.4). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.5.3). Not yet run on the MPC itself.
 
 ## Install
 
@@ -383,7 +383,9 @@ path, so the notes move apart and together; RETRIG starts the path again with ea
 and Y each move two destinations (X>1, X>2, Y>1, Y>2, each with an amount): Wave 1, Wave 2, Waves (both), Osc Mix,
 Cutoff, Resonance, Detune, Width, Air, Pitch (up to two semitones), Level, LFO Depth.
 
-**Effects.** ENSEMBLE (three modulated delays a side with a slow and a quick LFO, as string machines did: mix, depth,
+**Effects.** PHASER runs before the ensemble, delay and reverb. Its six all-pass stages create three moving notches. Mix brings in the effect, Feedback sharpens it, and Rate sets the stereo LFO from 0 to 3 Hz. F.Env follows the filter envelope of the newest sounding chord. Positive amounts sweep up on attack and back down on release. Negative amounts reverse that motion. Set Rate to 0 Hz for a sweep driven entirely by your playing. Mix defaults to zero when loading older projects.
+
+ENSEMBLE (three modulated delays a side with a slow and a quick LFO, as string machines did: mix, depth,
 rate), DELAY (ping-pong, its time a division of the tempo, its repeats darkening; mix, time, feedback), REVERB (an
 eight-line feedback delay network, slowly modulated, with diffusion, a pre-delay and a high-pass ahead of it so the
 low end stays clear: mix, size, decay up to 40 s, tone, pre-delay) and SHIMMER (the reverb an octave up, fed back
@@ -406,7 +408,7 @@ A hollow amber marker shows where a physical knob sits while it waits for pickup
 | OSC | both oscillators, each drawn as its Position (and Motion) has it now; their controls; WIDTH, AIR, A.TONE, DRIFT |
 | FILTER | the response, with the cutoff where the newest note has it, and the filter envelope |
 | AMP | the amplitude envelope and the LFO |
-| FX | ensemble, tempo delay and shimmer reverb grouped beside an aquarium with a live output peak meter |
+| FX | phaser, ensemble, tempo delay and shimmer reverb grouped beside an aquarium with a live output peak meter |
 
 The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
 
@@ -414,25 +416,33 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## Sounds
 
-Twenty, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
+Twenty-five, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
 section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
 
 Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
-Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
+Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
+
+Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter envelope opens the phaser on each strike, and Motion brings the choir forward as you hold the chord. For the reference voicing on MPC, choose Bow and Gourd in D with Quartal voicing, set Strum to 30 ms and play A03 for about 0.7 s. The desktop equivalent is Velvet Night in C, Neo Soul, pad A08.
+
+- **Opal Rain** pairs a glassy upper octave with a sustained triangle. Short filter decay softens the strike into a ringing chord.
+- **Lantern Ferry** rocks between a flute and a hollow pulse over two beats, with a dotted-eighth echo answering the chord.
+- **Cinder Cello** pairs a low bowed string with a reed. A band-pass filter and a slow reverse-envelope phaser move through the held chord.
+- **Cloud Loom** swells from pitched breath into airy octave harmonics, with a high-pass filter and a long shimmer tail.
 
 ## Cost
 
-Instructions a 128-frame block takes (callgrind, `tools/bench.sh`; a block at 48 kHz is about 4.8 million cycles of
-the MPC's 1.8 GHz Cortex-A55):
+Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
 | silent | 3,838 | 0.08 % |
-| one chord held, default sound | 224,452 | 4.7 % |
-| the progression played, releases overlapping | 284,996 | 5.9 % |
-| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,033,044 | 21.5 % |
-| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,076,805 | 22.4 % |
+| Undertow Wah chord, phaser Mix at zero | 177,594 | 3.70 % |
+| same chord with the factory phaser setting | 190,250 | 3.96 % |
+| one chord held, default sound | 224,953 | 4.7 % |
+| the progression played, releases overlapping | 328,028 | 6.8 % |
+| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,904 | 21.8 % |
+| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,090,019 | 22.7 % |
 
 The page costs about 86,000 instructions a frame on CHORDS and 111,000 on MOTION while it moves (25 frames a
 second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample

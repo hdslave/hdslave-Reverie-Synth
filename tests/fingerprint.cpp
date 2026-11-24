@@ -177,6 +177,13 @@ std::vector<Scenario> scenarios()
     list.push_back ({ "reverb-off-on", "", { On (64, 36), P (60000, revMix, 0), P (90000, revMix, 0.6), Off (150000, 36), P (200000, revMix, 0), P (200016, revMix, 0.5) } });
     list.push_back ({ "sleep-wake", "", { P (0, revDecay, 0), P (0, dlyMix, 0.3), P (0, dlyFeedback, 0), P (0, ampRelease, envKnob (300.0f)), On (64, 36),
                                           Off (24000, 36), On (432000, 40), Off (460000, 40) }, 48000.0, 12.0 });
+    // A stereo chord swept by the filter envelope, crossing through zero to the inverted sweep, then cleared
+    // and retriggered. Keep the dry block-size and existing factory fingerprints as independent baselines.
+    list.push_back ({ "phaser-envelope", "", { P (0, phaserMix, 0.82), P (0, phaserFeedback, 0.73),
+                     P (0, phaserRate, 0.2), P (0, phaserEnv, 1), P (0, fltAttack, envKnob (220)), On (61, 36),
+                     Off (29801, 36), On (41207, 38), P (53117, phaserEnv, -1), P (68519, phaserRate, 0.6),
+                     P (81111, phaserMix, 0), P (106919, phaserMix, 0.9), Midi (114243, 0xb0, 120, 0),
+                     On (129119, 41), Off (155501, 41) }, 44100.0, 4.0 });
     // Voices stolen: five lifted Open chords struck on one sample (26 notes for 24 voices), then chords struck at a
     // block's start and in a tick's middle while every voice rings.
     {

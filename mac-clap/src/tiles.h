@@ -25,7 +25,7 @@ struct TilesAccess
             "03 // OSCILLATORS",
             "04 // FILTER & ENV",
             "05 // AMP & LFO",
-            "06 // ENSEMBLE / DELAY / REVERB"
+            "06 // EFFECTS & OUTPUT"
         };
         return tile < kTileCount ? kTitles[tile] : "";
     }

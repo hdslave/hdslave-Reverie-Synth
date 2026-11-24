@@ -382,7 +382,8 @@ void testParams()
         CHECK (textRescans == textBefore + 2);
         CHECK (keyText (1) == "Db");
     }
-    CHECK (! inst.params->get_info (inst.plugin, (uint32_t) paramCount, nullptr) || true);
+    clap_param_info pastEnd {};
+    CHECK (! inst.params->get_info (inst.plugin, (uint32_t) paramCount, &pastEnd));
     double v = 0.0;
     CHECK (! inst.params->get_value (inst.plugin, 9999, &v));
     // a flush while active sets values (and is told)
@@ -576,7 +577,8 @@ void testState()
     std::vector<uint8_t> saved;
     {
         Instance a;
-        a.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
+        a.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 },
+                   { ParamId::phaserMix, 0.74 }, { ParamId::phaserRate, 0.36 }, { ParamId::phaserFeedback, 0.63 }, { ParamId::phaserEnv, -0.85 } });
         clap_ostream out { &saved, [] (const clap_ostream* s, const void* d, uint64_t n) -> int64_t {
                               auto* v = static_cast<std::vector<uint8_t>*> (s->ctx);
                               v->insert (v->end(), (const uint8_t*) d, (const uint8_t*) d + n);
@@ -603,6 +605,32 @@ void testState()
         CHECK_NEAR (b.value (ParamId::cutoff), 0.42, 1e-6);
         CHECK_NEAR (b.value (ParamId::osc2Wave), 9, 0);
         CHECK_NEAR (b.value (ParamId::latch), 1, 0);
+    }
+    {   // A released 80-value project opened over a wet patch restores the old, dry sound.
+        constexpr uint32_t oldCount = 80;
+        static_assert (ParamId::volume == oldCount - 1 && ParamId::phaserMix == oldCount);
+        const uint32_t oldVersion = 2;
+        auto old = saved;
+        old.resize (12 + 8 * oldCount);
+        std::memcpy (old.data() + 4, &oldVersion, sizeof (oldVersion));
+        std::memcpy (old.data() + 8, &oldCount, sizeof (oldCount));
+        Instance restored, dryPatch;
+        CHECK (load (restored, saved));
+        CHECK_NEAR (restored.value (ParamId::phaserMix), 0.74, 1e-6);
+        CHECK_NEAR (restored.value (ParamId::phaserRate), 0.36, 1e-6);
+        CHECK_NEAR (restored.value (ParamId::phaserFeedback), 0.63, 1e-6);
+        CHECK_NEAR (restored.value (ParamId::phaserEnv), -0.85, 1e-6);
+        restored.render (1); // let the activated engine consume the wet state
+        CHECK (load (restored, old));
+        CHECK_NEAR (restored.value (ParamId::phaserMix), 0, 0);
+        for (auto id : { ParamId::phaserRate, ParamId::phaserFeedback, ParamId::phaserEnv })
+            CHECK_NEAR (restored.value (id), paramTable[id].def, 0);
+        dryPatch.render (1);
+        dryPatch.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
+        const std::vector<Cue> chord { On (0, 36), Off (4000, 36) };
+        const Stereo reference = dryPatch.render (12000, chord);
+        CHECK (rms (reference.l) > 1e-3);
+        CHECK (same (reference, restored.render (12000, chord)));
     }
     {   // unknown ids skipped, missing ones default; a wrong tag refused
         std::vector<uint8_t> odd = { 'R', 'V', 'R', 'E', 1, 0, 0, 0, 2, 0, 0, 0 };
@@ -1358,6 +1386,69 @@ void testEffects()
     }
 }
 
+void testPhaser()
+{
+    using namespace ParamId;
+    auto sweep = [] (double mix, double env, double attack) {
+        // Keep the voice filter fully open and independent of its envelope, and feed the phaser a bright chord.
+        return dry() + std::vector<Cue> { P (0, osc1Wave, 1), P (0, fltAttack, attack), P (0, fltDecay, envKnob (180)),
+                                         P (0, fltSustain, 0.18), P (0, fltRelease, envKnob (110)), P (0, phaserMix, mix),
+                                         P (0, phaserRate, 0.23), P (0, phaserFeedback, 0.85), P (0, phaserEnv, env),
+                                         On (37, 36), Off (10799, 36) };
+    };
+    const double quick = envKnob (15), slow = envKnob (600);
+    auto play = [&] (double mix, double env, double attack) {
+        Instance a;
+        return a.render (18000, sweep (mix, env, attack));
+    };
+    const Stereo dryRef = play (0, 0, quick);
+    CHECK (same (dryRef, play (0, 1, slow)));
+    const Stereo freeSweep = play (0.82, 0, quick);
+    CHECK (same (freeSweep, play (0.82, 0, slow)));
+    CHECK (! same (freeSweep, dryRef));
+    const auto staticSweep = sweep (0.82, 0, quick) + std::vector<Cue> { P (0, phaserRate, 0) };
+    Instance parked, noFeedback;
+    const Stereo parkedAudio = parked.render (18000, staticSweep);
+    CHECK (! same (freeSweep, parkedAudio));
+    CHECK (! same (parkedAudio, noFeedback.render (18000, staticSweep + std::vector<Cue> { P (0, phaserFeedback, 0) })));
+    const Stereo fastEnvelope = play (0.82, 1, quick), slowEnvelope = play (0.82, 1, slow);
+    double difference = 0;
+    for (size_t i = 0; i < fastEnvelope.l.size(); ++i)
+        difference += std::pow ((double) fastEnvelope.l[i] - slowEnvelope.l[i], 2);
+    CHECK (std::sqrt (difference / fastEnvelope.l.size()) > 1e-3);
+    CHECK (! same (fastEnvelope, play (0.82, -1, quick)));
+
+    const auto scene = sweep (0.82, 1, slow) + std::vector<Cue> {
+        P (4199, phaserRate, 1), P (7134, phaserEnv, -1), P (9999, phaserFeedback, 1),
+        On (10997, 41), P (12011, phaserMix, 0), P (18313, phaserMix, 1), Off (21111, 41) };
+    for (double rate : { 8000.0, 44100.0, 48000.0, 96000.0, 192000.0 })
+    {
+        Instance a (rate);
+        const Stereo audio = a.render (24000, scene);
+        CHECK (finite (audio) && peak (audio) <= 1.0 && rms (audio.l) > 1e-3);
+        if (rate == 48000.0)
+        {
+            for (uint32_t block : { 1u, 37u, 4096u })
+            {
+                Instance b (rate);
+                CHECK (same (audio, b.render (24000, scene, block)));
+            }
+            // Both instances play the same notes so their free oscillator phases and random state agree.
+            // Only one ran the phaser before reset. Its history must be gone on the next wet strike.
+            auto bypass = scene;
+            for (auto& cue : bypass)
+                if (cue.kind == Cue::param && cue.a == phaserMix) cue.b = 0;
+            Instance clean (rate);
+            clean.render (24000, bypass);
+            clean.plugin->reset (clean.plugin);
+            a.plugin->reset (a.plugin);
+            CHECK (peak (a.render (4096)) == 0.0);
+            clean.render (4096);
+            CHECK (same (clean.render (18000, scene), a.render (18000, scene)));
+        }
+    }
+}
+
 void testTiming()
 {
     // the same output whatever the block size
@@ -1550,6 +1641,7 @@ int main (int argc, char** argv)
     testPresets();
     testNotes();
     testEffects();
+    testPhaser();
     testTiming();
     testTuning();
     testExtremes();
