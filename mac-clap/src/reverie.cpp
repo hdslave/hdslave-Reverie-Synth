@@ -561,7 +561,7 @@ hdui::Host hostOf (const melodee_screen_frame_t* f)
 {
     hdui::Host h;
     h.nowMs = f->time_ms;
-    h.accent = f->colour ? (0xff000000u | (f->colour & 0x00ffffffu)) : 0u;
+    h.accent = 0xff000000u | (f->colour & 0x00ffffffu);
     h.shift = f->shift != 0;
     h.playing = f->playing != 0;
     for (int k = 0; k < 3; ++k)

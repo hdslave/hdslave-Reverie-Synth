@@ -131,10 +131,13 @@ DesktopPlugin& of (const clap_plugin_t* p) { return *static_cast<DesktopPlugin*>
 
 DesktopPlugin* fromHost (const clap_host_t* host) { return host ? static_cast<DesktopPlugin*> (host->host_data) : nullptr; }
 
-void proxyScreenRedraw (const void* host, uint32_t /*flags*/)
+void proxyScreenRedraw (const void* host, uint32_t flags)
 {
-    if (auto* dp = fromHost (static_cast<const clap_host_t*> (host)))
-        dp->screenRequested.store (true, std::memory_order_release);
+    auto* dp = fromHost (static_cast<const clap_host_t*> (host));
+    if (!dp) return;
+    dp->screenRequested.store (true, std::memory_order_release);
+    if ((flags & MELODEE_SCREEN_RUN) && dp->realHost && dp->realHost->request_process)
+        dp->realHost->request_process (dp->realHost);
 }
 const melodee_screen_host_t kProxyHostScreen { proxyScreenRedraw };
 
