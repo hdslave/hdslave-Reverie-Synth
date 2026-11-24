@@ -439,9 +439,9 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
         glass.frame (0, 0, gw, gh, ink::guide);
         return px;
     }();
-    if (!backdrop) backdrop = lens.data();
+    const Ink* glassPixels = backdrop ? backdrop : lens.data();
     for (int j = 0; j < gh; ++j)
-        std::copy_n (backdrop + j * gw, gw, r.px + (y0 + j) * r.w + x0);
+        std::copy_n (glassPixels + j * gw, gw, r.px + (y0 + j) * r.w + x0);
     auto px = [&] (float v) { return x0 + w / 2 + (int) std::lround (v * 45); };
     auto py = [&] (float v) { return y0 + 53 - (int) std::lround (v * 45); };
     const float cx = live (ParamId::motionX), cy = live (ParamId::motionY);
@@ -475,8 +475,21 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
             r.disc (x, y, 3, mix (ink::field, c, (int) (90 + 160 * lv)));
             r.dot (x - 1, y - 1, ink::white);
         }
-    r.text (x0 + 5, y0 + h - 15, motionChoices[std::clamp (shape, 0, Motion::count - 1)], ink::white);
-    r.right (x0 + w - 5, y0 + h - 14, "X / Y", ink::ice, 10);
+    auto caption = [&] (int x, int y, const char* text, Ink color, int size) {
+        if (backdrop)
+        {
+            // Key each live glyph against the glass, including the curved rim.
+            constexpr Ink shadow = 0xff052d3d;
+            r.text (x - 1, y, text, shadow, size);
+            r.text (x + 1, y, text, shadow, size);
+            r.text (x, y - 1, text, shadow, size);
+            r.text (x, y + 1, text, shadow, size);
+            r.text (x, y, text, shadow, size);
+        }
+        r.text (x, y, text, color, size);
+    };
+    caption (x0 + 5, y0 + h - 15, motionChoices[std::clamp (shape, 0, Motion::count - 1)], ink::white, 12);
+    caption (x0 + w - 5 - r.measure ("X / Y", 10), y0 + h - 14, "X / Y", ink::ice, 10);
 }
 
 void Screen::well (const Raster& r, int x, int y, int w, int h)
