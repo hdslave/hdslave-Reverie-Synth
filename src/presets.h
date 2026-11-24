@@ -120,22 +120,24 @@ inline const PresetValue satinKeys[] = {
     { osc2Level, 0.4f }, { ampAttack, envKnob (5) }, { ampDecay, envKnob (3000) }, { ampSustain, 0.5f }, { ampRelease, envKnob (1800) },
     { cutoff, cutoffKnob (3500) }, { filterEnv, 0.25f }, { fltAttack, envKnob (3) }, { fltDecay, envKnob (1200) }, { fltSustain, 0.2f },
     { ensMix, 0.5f }, { ensRate, ensKnob (0.5f) }, { revMix, 0.3f }, { revDecay, decayKnob (3) }, { shimmer, 0.0f }, { motionDepth, 0.2f }, { volume, 0.88f } };
-// The low choir and its quieter upper octave begin on Oo at each strike.
-// The same motion opens their vowels and the resonant low-pass together.
+// A quick filter swell brings out the low Spectra band's harmonics. Keep the dry
+// chord centred and let the ensemble and short reverb supply the stereo tail.
 inline const PresetValue velvetWah[] = {
-    { osc1Wave, 2 }, { osc1Pos, 0.34f }, { osc1Octave, -1 }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (9) },
-    { osc2Wave, 2 }, { osc2Pos, 0.27f }, { osc2Unison, 1 }, { osc2Level, 0.34f },
-    { width, 0.74f }, { air, 0.0f }, { filterType, Filter::lp12 }, { cutoff, cutoffKnob (570) },
-    { resonance, 0.69f }, { filterEnv, 0.21f }, { keyTrack, 0.16f }, { velCutoff, 0.14f },
-    { fltAttack, envKnob (660) }, { fltDecay, envKnob (1300) }, { fltSustain, 0.45f }, { fltRelease, envKnob (1150) },
-    { ampAttack, envKnob (180) }, { ampSustain, 0.9f }, { ampRelease, envKnob (1550) },
+    { osc1Wave, 6 }, { osc1Pos, 0.22f }, { osc1Octave, -1 }, { osc1Fine, -2 },
+    { osc1Unison, 2 }, { osc1Detune, detuneKnob (4) },
+    { osc2Wave, 8 }, { osc2Pos, 0.49f }, { osc2Fine, 0 }, { osc2Unison, 1 }, { osc2Level, 0.43f },
+    { width, 0.0f }, { air, 0.0f }, { drift, driftKnob (1) },
+    { cutoff, cutoffKnob (250) }, { resonance, 0.70f }, { filterEnv, 0.14f },
+    { keyTrack, 0.02f }, { velCutoff, 0.02f },
+    { fltAttack, envKnob (240) }, { fltDecay, envKnob (490) }, { fltSustain, 0.75f }, { fltRelease, envKnob (400) },
+    { ampAttack, envKnob (74) }, { ampDecay, envKnob (600) }, { ampSustain, 0.45f }, { ampRelease, envKnob (580) },
     { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
-    { motionRate, motionKnob (0.31f) }, { motionDepth, 0.8f }, { motionSpread, 0.0f }, { motionRetrig, 1 },
-    { xDest1, Dest::waves }, { xAmt1, -0.42f }, { xDest2, Dest::cutoff }, { xAmt2, -0.17f },
-    { yDest1, Dest::resonance }, { yAmt1, 0.06f }, { yDest2, Dest::off },
-    { ensMix, 0.32f }, { ensDepth, 0.42f }, { ensRate, ensKnob (0.27f) }, { dlyMix, 0.0f },
-    { revMix, 0.25f }, { revDecay, decayKnob (3.2f) }, { revDamp, dampKnob (3800) },
-    { shimmer, 0.0f }, { volume, 0.58f } };
+    { motionRate, motionKnob (0.35f) }, { motionDepth, 0.68f }, { motionSpread, 0.0f }, { motionRetrig, 1 },
+    { xDest1, Dest::resonance }, { xAmt1, 0.02f }, { xDest2, Dest::off },
+    { yDest1, Dest::wave1 }, { yAmt1, 0.12f }, { yDest2, Dest::cutoff }, { yAmt2, 0.085f },
+    { ensMix, 0.12f }, { ensDepth, 0.42f }, { ensRate, ensKnob (0.27f) }, { dlyMix, 0.0f },
+    { revMix, 0.40f }, { revDecay, decayKnob (1.8f) }, { revDamp, dampKnob (3500) }, { revPredelay, 0.035f },
+    { shimmer, 0.0f }, { volume, 1.18f } };
 } // namespace presetdata
 
 #define REVERIE_PRESET(key, name, list) { key, name, presetdata::list, (int) (sizeof (presetdata::list) / sizeof (presetdata::list[0])) }
