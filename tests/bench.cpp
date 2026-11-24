@@ -6,7 +6,7 @@
 // LP 24, Motion on every destination, every effect up; storm: the same patch with its five held pads rotating
 // every block, so stolen voices keep fading beside the 24 (the steal transient worst never reaches); pad: the
 // default sound holding one chord; typical: the default sound playing its progression, a chord every two
-// seconds, the releases overlapping; wah and wah-off: the same Velvet Wah chord with and without the phaser; silent: no notes;
+// seconds, the releases overlapping; wah and wah-off: the same Undertow Wah chord with and without the phaser; silent: no notes;
 // paint / motion: the CHORDS / MOTION page painted 25 times a second while the pad plays.
 #include "../src/reverie.cpp"
 
@@ -30,7 +30,7 @@ int main (int argc, char** argv)
     if (wah)
     {
         const auto* presets = static_cast<const clap_plugin_preset_load*> (plugin->get_extension (plugin, CLAP_EXT_PRESET_LOAD));
-        if (! presets->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "velvet-wah")) return 1;
+        if (! presets->from_location (plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "undertow-wah")) return 1;
     }
     plugin->activate (plugin, rate, 1, block);
     plugin->start_processing (plugin);

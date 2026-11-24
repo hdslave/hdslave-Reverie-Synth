@@ -18,7 +18,6 @@ sound-ethereal-vox 2a9ebae87c54caa9
 sound-mystic-reed bd1f6a07f8d2639e
 sound-polar-lights 73f230b3ac5efdcd
 sound-satin-keys 4ff6cd25754fba11
-sound-velvet-wah a1d9395a916c242f
 sound-undertow-wah 18dd1383b6485b6a
 voicing-0 b929c75cfa4651b5
 voicing-1 be2d3b3b936f67e0

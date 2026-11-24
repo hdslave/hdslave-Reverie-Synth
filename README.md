@@ -21,7 +21,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.5.1). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.5.2). Not yet run on the MPC itself.
 
 ## Install
 
@@ -416,15 +416,12 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## Sounds
 
-Twenty-two, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
+Twenty-one, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
 section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
 
 Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
-Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Velvet Wah, Undertow Wah.
-
-Velvet Wah opens with a low resonant swell. Spectra plays an octave beneath the Warm oscillator, with a centred
-attack and a short stereo reverb tail. The same 278 ms filter attack opens the phaser at +84% envelope depth. Its LFO is parked, so each strike starts the vowel. Motion Y shifts the voice filter on held chords.
+Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys, Undertow Wah.
 
 Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter envelope opens the phaser on each strike, and Motion brings the choir forward as you hold the chord. For the reference voicing on MPC, choose Bow and Gourd in D with Quartal voicing, set Strum to 30 ms and play A03 for about 0.7 s. The desktop equivalent is Velvet Night in C, Neo Soul, pad A08.
 
@@ -435,8 +432,8 @@ Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. T
 | Scene | Instructions | Share of one core |
 |---|---|---|
 | silent | 3,838 | 0.08 % |
-| Velvet Wah chord, phaser Mix at zero | 177,601 | 3.70 % |
-| same chord with the factory phaser setting | 190,255 | 3.96 % |
+| Undertow Wah chord, phaser Mix at zero | 177,594 | 3.70 % |
+| same chord with the factory phaser setting | 190,250 | 3.96 % |
 | one chord held, default sound | 224,953 | 4.7 % |
 | the progression played, releases overlapping | 328,028 | 6.8 % |
 | worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,904 | 21.8 % |
