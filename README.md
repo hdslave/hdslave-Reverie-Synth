@@ -432,8 +432,9 @@ progression, key, voicing and other chord settings. On a sound change old chord
 gates release and their effects can ring out. A short output fade smooths the
 change. Play the pad again to hear the new sound.
 
-In SP-16 version **0.4.4-sp16.7** the bottom row contains Undertow Wah, Opal Rain,
-Lantern Ferry, Cinder Cello and Cloud Loom. The same sounds appear under **PRESETS**.
+The bottom row contains Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello
+and Cloud Loom. These sounds also appear in the host’s **PRESETS** list. Tap
+**Output → Phaser** to edit the stereo phaser.
 Undertow Wah sweeps a low Choir and Hollow Pulse through an envelope-driven phaser.
 For its reference chord, select Bow and Gourd in D with Quartal voicing, a 30 ms
 strum, 5% Humanize and 70% Bass, then hold pad 3 for about 0.7 seconds.
