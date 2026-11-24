@@ -79,5 +79,7 @@ with (ROOT / "src/ui/desktop_art.h").open("w") as out:
     bitmap(out, "masthead", masthead())
     bitmap(out, "glass", ImageOps.fit(Image.open(ASSETS / "aqua-glass.jpg"), (320, 183), method=LANCZOS))
     bitmap(out, "lens", motion_lens())
-    bitmap(out, "tank", ImageOps.fit(Image.open(ROOT.parent / "assets/aquarium.jpg"), (103, 63), method=LANCZOS))
+    # The fish sits above the middle of the square source. Leave water above its dorsal fin.
+    bitmap(out, "tank", ImageOps.fit(Image.open(ROOT.parent / "assets/aquarium.jpg"), (103, 63),
+                                     method=LANCZOS, centering=(0.5, 0.28)))
     out.write("}\n")
