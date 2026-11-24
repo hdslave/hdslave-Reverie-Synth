@@ -19,6 +19,10 @@ sound-mystic-reed bd1f6a07f8d2639e
 sound-polar-lights 73f230b3ac5efdcd
 sound-satin-keys 4ff6cd25754fba11
 sound-undertow-wah 18dd1383b6485b6a
+sound-opal-rain 28e214fc9fb1522c
+sound-lantern-ferry 78124d87166071fe
+sound-cinder-cello affcf1617e053def
+sound-cloud-loom 38e190087a782a01
 voicing-0 b929c75cfa4651b5
 voicing-1 be2d3b3b936f67e0
 voicing-2 efe4d39af234458b

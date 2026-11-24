@@ -137,6 +137,67 @@ inline const PresetValue undertowWah[] = {
     { ensMix, 0.11f }, { ensDepth, 0.42f }, { ensRate, ensKnob (0.27f) }, { dlyMix, 0.0f },
     { revMix, 0.29f }, { revSize, 0.65f }, { revDecay, decayKnob (2.05f) }, { revDamp, dampKnob (5100) },
     { revPredelay, 0.072f }, { shimmer, 0.0f }, { volume, 1.69f } };
+
+// A bell above a sustained triangle. The short filter decay damps the strike while the chord keeps ringing.
+inline const PresetValue opalRain[] = {
+    { osc1Wave, 8 }, { osc1Pos, 0.12f }, { osc1Level, 0.76f }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (4.3f) },
+    { osc2Wave, 5 }, { osc2Pos, 0.39f }, { osc2Octave, 1 }, { osc2Fine, 3 }, { osc2Level, 0.54f }, { osc2Unison, 1 },
+    { width, 0.69f }, { air, 0.0f }, { drift, driftKnob (1.1f) },
+    { cutoff, cutoffKnob (1200) }, { resonance, 0.13f }, { filterEnv, 0.47f }, { keyTrack, 0.33f }, { velCutoff, 0.20f },
+    { fltAttack, envKnob (3) }, { fltDecay, envKnob (500) }, { fltSustain, 0.09f }, { fltRelease, envKnob (1900) },
+    { ampAttack, envKnob (22) }, { ampDecay, envKnob (1250) }, { ampSustain, 0.59f }, { ampRelease, envKnob (2650) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::wander }, { motionRate, motionKnob (0.14f) }, { motionDepth, 0.38f },
+    { xDest1, Dest::wave2 }, { xAmt1, 0.39f }, { xDest2, Dest::off }, { yDest1, Dest::width }, { yAmt1, 0.35f }, { yDest2, Dest::off },
+    { ensMix, 0.18f }, { ensDepth, 0.32f }, { dlyMix, 0.23f }, { dlyTime, 6 }, { dlyFeedback, 0.31f },
+    { revMix, 0.30f }, { revSize, 0.78f }, { revDecay, decayKnob (4.7f) }, { revDamp, dampKnob (5300) }, { shimmer, 0.16f },
+    { volume, 0.77f } };
+
+// One filter pulse per beat. The hollow octave answers the flute over the longer two-beat motion cycle.
+inline const PresetValue lanternFerry[] = {
+    { osc1Wave, 4 }, { osc1Pos, 0.21f }, { osc1Level, 0.81f }, { osc1Unison, 1 },
+    { osc2Wave, 1 }, { osc2Pos, 0.52f }, { osc2Octave, 1 }, { osc2Fine, -3 }, { osc2Level, 0.53f }, { osc2Unison, 2 }, { osc2Detune, detuneKnob (6) },
+    { width, 0.65f }, { air, 0.0f }, { drift, driftKnob (1.4f) },
+    { filterType, Filter::lp24 }, { cutoff, cutoffKnob (1100) }, { resonance, 0.24f }, { filterEnv, 0.09f }, { keyTrack, 0.29f }, { velCutoff, 0.12f },
+    { fltAttack, envKnob (75) }, { fltDecay, envKnob (700) }, { fltSustain, 0.45f },
+    { ampAttack, envKnob (145) }, { ampDecay, envKnob (1200) }, { ampSustain, 0.80f }, { ampRelease, envKnob (980) },
+    { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::figure8 }, { motionSync, 1 }, { motionDiv, 5 }, { motionDepth, 0.90f }, { motionSpread, 0.0f }, { motionRetrig, 1 },
+    { xDest1, Dest::oscMix }, { xAmt1, 0.77f }, { xDest2, Dest::level }, { xAmt2, 0.93f },
+    { yDest1, Dest::cutoff }, { yAmt1, 0.40f }, { yDest2, Dest::wave2 }, { yAmt2, 0.27f },
+    { ensMix, 0.21f }, { ensDepth, 0.36f }, { dlyMix, 0.29f }, { dlyTime, 7 }, { dlyFeedback, 0.21f },
+    { revMix, 0.17f }, { revSize, 0.50f }, { revDecay, decayKnob (2.8f) }, { revDamp, dampKnob (4100) }, { shimmer, 0.0f },
+    { volume, 0.72f } };
+
+// A low bowed string and a reed at concert pitch share a moving band-pass body.
+inline const PresetValue cinderCello[] = {
+    { osc1Wave, 3 }, { osc1Pos, 0.59f }, { osc1Octave, -1 }, { osc1Level, 0.95f }, { osc1Unison, 2 }, { osc1Detune, detuneKnob (5.5f) },
+    { osc2Wave, 10 }, { osc2Pos, 0.18f }, { osc2Fine, 2 }, { osc2Level, 0.46f }, { osc2Unison, 1 },
+    { width, 0.41f }, { air, 0.035f }, { airTone, 0.23f }, { drift, driftKnob (2.2f) },
+    { filterType, Filter::bp }, { cutoff, cutoffKnob (475) }, { resonance, 0.24f }, { filterEnv, 0.26f }, { keyTrack, 0.57f }, { velCutoff, 0.08f },
+    { fltAttack, envKnob (590) }, { fltDecay, envKnob (1700) }, { fltSustain, 0.38f }, { fltRelease, envKnob (1620) },
+    { ampAttack, envKnob (570) }, { ampDecay, envKnob (2100) }, { ampSustain, 0.82f }, { ampRelease, envKnob (1670) },
+    { lfoRate, lfoKnob (4.2f) }, { lfoDelay, lfoDelayKnob (850) }, { lfoPitch, 0.044f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::pendulum }, { motionRate, motionKnob (0.12f) }, { motionDepth, 0.41f },
+    { xDest1, Dest::wave1 }, { xAmt1, 0.44f }, { xDest2, Dest::off }, { yDest1, Dest::oscMix }, { yAmt1, 0.31f }, { yDest2, Dest::off },
+    { phaserMix, 0.32f }, { phaserRate, 0.10f }, { phaserFeedback, 0.29f }, { phaserEnv, -0.30f },
+    { ensMix, 0.16f }, { ensDepth, 0.28f }, { dlyMix, 0.0f }, { revMix, 0.24f }, { revSize, 0.60f },
+    { revDecay, decayKnob (3.1f) }, { revDamp, dampKnob (3450) }, { shimmer, 0.0f }, { volume, 0.97f } };
+
+// A high-pass swell of pitched breath and quiet octave harmonics. A damped shimmer reverb carries the release.
+inline const PresetValue cloudLoom[] = {
+    { osc1Wave, 9 }, { osc1Pos, 0.17f }, { osc1Level, 0.78f }, { osc1Unison, 3 }, { osc1Detune, detuneKnob (10.5f) },
+    { osc2Wave, 7 }, { osc2Pos, 0.08f }, { osc2Octave, 1 }, { osc2Fine, -4 }, { osc2Level, 0.35f }, { osc2Unison, 1 },
+    { width, 0.91f }, { air, 0.045f }, { airTone, 0.38f }, { drift, driftKnob (2.9f) },
+    { filterType, Filter::hp }, { cutoff, cutoffKnob (775) }, { resonance, 0.08f }, { filterEnv, -0.23f }, { keyTrack, 0.35f }, { velCutoff, 0.0f },
+    { fltAttack, envKnob (2900) }, { fltDecay, envKnob (4200) }, { fltSustain, 0.77f }, { fltRelease, envKnob (3200) },
+    { ampAttack, envKnob (2050) }, { ampDecay, envKnob (3700) }, { ampSustain, 0.86f }, { ampRelease, envKnob (4700) },
+    { lfoPitch, 0.011f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
+    { motionShape, Motion::spiral }, { motionRate, motionKnob (0.105f) }, { motionDepth, 0.62f }, { motionSpread, 0.78f },
+    { xDest1, Dest::oscMix }, { xAmt1, -0.43f }, { xDest2, Dest::width }, { xAmt2, 0.26f },
+    { yDest1, Dest::wave1 }, { yAmt1, 0.31f }, { yDest2, Dest::air }, { yAmt2, 0.09f },
+    { ensMix, 0.37f }, { ensDepth, 0.61f }, { ensRate, ensKnob (0.16f) }, { dlyMix, 0.0f },
+    { revMix, 0.43f }, { revSize, 0.92f }, { revDecay, decayKnob (8.1f) }, { revDamp, dampKnob (4600) }, { shimmer, 0.22f }, { volume, 0.90f } };
 } // namespace presetdata
 
 #define REVERIE_PRESET(key, name, list) { key, name, presetdata::list, (int) (sizeof (presetdata::list) / sizeof (presetdata::list[0])) }
@@ -162,6 +223,10 @@ inline const Preset presetTable[] = {
     REVERIE_PRESET ("polar-lights", "Polar Lights", polarLights),
     REVERIE_PRESET ("satin-keys", "Satin Keys", satinKeys),
     REVERIE_PRESET ("undertow-wah", "Undertow Wah", undertowWah),
+    REVERIE_PRESET ("opal-rain", "Opal Rain", opalRain),
+    REVERIE_PRESET ("lantern-ferry", "Lantern Ferry", lanternFerry),
+    REVERIE_PRESET ("cinder-cello", "Cinder Cello", cinderCello),
+    REVERIE_PRESET ("cloud-loom", "Cloud Loom", cloudLoom),
 };
 #undef REVERIE_PRESET
 constexpr int presetCount = (int) (sizeof (presetTable) / sizeof (presetTable[0]));
