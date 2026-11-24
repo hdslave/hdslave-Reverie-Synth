@@ -2,7 +2,16 @@
 
 **A chord-progression and X/Y Motion pad synthesizer as a CLAP plug-in for the Akai MPC Sample.**
 
-![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
+<table>
+  <tr>
+    <th width="34%">MPC Sample</th>
+    <th width="66%">macOS and Windows · CLAP and VST3</th>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie six Frutiger Aero pages running in hdslaveOS"></a></td>
+    <td align="center"><a href="mac-clap/assets/desktop-preview.gif"><img src="mac-clap/assets/desktop-preview.gif" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
+  </tr>
+</table>
 
 > **Desktop VST3 and CLAP for macOS and Windows.** Download [Reverie Desktop 0.1.7](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/desktop-v0.1.7) or see the [desktop panel and installation guide](mac-clap/).
 
