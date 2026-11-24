@@ -15,7 +15,7 @@
 #include "progressions.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.3.0"
+#define REVERIE_VERSION "0.3.1"
 #endif
 
 namespace reverie
@@ -49,10 +49,10 @@ enum : uint32_t
     phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
     seqMode = 84, seqLevel, seqDivision, seqFade, seqOctave,
     seqWave1, seqWave2, seqWave3, seqWave4,
-    echoTaps, echoDuck, echoTone,
-    count = 96
+    echoTaps, echoDuck, echoTone, layerArp,
+    count = 97
 };
-static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79 && phaserEnv == 83 && echoTone == 95 && count == 96, "the ids are fixed");
+static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79 && phaserEnv == 83 && echoTone == 95 && layerArp == 96 && count == 97, "the ids are fixed");
 constexpr uint32_t chordSection = 10; // ids below it belong to the chords, not the sound
 inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wave : osc2Wave) + field; }
 } // namespace ParamId
@@ -260,6 +260,7 @@ inline const Param* makeTable()
     b.add (echoTaps, "Stereo Echo Taps", "TAPS", "Delay", 0, 1, 0, K::continuous, U::unit);
     b.add (echoDuck, "Echo Ducking", "DUCK", "Delay", 0, 1, 0, K::continuous, U::unit);
     b.add (echoTone, "Echo Tone", "TONE", "Delay", 0, 1, 0.5f, K::continuous, U::unit);
+    b.add (layerArp, "Layer Arp", "ARP", "Wave Sequence", 0, 1, 0, K::choice, U::onOff, offOn);
     return b.list;
 }
 

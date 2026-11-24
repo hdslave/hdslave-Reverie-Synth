@@ -29,6 +29,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <numeric>
 
 namespace
 {
@@ -606,13 +607,14 @@ void testState()
         CHECK_NEAR (b.value (ParamId::osc2Wave), 9, 0);
         CHECK_NEAR (b.value (ParamId::latch), 1, 0);
     }
-    {   // Activate the new layer, then load an 84-parameter project over it.
-        constexpr uint32_t oldCount = 84;
+    // Both previous state layouts restore defaults for the controls they predate.
+    for (uint32_t oldCount : { 84u, 96u })
+    {
         auto old = saved;
         old.resize (12 + 8 * oldCount);
         std::memcpy (old.data() + 8, &oldCount, sizeof (oldCount));
         Instance restored;
-        CHECK (restored.preset ("tide-atlas") && restored.value (ParamId::seqMode) == Sequence::loop);
+        CHECK (restored.preset ("satin-lantern") && restored.value (ParamId::layerArp) == 1);
         CHECK (load (restored, old));
         for (uint32_t id = oldCount; id < ParamId::count; ++id) CHECK_NEAR (restored.value (id), paramTable[id].def, 0);
     }
@@ -1506,6 +1508,50 @@ void testWaveLayers()
     }
 }
 
+void testLayerArp()
+{
+    WaveSequenceSettings s;
+    s.mode = Sequence::loop;
+    s.arp = true;
+    // The chord cycle can be longer than the four different waves. Only the selected
+    // member sounds in each step, with a gap before the next pluck and silence after release.
+    for (int size : { 1, 3, 5, 8 })
+        for (int rank = 0; rank < size; ++rank)
+        {
+            WaveSequenceVoice voice;
+            voice.start (123456789);
+            constexpr int framesPerStep = 1024;
+            for (int at = 0; at < (size + 2) * framesPerStep; at += tickSize)
+            {
+                const bool held = at < (size + 1) * framesPerStep;
+                const int step = at / framesPerStep, offset = at % framesPerStep;
+                voice.control (s, 60.0f + rank, 48000, 1.0 / framesPerStep, tickSize, 0.0f,
+                               (double) at / framesPerStep, rank, size, held);
+                float lr[2 * tickSize] {};
+                if (voice.audible()) voice.render (lr, tickSize);
+                if (offset == 256 || offset == 960)
+                {
+                    const auto energy = std::inner_product (std::begin (lr), std::end (lr), std::begin (lr), 0.0f);
+                    CHECK ((energy > 1.0e-8f) == (held && step % size == rank && offset == 256));
+                }
+            }
+        }
+
+    using namespace ParamId;
+    const std::vector<Cue> phrase { P (0, strum, 0.35), On (71, 36), On (12517, 39), Off (18030, 36), Off (33001, 39) };
+    auto play = [&] (std::vector<Cue> changes, uint32_t block) {
+        Instance synth;
+        CHECK (synth.preset ("satin-lantern"));
+        return synth.render (72000, changes + phrase, block, true, 99);
+    };
+    const auto complete = play ({}, 128);
+    CHECK (finite (complete) && rms (complete.l) > 0.01);
+    CHECK (same (complete, play ({}, 1)) && same (complete, play ({}, 4096)));
+    const auto bed = play ({ P (0, seqLevel, 0) }, 128);
+    CHECK (rms (bed.l) > 0.01 && ! same (complete, bed));
+    CHECK (same (bed, play ({ P (0, seqMode, Sequence::off) }, 128)));
+}
+
 void testEchoReturn()
 {
     auto impulse = [] (float taps, float duck, float tone, bool busy) {
@@ -1759,6 +1805,7 @@ int main (int argc, char** argv)
     testEffects();
     testPhaser();
     testWaveLayers();
+    testLayerArp();
     testEchoReturn();
     testTiming();
     testTuning();

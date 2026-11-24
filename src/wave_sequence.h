@@ -12,6 +12,7 @@ struct WaveSequenceSettings
     int waves[4] { 5, 2, 9, 7 };
     float level = 0.6f, fade = 0.7f, octave = 0.0f;
     double beats = 1.0;
+    bool arp = false;
 };
 
 class WaveSequenceVoice
@@ -26,7 +27,7 @@ public:
     // Advance from the note's actual start, including a partial first control tick. A tempo
     // change alters the remaining duration without moving the note to a different step.
     void control (const WaveSequenceSettings& s, float pitch, float rate, double stepsPerSample,
-                  int frames, float pan)
+                  int frames, float pan, double arpStep, int chordIndex, int chordSize, bool held)
     {
         if (mode != s.mode)
         {
@@ -48,7 +49,9 @@ public:
             return;
         }
 
-        rendering = gain > 0.0f || s.level > 0.0f;
+        // Chord members share the pad clock even when the underlying oscillators strum.
+        if (s.arp) position = std::fmod (arpStep, 4.0);
+
         const int step = std::min ((int) position, 3);
         if (step != lastStep)
         {
@@ -63,8 +66,25 @@ public:
         const float t = (float) std::clamp ((next - step) / overlap, 0.0, 1.0);
         const float targetMix = t * t * (3.0f - 2.0f * t);
         mixStep = previousWave == currentWave ? 0.0f : (targetMix - mix) / (float) frames;
-        const float contour = mode == Sequence::strike ? std::max (0.0f, fast::exp2 (-2.5f * (float) next) - 0.001f) : 1.0f;
-        gainStep = (s.level * contour - gain) / (float) frames;
+        if (s.arp)
+        {
+            const double end = arpStep + frames * stepsPerSample;
+            const auto number = (uint64_t) end;
+            const float fraction = (float) (end - (double) number);
+            // Leave space between plucks and round both edges.
+            const float gate = std::clamp (std::min (fraction * 14.0f, (0.86f - fraction) * 5.0f), 0.0f, 1.0f);
+            const float contour = (int) (number % (uint64_t) chordSize) == chordIndex ? gate * (1.0f - 0.42f * fraction) : 0.0f;
+            // On release, finish the current pluck smoothly while the pad and echo ring.
+            const float targetGain = held ? s.level * contour : std::max (0.0f, gain - frames / (0.012f * rate));
+            rendering = gain > 0.0f || targetGain > 0.0f;
+            gainStep = (targetGain - gain) / (float) frames;
+        }
+        else
+        {
+            rendering = gain > 0.0f || s.level > 0.0f;
+            const float contour = mode == Sequence::strike ? std::max (0.0f, fast::exp2 (-2.5f * (float) next) - 0.001f) : 1.0f;
+            gainStep = (s.level * contour - gain) / (float) frames;
+        }
         panLeft = 0.7071f * (1.0f - pan);
         panRight = 0.7071f * (1.0f + pan);
 

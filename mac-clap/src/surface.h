@@ -33,8 +33,8 @@ struct Surface
     static constexpr SurfaceRect layerArea {4, 221, 312, 96}, echoArea {432, 334, 204, 82};
     static constexpr Cell layerCells[] = {
         { ParamId::seqMode, 4, 233, 111, 16, "Mode" }, { ParamId::seqLevel, 116, 233, 95, 16, "Level" },
-        { ParamId::seqOctave, 212, 233, 104, 16, "Octave" }, { ParamId::seqDivision, 4, 250, 151, 15, "Step time" },
-        { ParamId::seqFade, 157, 250, 159, 15, "Crossfade" },
+        { ParamId::seqOctave, 212, 233, 104, 16, "Octave" }, { ParamId::seqDivision, 4, 250, 111, 15, "Time" },
+        { ParamId::seqFade, 116, 250, 95, 15, "Fade" }, { ParamId::layerArp, 212, 250, 104, 15, "Arp" },
         { ParamId::seqWave1, 4, 280, 151, 17, "1" }, { ParamId::seqWave2, 157, 280, 159, 17, "2" },
         { ParamId::seqWave3, 4, 298, 151, 17, "3" }, { ParamId::seqWave4, 157, 298, 159, 17, "4" },
     };

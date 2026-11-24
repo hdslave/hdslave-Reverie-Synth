@@ -168,7 +168,7 @@ Screen::Layout Screen::layout (int p)
     };
     static const Cell layerCells[] = {
         { seqMode, 4, 14, 101, 17, "Mode" }, { seqLevel, 106, 14, 100, 17, "Level" }, { seqOctave, 207, 14, 109, 17, "Octave" },
-        { seqDivision, 4, 32, 151, 17, "Step time" }, { seqFade, 157, 32, 159, 17, "Crossfade" },
+        { seqDivision, 4, 32, 101, 17, "Time" }, { seqFade, 106, 32, 100, 17, "Fade" }, { layerArp, 207, 32, 109, 17, "Arp" },
         { seqWave1, 4, 51, 151, 17, "Wave 1" }, { seqWave2, 157, 51, 159, 17, "Wave 2" },
         { seqWave3, 4, 69, 151, 17, "Wave 3" }, { seqWave4, 157, 69, 159, 17, "Wave 4" },
         { echoTaps, 4, 104, 101, 17, "Taps" }, { echoDuck, 106, 104, 100, 17, "Duck" }, { echoTone, 207, 104, 109, 17, "Tone" },

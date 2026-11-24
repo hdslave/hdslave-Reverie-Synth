@@ -179,6 +179,7 @@ public:
         std::fill (std::begin (keyDown), std::end (keyDown), false);
         tickPos = 0;
         now = 0;
+        arpClock = 0.0;
         motionPhase = 0.0;
         groups = 0;
         sustain = false;
@@ -310,6 +311,7 @@ public:
                 Voice& v = *glideFrom[i];
                 v.key = key, v.group = group, v.index = i, v.size = count, v.isBass = isBass;
                 v.target = (float) notes[i];
+                v.arpOrigin = arpClock + tickPos * sequenceIncrement;
                 v.velocity = vel, v.gain = gain, v.jitter = jitter, v.level = level;
                 v.latched = latching, v.sustained = false;
                 v.panAt = -9.0f; // its place in the chord moved
@@ -456,6 +458,7 @@ public:
                 for (int i = 0; i < n; ++i) volumeNow += volumeStep;
             left += n, right += n, frames -= (uint32_t) n;
             tickPos = (tickPos + n) & (tickSize - 1);
+            if (tickPos == 0 && sequence.arp) arpClock += tickSize * sequenceIncrement;
             now += (uint64_t) n;
         }
         publish();
@@ -482,6 +485,7 @@ private:
         float pitch = 60.0f, target = 60.0f;
         uint64_t born = 0;
         WaveSequenceVoice layer;
+        double arpOrigin = 0.0;
         uint32_t phase[maxStreams] {}, inc[maxStreams] {};
         const float* seg[2] {}; // each oscillator's segment (waves.h): its unison share it
         uint32_t shift[2] {};
@@ -533,6 +537,7 @@ private:
     Ensemble ensemble;
     WaveSequenceSettings sequence;
     double sequenceIncrement = 0.0;
+    double arpClock = 0.0; // step position at the start of the current control tick
     PingPong delay;
     Reverb reverb;
     Rng rng;
@@ -688,6 +693,7 @@ private:
             v.wobble[s] = rng.bipolar();
         }
         v.layer.start (v.phase[0]);
+        v.arpOrigin = arpClock + tickPos * sequenceIncrement;
         if (wait == 0)
         {
             begin (v);
@@ -840,6 +846,7 @@ private:
             sh.level[o] = p[b + 7];
         }
         sequence.mode = (int) p[seqMode];
+        sequence.arp = sequence.mode == Sequence::loop && p[layerArp] >= 0.5f;
         sequence.level = p[seqLevel];
         sequence.beats = sequenceBeats[(int) p[seqDivision]];
         sequenceIncrement = std::clamp (tempo, 1.0, 1000.0) / (60.0 * rate * sequence.beats);
@@ -964,7 +971,8 @@ private:
         if (sequence.mode != Sequence::off || v.layer.enabled())
         {
             const float pan = v.isBass ? 0.0f : (v.index & 1 ? 0.22f : -0.22f) * sh.width;
-            v.layer.control (sequence, pitchMod, rate, sequenceIncrement, left, pan);
+            const double arpStep = sequence.arp ? std::max (0.0, arpClock + tickPos * sequenceIncrement - v.arpOrigin) : 0.0;
+            v.layer.control (sequence, pitchMod, rate, sequenceIncrement, left, pan, arpStep, v.index, v.size, v.gated);
         }
         float width = std::clamp (sh.width + mod[Dest::width], 0.0f, 1.0f) * (v.isBass ? 0.2f : 1.0f);
         if (std::fabs (width - v.panAt) > 1e-4f || v.panUnison[0] != sh.unison[0] || v.panUnison[1] != sh.unison[1])

@@ -4,7 +4,7 @@
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.3.0** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 96 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Desktop version **0.3.1** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 97 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
 
@@ -14,7 +14,7 @@ The **Phaser** row in Effects & output has Mix, Rate, Feedback (FB) and Filter E
 
 **Echo** in Effects & output opens the stereo taps, ducking and feedback tone controls. The extra taps fall at one half and three quarters of the selected delay time. Duck pulls the echoes back under a chord and lets them rise in its release.
 
-In the 27-sound factory menu, **26 · Prism Choir** layers a crystal attack with choir and strings. **27 · Tide Atlas** cycles Reed, Breath, Crystal and Octaves above a steady pad.
+In the 28-sound factory menu, **26 · Prism Choir** layers a crystal attack with choir and strings. **27 · Tide Atlas** cycles Reed, Breath, Crystal and Octaves above a steady pad. **28 · Satin Lantern** holds a warm string chord while an octave-up voice picks out the chord tones in eighth notes. In the Sequence tab, **Arp** applies this pattern to the wave layer in Loop mode. **Level** sets its balance with the sustained pad.
 
 ## Download and install
 
