@@ -8,7 +8,7 @@
 //   OSC     both oscillators, each drawn at the place its Position (and Motion) has it; width, air and drift.
 //   FILTER  the filter's response with the cutoff where the newest note has it, and the filter envelope.
 //   AMP     the amplitude envelope and the LFO.
-//   FX      ensemble, delay, reverb and shimmer, with an aquarium output meter.
+//   FX      ensemble, delay, shimmer reverb and phaser, with an aquarium output meter.
 // The wheel moves between controls, Push edits one (and flips a switch at once), Minus and Plus turn the pages;
 // K1-K3 hold the control picked and the next two (on MOTION: X, Y and Depth to begin with). Shift shows the
 // controls. Nothing is redrawn while nothing changes; while notes sound the page moves at 25 frames a second.

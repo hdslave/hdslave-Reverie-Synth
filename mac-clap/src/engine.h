@@ -163,6 +163,7 @@ public:
         tickRate = rate / (float) tickSize;
         smoothCoef = 1.0f - std::exp (-1.0f / (0.02f * tickRate)); // about 20 ms
         (void) WaveBank::get();
+        phaser.prepare (rate);
         ensemble.prepare (rate);
         delay.prepare (rate);
         reverb.prepare (rate);
@@ -173,7 +174,7 @@ public:
     {
         for (auto& v : voices) v = Voice {};
         for (int i = 0; i < paramCount; ++i) smooth[i] = target[i];
-        ensemble.reset(), delay.reset(), reverb.reset();
+        phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
         std::fill (std::begin (keyDown), std::end (keyDown), false);
         tickPos = 0;
         now = 0;
@@ -359,7 +360,7 @@ public:
     void silence()
     {
         choke (-1);
-        ensemble.reset(), delay.reset(), reverb.reset();
+        phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
     }
     // The effects' resets that had something to clear (for the tests).
     uint32_t fxResets() const { return ensemble.resets + delay.resets + reverb.resets; }
@@ -437,6 +438,7 @@ public:
             }
             if (fxAwake)
             {
+                phaser.process (left, right, n);
                 ensemble.process (left, right, n);
                 delay.process (left, right, n);
                 reverb.process (left, right, n);
@@ -525,6 +527,7 @@ private:
 
     Telemetry* tel;
     Voice voices[maxVoices];
+    Phaser phaser;
     Ensemble ensemble;
     PingPong delay;
     Reverb reverb;
@@ -785,12 +788,14 @@ private:
         // Asleep once nothing sounds and the tails have been quiet for four seconds (the longest delay fits in it).
         if (fxAwake)
         {
+            phaser.control (smooth[ParamId::phaserMix], smooth[ParamId::phaserRate], smooth[ParamId::phaserFeedback],
+                            smooth[ParamId::phaserEnv], newestVoice != nullptr ? newestVoice->flt.level : 0.0f);
             if (active == 0 && tickPeak < 2e-6f)
             {
                 if (++silentTicks > (uint32_t) (4.0f * tickRate))
                 {
                     fxAwake = false;
-                    ensemble.reset(), delay.reset(), reverb.reset();
+                    phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
                 }
             }
             else

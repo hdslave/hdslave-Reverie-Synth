@@ -120,24 +120,25 @@ inline const PresetValue satinKeys[] = {
     { osc2Level, 0.4f }, { ampAttack, envKnob (5) }, { ampDecay, envKnob (3000) }, { ampSustain, 0.5f }, { ampRelease, envKnob (1800) },
     { cutoff, cutoffKnob (3500) }, { filterEnv, 0.25f }, { fltAttack, envKnob (3) }, { fltDecay, envKnob (1200) }, { fltSustain, 0.2f },
     { ensMix, 0.5f }, { ensRate, ensKnob (0.5f) }, { revMix, 0.3f }, { revDecay, decayKnob (3) }, { shimmer, 0.0f }, { motionDepth, 0.2f }, { volume, 0.88f } };
-// A quick filter swell brings out the low Spectra band's harmonics. Keep the dry
-// chord centred and let the ensemble and short reverb supply the stereo tail.
+// Each chord's filter envelope opens the resonant low-pass and the phaser together.
+// Park the phaser LFO so the vowel opens with the strike and falls on release.
 inline const PresetValue velvetWah[] = {
-    { osc1Wave, 6 }, { osc1Pos, 0.22f }, { osc1Octave, -1 }, { osc1Fine, -2 },
+    { osc1Wave, 6 }, { osc1Pos, 0.21f }, { osc1Octave, -1 }, { osc1Fine, -2 },
     { osc1Unison, 2 }, { osc1Detune, detuneKnob (4) },
-    { osc2Wave, 8 }, { osc2Pos, 0.49f }, { osc2Fine, 0 }, { osc2Unison, 1 }, { osc2Level, 0.43f },
+    { osc2Wave, 8 }, { osc2Pos, 0.64f }, { osc2Fine, 0 }, { osc2Unison, 1 }, { osc2Level, 0.45f },
     { width, 0.0f }, { air, 0.0f }, { drift, driftKnob (1) },
-    { cutoff, cutoffKnob (250) }, { resonance, 0.70f }, { filterEnv, 0.14f },
+    { cutoff, cutoffKnob (246) }, { resonance, 0.825f }, { filterEnv, 0.085f },
     { keyTrack, 0.02f }, { velCutoff, 0.02f },
-    { fltAttack, envKnob (240) }, { fltDecay, envKnob (490) }, { fltSustain, 0.75f }, { fltRelease, envKnob (400) },
-    { ampAttack, envKnob (74) }, { ampDecay, envKnob (600) }, { ampSustain, 0.45f }, { ampRelease, envKnob (580) },
+    { fltAttack, envKnob (278) }, { fltDecay, envKnob (490) }, { fltSustain, 0.88f }, { fltRelease, envKnob (400) },
+    { ampAttack, envKnob (82) }, { ampDecay, envKnob (600) }, { ampSustain, 0.45f }, { ampRelease, envKnob (300) },
     { lfoPitch, 0.0f }, { lfoCutoff, 0.0f }, { lfoWave, 0.0f },
     { motionRate, motionKnob (0.35f) }, { motionDepth, 0.68f }, { motionSpread, 0.0f }, { motionRetrig, 1 },
     { xDest1, Dest::resonance }, { xAmt1, 0.02f }, { xDest2, Dest::off },
     { yDest1, Dest::wave1 }, { yAmt1, 0.12f }, { yDest2, Dest::cutoff }, { yAmt2, 0.085f },
     { ensMix, 0.12f }, { ensDepth, 0.42f }, { ensRate, ensKnob (0.27f) }, { dlyMix, 0.0f },
     { revMix, 0.40f }, { revDecay, decayKnob (1.8f) }, { revDamp, dampKnob (3500) }, { revPredelay, 0.035f },
-    { shimmer, 0.0f }, { volume, 1.18f } };
+    { shimmer, 0.0f }, { phaserMix, 0.75f }, { phaserRate, 0.0f }, { phaserFeedback, 0.45f },
+    { phaserEnv, 0.84f }, { volume, 1.9f } };
 } // namespace presetdata
 
 #define REVERIE_PRESET(key, name, list) { key, name, presetdata::list, (int) (sizeof (presetdata::list) / sizeof (presetdata::list[0])) }

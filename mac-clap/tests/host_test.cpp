@@ -509,9 +509,20 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         scan (9, 248, 315, 318);      // both oscillators
         scan (481, 236, 635, 313);    // filter and filter envelope
         scan (161, 350, 315, 429);    // amp and LFO
-        scan (435, 351, 635, 428);    // effects
-        click (344, 420, 2);          // output level
+        scan (435, 349, 635, 417);    // ensemble, delay and reverb
+        click (344, 423, 2);          // output level
         process (&inEv);
+        constexpr int phaserX[] = {452, 510, 564, 614};
+        for (clap_id i = 0; i < 4; ++i)
+        {
+            click (phaserX[i], 423, 2);
+            process (&inEv);
+            if (!ctx.edited.count (80 + i))
+            {
+                std::fprintf (stderr, "FAIL: phaser control %u does not edit ID %u\n", i + 1, 80 + i);
+                return false;
+            }
+        }
         if (ctx.edited.size() != pCount || !ctx.openGestures.empty())
         {
             std::fprintf (stderr, "FAIL: surface control coverage %zu/%u\n", ctx.edited.size(), pCount);

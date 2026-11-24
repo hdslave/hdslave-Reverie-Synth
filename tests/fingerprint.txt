@@ -18,7 +18,7 @@ sound-ethereal-vox 2a9ebae87c54caa9
 sound-mystic-reed bd1f6a07f8d2639e
 sound-polar-lights 73f230b3ac5efdcd
 sound-satin-keys 4ff6cd25754fba11
-sound-velvet-wah e74756de989d5a48
+sound-velvet-wah a1d9395a916c242f
 voicing-0 b929c75cfa4651b5
 voicing-1 be2d3b3b936f67e0
 voicing-2 efe4d39af234458b
@@ -47,5 +47,6 @@ sound-off-96000 601e20968d28b38f
 reset 06d7e56e705cfea1
 reverb-off-on 6486c84d2d9eecaa
 sleep-wake eece492244798f22
+phaser-envelope 72f2cdc0a982b492
 steals 75c0f700cc1baf9c
 blocks-128 d0430d2dffb0c74e
