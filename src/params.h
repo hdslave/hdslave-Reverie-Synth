@@ -17,7 +17,7 @@
 
 #ifndef REVERIE_VERSION
 #ifdef REVERIE_SP16
-#define REVERIE_VERSION "0.4.4-sp16.11"
+#define REVERIE_VERSION "0.4.4-sp16.12"
 #else
 #define REVERIE_VERSION "0.4.4"
 #endif

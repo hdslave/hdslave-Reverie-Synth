@@ -411,7 +411,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## SP-16
 
-The SP-16 build uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.12**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 
@@ -424,7 +424,7 @@ the selector steps through banks. Pressing it advances to the next section.
 
 | Page | Banks |
 | --- | --- |
-| Chords | Progression, Feel |
+| Chords | Progression, Feel, Mood |
 | Motion | Path, Clock, X Routes, Y Routes |
 | Osc | Morph, Osc 1, Osc 2, Voice |
 | Filter | Response, Envelope |
