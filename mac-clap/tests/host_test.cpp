@@ -1,11 +1,13 @@
 #include <clap/clap.h>
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -44,6 +46,9 @@ struct StrictHostCtx
     int presetLoadedCalls = 0;
     int stateDirtyCalls = 0;
     int callbackRequests = 0;
+    bool allowResize = false;
+    int resizeRequests = 0;
+    uint32_t requestedWidth = 0, requestedHeight = 0;
     std::set<clap_id> openGestures;
     std::set<clap_id> edited;
     uint32_t lastOutTime = 0;
@@ -110,10 +115,22 @@ void CLAP_ABI hStateDirty (const clap_host_t* h)
 }
 const clap_host_state_t kHostState { hStateDirty };
 
+bool CLAP_ABI hGuiResize (const clap_host_t* h, uint32_t w, uint32_t height)
+{
+    checkHostPtr (h, "host_gui.request_resize");
+    auto& ctx = *static_cast<StrictHostCtx*> (h->host_data);
+    ++ctx.resizeRequests;
+    ctx.requestedWidth = w;
+    ctx.requestedHeight = height;
+    return ctx.allowResize;
+}
+const clap_host_gui_t kHostGui { nullptr, hGuiResize, nullptr, nullptr, nullptr };
+
 const void* CLAP_ABI hostGetExtension (const clap_host_t* h, const char* id)
 {
     checkHostPtr (h, "host.get_extension");
     if (!id) return nullptr;
+    if (std::strcmp (id, CLAP_EXT_GUI) == 0) return &kHostGui;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &kHostParams;
     if (std::strcmp (id, CLAP_EXT_PRESET_LOAD) == 0 || std::strcmp (id, CLAP_EXT_PRESET_LOAD_COMPAT) == 0) return &kHostPresetLoad;
     if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &kHostState;
@@ -287,6 +304,37 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         return false;
     }
 
+    clap_gui_resize_hints_t hints {};
+    if (!gui->can_resize (plug) || !gui->get_resize_hints (plug, &hints)
+        || !hints.can_resize_horizontally || !hints.can_resize_vertically
+        || !hints.preserve_aspect_ratio || !hints.aspect_ratio_height
+        || hints.aspect_ratio_width * 27 != hints.aspect_ratio_height * 40)
+    {
+        std::fprintf (stderr, "FAIL: missing 40:27 aspect hint\n");
+        return false;
+    }
+
+    for (auto size : {std::pair<uint32_t, uint32_t> {1100, 648}, {1000, 900}, {1367, 923},
+                      {1, 1}, {UINT32_MAX, UINT32_MAX}})
+    {
+        auto [w, h] = size;
+        if (!gui->adjust_size (plug, &w, &h) || w < 960 || h < 648 || h > 2000
+            || std::abs (double (h) - w * 27.0 / 40) > 0.5) return false;
+        uint32_t w2 = w, h2 = h;
+        if (!gui->adjust_size (plug, &w2, &h2) || w2 != w || h2 != h) return false;
+    }
+    auto currentSize = [&] (uint32_t w, uint32_t h) {
+        uint32_t actualW, actualH;
+        return gui->get_size (plug, &actualW, &actualH) && actualW == w && actualH == h;
+    };
+    if (!currentSize (gw, gh) || gui->set_size (plug, 1100, 648) || !currentSize (gw, gh)) return false;
+    ctx.allowResize = true;
+    if (!gui->set_size (plug, 1100, 648) || !currentSize (960, 648)
+        || ctx.requestedWidth != 960 || ctx.requestedHeight != 648
+        || !gui->set_size (plug, 1200, 648) || !currentSize (1200, 810)
+        || !gui->set_size (plug, 1200, 945) || !currentSize (1400, 945)
+        || !gui->set_size (plug, gw, gh) || ctx.resizeRequests != 4) return false;
+
     // 2. Verify CLAP_EXT_PARAMS
     const auto* params = static_cast<const clap_plugin_params_t*> (plug->get_extension (plug, CLAP_EXT_PARAMS));
     if (!params) return false;
@@ -422,11 +470,21 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
             proc.steady_time += proc.frames_count;
         };
 
-        // Cover the surface at a fractional zoom with letterboxing and a Retina backing store.
+        // Check all four artwork corners at fractional zoom, including odd Retina sizes.
         int w = 0, h = 0;
-        if (!dbg->ui_render (plug, 1100, 648, 2, &w, &h) || w != 2200 || h != 1296) return false;
+        auto corners = [&] (int width, int height, int scale) {
+            const auto* pixels = dbg->ui_render (plug, width, height, scale, &w, &h);
+            if (!pixels || w != width * scale || h != height * scale) std::abort();
+            return std::array<uint32_t, 4> {pixels[0], pixels[w - 1], pixels[(h - 1) * w], pixels[h * w - 1]};
+        };
+        const auto artworkCorners = corners (1280, 864, 1);
+        if (corners (1367, 923, 2) != artworkCorners || corners (960, 648, 2) != artworkCorners)
+        {
+            std::fprintf (stderr, "FAIL: artwork does not fill the resized viewport\n");
+            return false;
+        }
         auto mouse = [&] (int kind, int x, int y, int mods = 0, int button = 0) {
-            dbg->ui_mouse (plug, kind, 70 + x * 1.5f, y * 1.5f, button, mods, 0, 1);
+            dbg->ui_mouse (plug, kind, x * 1.5f, y * 1.5f, button, mods, 0, 1);
         };
         auto click = [&] (int x, int y, int mods = 0, int button = 0) {
             mouse (0, x, y, mods, button);
@@ -496,8 +554,8 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         // Click the printed pad, then release it from the host with the printed pad's MIDI key.
         // The pressed face turns amber even under the translucent hover highlight.
         auto padLit = [&] (int x, int y) {
-            const auto* px = dbg->ui_render (plug, 1100, 648, 2, &w, &h);
-            const uint32_t rgb = px[(y * 3) * w + 140 + x * 3];
+            const auto* px = dbg->ui_render (plug, 960, 648, 2, &w, &h);
+            const uint32_t rgb = px[(y * 3) * w + x * 3];
             return ((rgb >> 16) & 255) > (rgb & 255) + 60;
         };
         plug->reset (plug);

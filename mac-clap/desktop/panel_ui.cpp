@@ -82,10 +82,8 @@ static_assert (std::size (surfaceItems) == (size_t) SurfaceControl::Count);
 void PanelUI::layoutSurface()
 {
     const int nw = nativeWidth(), nh = nativeHeight();
-    const int dw = std::min (w_, h_ * nw / nh);
-    const int dh = std::min (h_, w_ * nh / nw);
     tiles_.resize (1);
-    tiles_[0].screenRect = {(w_ - dw) / 2, (h_ - dh) / 2, dw, dh};
+    tiles_[0].screenRect = {0, 0, w_, h_};
     surfacePixels_.resize (size_t (nw) * nh);
     for (size_t i = 0; i < std::size (surfaceItems); ++i)
     {
@@ -308,7 +306,6 @@ std::string PanelUI::presetLabel() const
 void PanelUI::drawSurface()
 {
     const auto& dst = tiles_[0].screenRect;
-    if (dst.w != w_ || dst.h != h_) c_.fill ({0, 0, w_, h_}, p_->theme.bgBottom);
 
     const auto preset = presetLabel();
     bool learning = false;
