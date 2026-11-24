@@ -36,7 +36,7 @@ $(OUT)/Reverie.clap: $(PLUGIN_SOURCES) $(HEADERS) src/exports.map Makefile
 	@mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(WARN) -ffunction-sections -fdata-sections $(PLUGIN_SOURCES) $(LDFLAGS) -o $@
 
-$(OUT)/host: tests/host.cpp tests/wav.h tests/png.h $(HEADERS) Makefile
+$(OUT)/host: tests/host.cpp tests/wav.h tests/png.h tests/mood_notes.h $(HEADERS) Makefile
 	@mkdir -p $(OUT)
 	$(CXX) -std=c++17 -O2 $(WARN) -Wno-stringop-overflow -Ithird_party/clap/include -I$(OUT) tests/host.cpp -ldl -o $@
 
@@ -95,8 +95,8 @@ $(OUT)/Reverie-sp16.clap: $(SP16_DEPS)
 $(OUT)/Reverie-sp16-preview.clap: $(SP16_DEPS)
 	$(CXX) $(CXXFLAGS) $(WARN) $(SP16_FLAGS) $(SP16_SOURCES) $(LDFLAGS) -o $@
 
-$(OUT)/sp16-test: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/presets.h src/params.h Makefile
-	$(CXX) -std=c++17 -O2 $(WARN) -Ithird_party/clap/include -Isrc -DREVERIE_SP16 $< -ldl -o $@
+$(OUT)/sp16-test: tests/sp16.cpp tests/png.h tests/mood_notes.h $(HEADERS) Makefile
+	$(CXX) -std=c++17 -O2 $(WARN) -Ithird_party/clap/include -Isrc -I$(OUT) -DREVERIE_SP16 $< -ldl -o $@
 
-$(OUT)/sp16-test-arm: tests/sp16.cpp tests/png.h src/sixteen_screen.h src/presets.h src/params.h Makefile
-	$(SP16_CXX) -std=c++17 -O2 $(WARN) -march=armv7-a -Ithird_party/clap/include -Isrc -DREVERIE_SP16 $< -static-libstdc++ -static-libgcc -ldl -o $@
+$(OUT)/sp16-test-arm: tests/sp16.cpp tests/png.h tests/mood_notes.h $(HEADERS) Makefile
+	$(SP16_CXX) -std=c++17 -O2 $(WARN) -march=armv7-a -Ithird_party/clap/include -Isrc -I$(OUT) -DREVERIE_SP16 $< -static-libstdc++ -static-libgcc -ldl -o $@

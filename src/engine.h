@@ -256,7 +256,8 @@ public:
         }
         const PadKey pad = padOf (key);
         const float* chordSet = target; // the chord section as set: a value sent with the note applies to it
-        const ChordNotes chord = padChord ((int) chordSet[ParamId::progression], (int) chordSet[ParamId::voicing], (int) chordSet[ParamId::key], pad.slot);
+        const ChordNotes chord = performanceChord ((int) chordSet[ParamId::progression], (int) chordSet[ParamId::voicing], (int) chordSet[ParamId::key],
+                                                 pad.slot, (int) chordSet[ParamId::mood], (int) chordSet[ParamId::moodShift]);
         if (chord.count == 0) return;
         const bool latching = chordSet[ParamId::latch] >= 0.5f;
         const float glideTime = glideMs (chordSet[ParamId::glide]);
@@ -489,7 +490,9 @@ public:
     // The chords the pads play now (for the tests).
     const VoicingSet& voicings()
     {
-        padChords ((int) target[ParamId::progression], (int) target[ParamId::voicing], (int) target[ParamId::key], shown);
+        for (int slot = 0; slot < padSlots; ++slot)
+            shown.slot[slot] = performanceChord ((int) target[ParamId::progression], (int) target[ParamId::voicing],
+                                                (int) target[ParamId::key], slot, (int) target[ParamId::mood], (int) target[ParamId::moodShift]);
         return shown;
     }
 

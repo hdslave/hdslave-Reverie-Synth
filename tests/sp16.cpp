@@ -2,6 +2,8 @@
 #include "png.h"
 #include "sixteen_screen.h"
 #include "presets.h"
+#include "engine.h"
+#include "mood_notes.h"
 
 #include <clap/clap.h>
 #include <dlfcn.h>
@@ -86,7 +88,7 @@ struct Fixture
     std::array<double, count> values()
     {
         std::array<double, count> result {};
-        for (uint32_t id = 0; id < count; ++id) result[id] = value (id);
+        for (uint32_t id = 0; id < count; ++id) result[id] = value (reverie::paramTable[id].id);
         return result;
     }
 
@@ -177,10 +179,13 @@ void checkUndertow (Fixture& f, const char* out)
         return loader->from_location (f.plugin, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, key);
     };
     auto openSounds = [&] { assert (f.touch (SIXTEEN_TOUCH_DOWN, 638, 21)); };
+    f.setValue (97, 2);
+    f.setValue (98, -3);
     f.setValue (strum, 0.45);
     const auto original = f.values();
     assert (load ("undertow-wah"));
     const auto expected = f.values();
+    assert (expected[mood] == 2 && expected[moodShift] == -3);
     assert (std::equal (original.begin(), original.begin() + chordSection, expected.begin()));
     assert (expected[phaserMix] == 0.78f && expected[phaserRate] == 0.0f && expected[phaserEnv] == 0.69f);
     openSounds();
@@ -199,6 +204,8 @@ void checkUndertow (Fixture& f, const char* out)
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 86, 262)); // first tile in the fifth row
     assert (f.values() == expected);
     assert (load ("reverie"));
+    f.setValue (97, 0);
+    f.setValue (98, 0);
 }
 
 void checkUndertowAudio (const clap_plugin_factory_t& factory)
@@ -261,13 +268,43 @@ int main (int argc, char** argv)
     assert (f.frame (true) && f.pixels == first);
     f.capture (out, "chords");
 
+    // The Mood encoder bank, screen pads and physical chromatic notes must agree.
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 367, 97));
+    uint32_t moodIds[6];
+    char bankName[SIXTEEN_TAB_NAME_SIZE] {};
+    assert (screen->knobs (plugin, moodIds, bankName) && moodIds[0] == 97 && moodIds[1] == 98);
+    f.setValue (moodIds[0], 2);
+    f.setValue (moodIds[1], -3);
+    assert (f.frame (true));
+    const auto moodIdle = f.pixels;
+    f.capture (out, "mood");
+    for (int slot : { 0, 8, 15 })
+    {
+        const int x = 52 + 94 * (slot % 4), y = 132 + 33 * (3 - slot / 4);
+        assert (f.touch (SIXTEEN_TOUCH_DOWN, x, y));
+        f.block();
+        f.frame();
+        assert (f.heldPads (moodIdle) == (1u << slot));
+        assert (f.touch (SIXTEEN_TOUCH_UP, x, y));
+        f.block();
+        f.block (CLAP_EVENT_NOTE_ON, 60 + slot);
+        f.frame();
+        assert (f.heldPads (moodIdle) == (1u << slot));
+        f.block (CLAP_EVENT_NOTE_OFF, 60 + slot);
+        f.frame();
+        assert (f.heldPads (moodIdle) == 0u);
+    }
+    f.setValue (moodIds[0], 0);
+    f.setValue (moodIds[1], 0);
+    assert (f.touch (SIXTEEN_TOUCH_DOWN, 240, 97)); // progression bank
+
     // Desktop patch strip. The old button location is scenery. Fast arrow taps,
     // external host loads, browser focus and cancelling all follow the same factory order.
     assert (! f.touch (SIXTEEN_TOUCH_DOWN, 350, 30));
     auto expectSound = [&] (int index) {
         float expected[reverie::paramCount] {};
         reverie::presetValuesOf (reverie::presetTable[index], expected);
-        for (uint32_t i = chordSection; i < count; ++i) assert (std::abs (f.value (i) - expected[i]) < 1.0e-6);
+        for (uint32_t i = chordSection; i < mood; ++i) assert (std::abs (f.value (i) - expected[i]) < 1.0e-6);
     };
     expectSound (0);
     for (int i = 1; i <= reverie::presetCount; ++i)
@@ -290,7 +327,7 @@ int main (int argc, char** argv)
     plugin->reset (plugin);
 
     // Every parameter belongs to exactly one bank. Each page keeps the bank selected last.
-    constexpr int bankCounts[] = { 2, 4, 4, 2, 2, 3 };
+    constexpr int bankCounts[] = { 3, 4, 4, 2, 2, 3 };
     constexpr const char* pageNames[] = { "chords", "motion", "osc", "filter", "amp", "fx" };
     std::array<int, count> uses {};
     for (int p = 0; p < 6; ++p)
@@ -309,7 +346,7 @@ int main (int argc, char** argv)
             assert (screen->knobs (plugin, ids, label));
             assert (std::strstr (label, " / ") != nullptr);
             for (auto id : ids)
-                if (id != SIXTEEN_INVALID_PARAM_ID) { assert (id < count); ++uses[id]; }
+                if (id != SIXTEEN_INVALID_PARAM_ID) { const int row = reverie::paramIndex (id); assert (row >= 0); ++uses[row]; }
             if (p == 0 && b == 0)
             {
                 const uint32_t expected[] = { progression, voicing, key, octave, strum, latch };
@@ -480,6 +517,7 @@ int main (int argc, char** argv)
     entry->deinit();
     dlclose (dylib);
     if (! bothRangesMatch || ! oldChordReleased || ! retriggerKept || transitionJump > 1.0e-5f) return 1;
-    std::puts ("SP-16 screen, 84 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
+    assert (checkMoodNotes());
+    std::puts ("SP-16 screen, Mood, 86 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
     return 0;
 }

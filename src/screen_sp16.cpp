@@ -31,6 +31,7 @@ constexpr auto none = SIXTEEN_INVALID_PARAM_ID;
 constexpr Bank chordBanks[] = {
     { "Progression", "CHORDS / PROG", { progression, voicing, key, octave, strum, latch } },
     { "Feel", "CHORDS / FEEL", { humanize, bass, velocity, glide, none, none } },
+    { "Mood", "CHORDS / MOOD", { mood, moodShift, none, none, none, none } },
 };
 constexpr Bank motionBanks[] = {
     { "Path", "MOTION / PATH", { motionX, motionY, motionDepth, motionShape, motionRate, motionSpread } },
@@ -184,7 +185,7 @@ void section (const Raster& r, int x, int y, int width, const char* label)
 void Sp16Screen::knobs (uint32_t ids[6], char name[SIXTEEN_TAB_NAME_SIZE]) const
 {
     const Bank& bank = pages[page].banks[banks[page]];
-    std::copy (bank.ids.begin(), bank.ids.end(), ids);
+    std::transform (bank.ids.begin(), bank.ids.end(), ids, [] (uint32_t row) { return row == none ? none : paramTable[row].id; });
     std::snprintf (name, SIXTEEN_TAB_NAME_SIZE, "%s", bank.strip);
 }
 
@@ -205,8 +206,9 @@ int Sp16Screen::matchingSound() const
             presetValuesOf (presetTable[i], result[i].data());
         return result;
     }();
-    std::array<float, paramCount> live;
-    for (int i = chordSection; i < paramCount; ++i) live[i] = value (i);
+    std::array<float, paramCount> live {};
+    for (int i = chordSection; i < paramCount; ++i)
+        if (isSoundRow ((uint32_t) i)) live[i] = value (i);
     for (int i = 0; i < presetCount; ++i)
         if (std::equal (live.begin() + chordSection, live.end(), factory[i].begin() + chordSection,
                         [] (float a, float b) { return std::abs (a - b) < 1.0e-6f; }))
@@ -399,11 +401,13 @@ void Sp16Screen::header (const Raster& r, int sound) const
     std::copy_n (sp16Art::header, w * headerH, r.px);
     const auto& prog = progressionTable[choice (progression)];
     char mode[16];
-    std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (choice (key), prog.minor), prog.minor ? "minor" : "major");
+    const int set = choice (mood);
+    if (set) std::snprintf (mode, sizeof (mode), "Mood %+d", choice (moodShift));
+    else std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (choice (key), prog.minor), prog.minor ? "minor" : "major");
     const int badgeW = textWidth<14> (mode) + 14;
     r.gel (15, 54, badgeW, 21, 0xff1f728b, 0xfff4ffff, 0xff8adcdf, 0xffc3eff4);
     centered<14> (r, 15 + badgeW / 2, 55, mode, ink::deep);
-    title (r, 23 + badgeW, 55, prog.name);
+    title (r, 23 + badgeW, 55, set ? moodNames[set] : prog.name);
 
     button (r, patchX, 7, arrowW - 2, 29, false);
     button (r, patchX + arrowW, 7, patchW - 2 * arrowW, 29, soundsOpen);
@@ -462,8 +466,14 @@ void Sp16Screen::header (const Raster& r, int sound) const
             if (slot >= 0 && slot < padSlots)
             {
                 char name[32], caption[48];
-                chordText (parsedProgressions()[choice (progression)].chords[slot % 8], choice (key), prog.minor, name, sizeof (name));
-                std::snprintf (caption, sizeof (caption), "%s%s", name, slot >= 8 ? " / Lift" : "");
+                if (set)
+                {
+                    const auto& pad = moodPads[set - 1][slot];
+                    std::snprintf (name, sizeof (name), "%s%s%s%s", moodPitchName (pad.root, choice (moodShift)),
+                                   pad.quality, *pad.slashBass ? "/" : "", moodPitchName (pad.slashBass, choice (moodShift)));
+                }
+                else chordText (parsedProgressions()[choice (progression)].chords[slot % 8], choice (key), prog.minor, name, sizeof (name));
+                std::snprintf (caption, sizeof (caption), "%s%s", name, ! set && slot >= 8 ? " / Lift" : "");
                 text<14> (r, 99, 87, caption, ink::ice);
             }
         }
@@ -497,22 +507,30 @@ void Sp16Screen::field (const Raster& r, int x, int y, int width, const char* la
 
 void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held) const
 {
-    const int prog = choice (progression), tonic = choice (key);
+    const int prog = choice (progression), tonic = choice (key), set = choice (mood);
     const auto& sequence = parsedProgressions()[prog];
     const int last = telemetry.lastSlot.load (std::memory_order_relaxed);
     for (int slot = 0; slot < padSlots; ++slot)
     {
         const int x = padX + (slot % 4) * padDX, y = padY + (3 - slot / 4) * padDY;
-        const bool lift = slot >= 8, on = (held & (1u << slot)) != 0;
+        const bool lift = ! set && slot >= 8, on = (held & (1u << slot)) != 0;
         if (on) r.gel (x, y, padW, padH, 0xffae7c34, 0xfffff3bb, 0xffffd77c, 0xffffc262);
         else if (lift) r.gel (x, y, padW, padH, 0xff70a385, 0xffeaffdf, 0xffb4e3be, 0xffa7d8be);
         else r.gel (x, y, padW, padH, 0xff6b9fb7, 0xffe6fbff, 0xffb4e3f1, 0xffa0d4ec);
         const auto& chord = sequence.chords[slot % 8];
         char root[16], index[4];
-        chordRootText (chord, tonic, progressionTable[prog].minor, root, sizeof (root));
+        const char* quality = chordQualityText (chord);
+        if (set)
+        {
+            const auto& pad = moodPads[set - 1][slot];
+            moodRootText (pad, choice (moodShift), root, sizeof (root));
+            quality = pad.quality;
+        }
+        else chordRootText (chord, tonic, progressionTable[prog].minor, root, sizeof (root));
         std::snprintf (index, sizeof (index), "%02d", slot + 1);
         text<14> (r, x + 6, y, root, ink::text);
-        text<14> (r, x + 6, y + 12, chordQualityText (chord), ink::text);
+        if (textWidth<14> (quality) <= padW - 10) text<14> (r, x + 6, y + 12, quality, ink::text);
+        else text<11> (r, x + 6, y + 14, quality, ink::text);
         text<11> (r, x + padW - 19, y + 2, index, ink::label);
         if (slot == last) r.box (x + padW - 22, y + padH - 6, 14, 2, on ? 0xffa8590c : ink::teal);
     }

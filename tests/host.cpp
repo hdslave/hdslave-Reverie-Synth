@@ -9,6 +9,7 @@
 #include "wav.h"
 #include "png.h"
 #include "../src/engine.h"
+#include "mood_notes.h"
 #include "../src/melodee_screen.h"
 #include "../src/params.h"
 #include "../src/presets.h"
@@ -320,8 +321,9 @@ void testParams()
     {
         clap_param_info info {};
         CHECK (inst.params->get_info (inst.plugin, i, &info));
-        CHECK (info.id == i);                          // ids are the table's indices
-        CHECK (paramTable[i].id == i);
+        CHECK (info.id == paramTable[i].id);
+        CHECK (paramIndex (info.id) == (int) i);
+        if (i < ParamId::mood) CHECK (info.id == i);
         ids.insert (info.id);
         CHECK (info.min_value < info.max_value);
         CHECK (info.default_value >= info.min_value && info.default_value <= info.max_value);
@@ -347,6 +349,11 @@ void testParams()
         CHECK (! inst.params->text_to_value (inst.plugin, info.id, "nan", &nope));
     }
     CHECK (ids.size() == (size_t) paramCount);
+    for (clap_id archived = 84; archived <= 96; ++archived)
+    {
+        double unused;
+        CHECK (! inst.params->get_value (inst.plugin, archived, &unused));
+    }
     {   // the Key reads as the page shows it: in the progression's mode (Db and Ab in a major one, C# and G# in a minor
         // one), either spelling reading back; moving to the other mode has the host read the text again
         auto keyText = [&] (double key) {
@@ -576,7 +583,7 @@ void testState()
     std::vector<uint8_t> saved;
     {
         Instance a;
-        a.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
+        a.flush ({ { 97, 2 }, { 98, -3 }, { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
         clap_ostream out { &saved, [] (const clap_ostream* s, const void* d, uint64_t n) -> int64_t {
                               auto* v = static_cast<std::vector<uint8_t>*> (s->ctx);
                               v->insert (v->end(), (const uint8_t*) d, (const uint8_t*) d + n);
@@ -598,6 +605,8 @@ void testState()
     {
         Instance b;
         CHECK (load (b, saved));
+        CHECK_NEAR (b.value (97), 2, 0);
+        CHECK_NEAR (b.value (98), -3, 0);
         CHECK_NEAR (b.value (ParamId::progression), 12, 0);
         CHECK_NEAR (b.value (ParamId::key), 5, 0);
         CHECK_NEAR (b.value (ParamId::cutoff), 0.42, 1e-6);
@@ -648,7 +657,7 @@ void testPresets()
 {
     Instance inst;
     // the chord section stays as it is through every sound
-    inst.flush ({ { ParamId::progression, 9 }, { ParamId::key, 3 }, { ParamId::voicing, 2 }, { ParamId::latch, 1 }, { ParamId::strum, 0.6 },
+    inst.flush ({ { 97, 18 }, { 98, 7 }, { ParamId::progression, 9 }, { ParamId::key, 3 }, { ParamId::voicing, 2 }, { ParamId::latch, 1 }, { ParamId::strum, 0.6 },
                   { ParamId::bass, 0.3 }, { ParamId::octave, -1 } });
     std::set<std::string> keys, names;
     for (const auto& p : presetTable)
@@ -657,6 +666,8 @@ void testPresets()
         const int before = presetsLoaded;
         CHECK (inst.preset (p.key));
         CHECK (presetsLoaded == before + 1);
+        CHECK_NEAR (inst.value (97), 18, 0);
+        CHECK_NEAR (inst.value (98), 7, 0);
         CHECK_NEAR (inst.value (ParamId::progression), 9, 0);
         CHECK_NEAR (inst.value (ParamId::key), 3, 0);
         CHECK_NEAR (inst.value (ParamId::voicing), 2, 0);
@@ -1412,7 +1423,7 @@ void testExtremes()
     {
         Instance a;
         std::vector<Cue> cues;
-        for (int i = (int) chordSection; i < paramCount; ++i) cues.push_back (P (0, (uint32_t) i, end ? paramTable[i].max : paramTable[i].min));
+        for (int i = (int) chordSection; i < paramCount; ++i) cues.push_back (P (0, paramTable[i].id, end ? paramTable[i].max : paramTable[i].min));
         cues.push_back (P (0, volume, 2.0));
         for (int k = 0; k < 8; ++k) cues.push_back (On (100 + 4800 * k, 36 + 2 * k, 1.0));
         const Stereo s = a.render (48000 * 3, cues);
@@ -1548,6 +1559,7 @@ int main (int argc, char** argv)
     testPadMap (argv[1]);
     testState();
     testPresets();
+    CHECK (checkMoodNotes());
     testNotes();
     testEffects();
     testTiming();

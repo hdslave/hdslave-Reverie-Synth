@@ -13,6 +13,7 @@
 #include <strings.h>
 
 #include "progressions.h"
+#include "mood_data.h"
 
 #ifndef REVERIE_VERSION
 #ifdef REVERIE_SP16
@@ -53,15 +54,19 @@ enum : uint32_t
 #ifdef REVERIE_SP16
     phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
 #endif
-    count
+    mood, moodShift, count
 };
 static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79, "the ids are fixed");
 #ifdef REVERIE_SP16
-static_assert (phaserMix == 80 && phaserEnv == 83 && count == 84, "the phaser ids are fixed");
+static_assert (phaserMix == 80 && phaserEnv == 83 && mood == 84, "the phaser ids are fixed");
 #else
-static_assert (count == 80, "the MPC parameter ids are fixed");
+static_assert (mood == 80, "the MPC parameter ids are fixed");
 #endif
-constexpr uint32_t chordSection = 10; // ids below it belong to the chords, not the sound
+constexpr uint32_t chordSection = 10; // the original chord rows
+// The archived wave sequencer uses public IDs 84 through 96. Keep the engine arrays compact.
+constexpr uint32_t firstMoodId = 97;
+inline constexpr uint32_t publicId (uint32_t row) { return row < mood ? row : firstMoodId + (row - mood); }
+inline constexpr bool isSoundRow (uint32_t row) { return row >= chordSection && row < count && row != mood && row != moodShift; }
 inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wave : osc2Wave) + field; }
 } // namespace ParamId
 
@@ -160,7 +165,7 @@ struct Builder
     void add (uint32_t id, const char* name, const char* label, const char* module, float min, float max, float def, K kind, U unit,
               const char* const* choices = nullptr)
     {
-        list[n++] = Param { id, name, label, module, min, max, def, kind, unit, choices };
+        list[n++] = Param { ParamId::publicId (id), name, label, module, min, max, def, kind, unit, choices };
     }
 };
 } // namespace detail
@@ -257,13 +262,21 @@ inline const Param* makeTable()
     b.add (phaserFeedback, "Phaser Feedback", "FDBK", "Phaser", 0, 1, 0.42f, K::continuous, U::unit);
     b.add (phaserEnv, "Phaser Filter Env", "F.ENV", "Phaser", -1, 1, 0, K::continuous, U::bipolar);
 #endif
+    b.add (mood, "Mood", "MOOD", "Chords", 0, moodCount, 0, K::choice, U::choice, moodNames);
+    b.add (moodShift, "Mood Transpose", "SHIFT", "Chords", -12, 12, 0, K::integer, U::semis);
     return b.list;
 }
 
 inline const Param* const paramTable = makeTable();
 
-// Ids are the table's indices (checked by the tests).
-inline int paramIndex (uint32_t id) { return id < (uint32_t) paramCount ? (int) id : -1; }
+// Public CLAP and state IDs map to compact engine rows.
+inline int paramIndex (uint32_t id)
+{
+    if (id < ParamId::mood) return (int) id;
+    if (id >= ParamId::firstMoodId && id < ParamId::publicId (ParamId::count))
+        return (int) (id - ParamId::firstMoodId + ParamId::mood);
+    return -1;
+}
 
 inline float clampParam (const Param& p, float v)
 {

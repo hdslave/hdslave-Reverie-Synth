@@ -1,5 +1,5 @@
 // Reverie's factory sounds: values that differ from the defaults (params.h), by parameter id. A sound never holds
-// the chord section (ids below ParamId::chordSection): loading one keeps the progression, key, voicing, strum and
+// the chord controls: loading one keeps the progression, key, voicing, strum and
 // latch as they are, so sounds and progressions are picked apart. Keys are like ids: never renamed once released (a
 // host may store them).
 #pragma once
@@ -248,9 +248,9 @@ inline const Preset* findPreset (const char* key)
 inline void presetValuesOf (const Preset& preset, float* values)
 {
     for (int i = (int) ParamId::chordSection; i < paramCount; ++i)
-        values[i] = paramTable[i].def;
+        if (ParamId::isSoundRow ((uint32_t) i)) values[i] = paramTable[i].def;
     for (int i = 0; i < preset.count; ++i)
-        if (preset.values[i].id >= ParamId::chordSection && preset.values[i].id < (uint32_t) paramCount)
+        if (ParamId::isSoundRow (preset.values[i].id))
             values[preset.values[i].id] = clampParam (paramTable[preset.values[i].id], preset.values[i].value);
 }
 } // namespace reverie
