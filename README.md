@@ -11,7 +11,7 @@
   <tr>
     <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie six Frutiger Aero pages running in hdslaveOS"></a></td>
     <td align="center"><a href="mac-clap/assets/desktop-preview.gif"><img src="mac-clap/assets/desktop-preview.gif" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
-    <td align="center"><a href="docs/reverie-sp16-chords.png"><img src="docs/reverie-sp16-chords.png" alt="Reverie on freesp16 with chord pad six held and its notes highlighted"></a></td>
+    <td align="center"><a href="docs/reverie-sp16-chords.png"><img src="docs/reverie-sp16-chords.png" alt="Reverie on freesp16 with the Dawn Mood selected and the notes of pad 6 highlighted"></a></td>
   </tr>
 </table>
 
@@ -32,7 +32,7 @@ hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.scr
 
 ## The pads
 
-![The CHORDS page in hdslaveOS, pad 6 just struck](docs/reverie-chords.png)
+![The Chords page in hdslaveOS with the Dawn Mood selected and pad 6 playing](docs/reverie-chords.png)
 
 | Pads | What they play |
 |---|---|
