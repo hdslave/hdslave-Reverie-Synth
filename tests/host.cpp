@@ -43,6 +43,7 @@ const clap_plugin_entry* entry = nullptr;
 const clap_plugin_factory* factory = nullptr;
 std::string outDir;
 
+int remoteChanges = 0;
 int rescans = 0, textRescans = 0, callbacks = 0, paints = 0, processRequests = 0, presetsLoaded = 0, presetErrors = 0, flushes = 0;
 const void* hostExtension (const clap_host*, const char* id)
 {
@@ -50,6 +51,8 @@ const void* hostExtension (const clap_host*, const char* id)
                                               rescans += (f & CLAP_PARAM_RESCAN_VALUES) != 0;
                                               textRescans += (f & CLAP_PARAM_RESCAN_TEXT) != 0; },
                                            [] (const clap_host*, clap_id, clap_param_clear_flags) {}, [] (const clap_host*) { ++flushes; } };
+    static const clap_host_remote_controls remote { [] (const clap_host*) { ++remoteChanges; }, nullptr };
+    if (std::strcmp (id, CLAP_EXT_REMOTE_CONTROLS) == 0) return &remote;
     static const melodee_screen_host_t screen { [] (const void*, uint32_t) { ++paints; } };
     static const clap_host_preset_load presetLoad {
         [] (const clap_host*, uint32_t, const char*, const char*, int32_t, const char*) { ++presetErrors; },
@@ -349,6 +352,14 @@ void testParams()
         CHECK (! inst.params->text_to_value (inst.plugin, info.id, "nan", &nope));
     }
     CHECK (ids.size() == (size_t) paramCount);
+    for (int i = 0; i < progressionCount; ++i)
+    {
+        char name[64];
+        CHECK (inst.params->value_to_text (inst.plugin, 99, i, name, sizeof (name)));
+        CHECK (std::strcmp (name, progressionTable[i].name) == 0);
+    }
+    CHECK (std::strcmp (progressionTable[0].name, "Velvet Night") == 0);
+    CHECK (std::strcmp (progressionTable[45].name, "Moonstone") == 0);
     for (clap_id archived = 84; archived <= 96; ++archived)
     {
         double unused;
@@ -372,7 +383,7 @@ void testParams()
         CHECK (! progressionTable[0].minor && minorProgression > 0);
         CHECK (keyText (1) == "Db" && keyText (8) == "Ab" && keyText (6) == "F#");
         const int callbacksBefore = callbacks, textBefore = textRescans;
-        inst.flush ({ { ParamId::progression, (double) minorProgression } });
+        inst.flush ({ { ParamId::publicId (ParamId::originalProgression), (double) minorProgression } });
         CHECK (callbacks > callbacksBefore);
         inst.plugin->on_main_thread (inst.plugin);
         CHECK (textRescans == textBefore + 1);
@@ -381,10 +392,10 @@ void testParams()
         CHECK_NEAR (keyValue ("Db"), 1, 0);
         CHECK_NEAR (keyValue ("g#"), 8, 0);
         CHECK_NEAR (keyValue ("Ab"), 8, 0);
-        inst.flush ({ { ParamId::progression, (double) minorProgression } }); // the same mode: nothing to read again
+        inst.flush ({ { ParamId::publicId (ParamId::originalProgression), (double) minorProgression } }); // the same mode: nothing to read again
         inst.plugin->on_main_thread (inst.plugin);
         CHECK (textRescans == textBefore + 1);
-        inst.flush ({ { ParamId::progression, 0.0 } });
+        inst.flush ({ { ParamId::publicId (ParamId::originalProgression), 0.0 } });
         inst.plugin->on_main_thread (inst.plugin);
         CHECK (textRescans == textBefore + 2);
         CHECK (keyText (1) == "Db");
@@ -406,19 +417,19 @@ void testParams()
 
 void testProgressions()
 {
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < allProgressionCount; ++p)
     {
         CHECK (parsedProgressions()[p].ok);
-        if (! parsedProgressions()[p].ok) std::printf ("  progression %s does not parse\n", progressionTable[p].name);
-        CHECK (std::strlen (progressionTable[p].name) <= 18);
+        if (! parsedProgressions()[p].ok) std::printf ("  progression %s does not parse\n", progressionAt (p).name);
+        CHECK (std::strlen (progressionAt (p).name) <= 18);
     }
     // names: no doubled accidentals or the odd ones in any key
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < allProgressionCount; ++p)
         for (int k = 0; k < 12; ++k)
             for (int c = 0; c < chordsPerProgression; ++c)
             {
                 char root[16];
-                chordRootText (parsedProgressions()[p].chords[c], k, progressionTable[p].minor, root, sizeof (root));
+                chordRootText (parsedProgressions()[p].chords[c], k, progressionAt (p).minor, root, sizeof (root));
                 CHECK (std::strstr (root, "bb") == nullptr && std::strstr (root, "##") == nullptr);
                 CHECK (std::strstr (root, "Cb") == nullptr && std::strstr (root, "Fb") == nullptr && std::strstr (root, "E#") == nullptr && std::strstr (root, "B#") == nullptr);
                 CHECK (std::strlen (root) <= 6);
@@ -434,29 +445,29 @@ void testProgressions()
     chordText (parsedProgressions()[2].chords[2], 0, false, s, sizeof (s));
     CHECK (std::strcmp (s, "Gm7(11)") == 0);
     // every quality a progression names fits its pad on the page (40 pixels less the 4 in front, at size 10)
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < allProgressionCount; ++p)
         for (const ChordSymbol& c : parsedProgressions()[p].chords)
             CHECK (hdui::Raster::measure (chordQualityText (c), 10) <= 36);
     // ... and so does every label the page draws beside it, at the size and place the page draws it: each pad's
     // root line in every key (size 12, size 10 once wider than 25, as Screen::padGrid picks), the skyline's
     // progression and voicing (from x 8, a rule and 12 pixels between them, across 320), and its key-and-mode
     // pill (from x 141). The sounds' names are the host's list to draw; they are held to the same full width.
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < allProgressionCount; ++p)
     {
         for (int k = 0; k < 12; ++k)
             for (int c = 0; c < chordsPerProgression; ++c)
             {
                 char root[16];
-                chordRootText (parsedProgressions()[p].chords[c], k, progressionTable[p].minor, root, sizeof (root));
+                chordRootText (parsedProgressions()[p].chords[c], k, progressionAt (p).minor, root, sizeof (root));
                 const int rootSize = hdui::Raster::measure (root, 12) > 25 ? 10 : 12;
                 CHECK (hdui::Raster::measure (root, rootSize) <= 36);
             }
         for (int v = 0; v < Voicing::count; ++v)
-            CHECK (8 + hdui::Raster::measure (progressionTable[p].name, 12) + 12 + hdui::Raster::measure (voicingChoices[v], 12) <= 320);
+            CHECK (8 + hdui::Raster::measure (progressionAt (p).name, 12) + 12 + hdui::Raster::measure (voicingChoices[v], 12) <= 320);
         for (int k = 0; k < 12; ++k)
         {
             char mode[20];
-            std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (k, progressionTable[p].minor), progressionTable[p].minor ? "minor" : "major");
+            std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (k, progressionAt (p).minor), progressionAt (p).minor ? "minor" : "major");
             CHECK (141 + hdui::Raster::measure (mode, 10) + 12 <= 320);
         }
     }
@@ -465,7 +476,7 @@ void testProgressions()
     // every voicing of every progression in every key is a sound chord, and the table the plug-in reads (voiced when
     // it was built, src/voicings.h) holds exactly the chords the search gives
     int chords = 0, flat9 = 0, differ = 0, lifted = 0, withColour = 0;
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < factoryBank::progressionCount; ++p)
         for (int v = 0; v < Voicing::count; ++v)
             for (int k = 0; k < 12; ++k)
             {
@@ -531,12 +542,12 @@ void testProgressions()
                 }
             }
     std::printf ("  %d chords voiced, %d minor ninths (all where the chord allows them), %d of %d sets unlike the table\n", chords,
-                 flat9, differ, progressionCount * Voicing::count * 12);
+                 flat9, differ, factoryBank::progressionCount * Voicing::count * 12);
     std::printf ("  %d of %d lifted pads add a colour tone the progression uses\n", withColour, lifted);
     // the bass, chosen for the whole progression: a bass that stays stays on its note, one that moves a step or a
     // semitone moves just that far, not by an octave. Only a line that runs further than G1-C3 holds breaks, once.
     int broken = 0;
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < factoryBank::progressionCount; ++p)
         for (int k = 0; k < 12; ++k)
         {
             VoicingSet set;
@@ -553,9 +564,26 @@ void testProgressions()
             CHECK (breaks <= 1);
             broken += breaks;
         }
-    std::printf ("  bass lines broken by the range: %d of %d progressions in a key\n", broken, progressionCount * 12);
+    std::printf ("  bass lines broken by the range: %d of %d progressions in a key\n", broken, factoryBank::progressionCount * 12);
     const ChordNotes odd = padChord (-5, 99, 14, 40), edge = padChord (0, Voicing::count - 1, 2, padSlots - 1); // out of range: clamped
     CHECK (std::memcmp (&odd, &edge, sizeof (odd)) == 0);
+    // All 52,992 original pad voicings, in desktop order. Include the bass flag and every MIDI note.
+    uint64_t originalHash = 14695981039346656037ull;
+    auto add = [&] (int byte) { originalHash = (originalHash ^ (uint8_t) byte) * 1099511628211ull; };
+    float values[paramCount] {};
+    for (int p = 0; p < progressionCount; ++p)
+    {
+        values[ParamId::originalProgression] = (float) p;
+        for (int v = 0; v < Voicing::count; ++v)
+            for (int k = 0; k < 12; ++k)
+                for (int slot = 0; slot < padSlots; ++slot)
+                {
+                    const auto c = performanceChord (selectedProgression (values), v, k, slot, 0, 0);
+                    add (c.count | (c.hasBass ? 0x80 : 0));
+                    for (int n = 0; n < c.count; ++n) add (c.note[n]);
+                }
+    }
+    CHECK (originalHash == 0x65792b2a421b52ddull);
     // the pads and the banks
     CHECK (padOf (36).slot == 0 && padOf (36).shift == 0);
     CHECK (padOf (51).slot == 15 && padOf (51).shift == 0);
@@ -584,7 +612,7 @@ void testState()
     std::vector<uint8_t> saved;
     {
         Instance a;
-        a.flush ({ { 97, 2 }, { 98, -3 }, { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 },
+        a.flush ({ { 99, 45 }, { 97, 2 }, { 98, -3 }, { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 },
                    { ParamId::phaserMix, 0.74 }, { ParamId::phaserRate, 0.36 }, { ParamId::phaserFeedback, 0.63 }, { ParamId::phaserEnv, -0.85 } });
         clap_ostream out { &saved, [] (const clap_ostream* s, const void* d, uint64_t n) -> int64_t {
                               auto* v = static_cast<std::vector<uint8_t>*> (s->ctx);
@@ -607,6 +635,8 @@ void testState()
     {
         Instance b;
         CHECK (load (b, saved));
+        CHECK_NEAR (b.value (99), 45, 0);
+        CHECK_NEAR (b.value (100), 0, 0);
         CHECK_NEAR (b.value (97), 2, 0);
         CHECK_NEAR (b.value (98), -3, 0);
         CHECK_NEAR (b.value (ParamId::progression), 12, 0);
@@ -636,11 +666,29 @@ void testState()
         for (auto id : { ParamId::phaserRate, ParamId::phaserFeedback, ParamId::phaserEnv })
             CHECK_NEAR (restored.value (id), paramTable[id].def, 0);
         dryPatch.render (1);
-        dryPatch.flush ({ { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
+        dryPatch.flush ({ { 100, 1 }, { ParamId::progression, 12 }, { ParamId::key, 5 }, { ParamId::cutoff, 0.42 }, { ParamId::osc2Wave, 9 }, { ParamId::latch, 1 } });
         const std::vector<Cue> chord { On (0, 36), Off (4000, 36) };
         const Stereo reference = dryPatch.render (12000, chord);
         CHECK (rms (reference.l) > 1e-3);
         CHECK (same (reference, restored.render (12000, chord)));
+    }
+    {   // The Mood release stored the factory Prog, Mood and Shift, without either of the new controls.
+        auto old = saved;
+        old.resize (12 + 8 * 86);
+        old[4] = 2;
+        old[8] = 86;
+        const float lastFactory = 207.0f;
+        std::memcpy (old.data() + 16, &lastFactory, sizeof (lastFactory)); // first pair: Prog at ID 0
+        Instance loaded, reference;
+        CHECK (load (loaded, old));
+        CHECK_NEAR (loaded.value (100), 1, 0);
+        CHECK_NEAR (loaded.value (0), 207, 0);
+        CHECK_NEAR (loaded.value (97), 2, 0);
+        CHECK_NEAR (loaded.value (98), -3, 0);
+        CHECK (load (reference, saved));
+        reference.flush ({ { 100, 1 }, { 0, 207 } });
+        const std::vector<Cue> phrase { On (0, 36), Off (2048, 36), P (4096, 97, 0), On (4096, 51) };
+        CHECK (same (loaded.render (8192, phrase), reference.render (8192, phrase)));
     }
     {   // unknown ids skipped, missing ones default; a wrong tag refused
         std::vector<uint8_t> odd = { 'R', 'V', 'R', 'E', 1, 0, 0, 0, 2, 0, 0, 0 };
@@ -662,12 +710,15 @@ void testState()
         CHECK_NEAR (b.value (ParamId::cutoff), paramTable[ParamId::cutoff].def, 1e-6);
         CHECK_NEAR (b.value (ParamId::progression), paramTable[ParamId::progression].def, 0);
     }
-    {   // a state from 0.1-0.2 (version 1) chose among the retired progressions: it keeps every value but that one
+    {   // a version-1 state with an original slot recovers that Prog
         std::vector<uint8_t> old = saved;
+        old.resize (12 + 8 * 80);
         old[4] = 1;
+        old[8] = 80;
         Instance b;
         CHECK (load (b, old));
-        CHECK_NEAR (b.value (ParamId::progression), paramTable[ParamId::progression].def, 0);
+        CHECK_NEAR (b.value (99), 12, 0);
+        CHECK_NEAR (b.value (100), 0, 0);
         CHECK_NEAR (b.value (ParamId::key), 5, 0);
         CHECK_NEAR (b.value (ParamId::cutoff), 0.42, 1e-6);
         CHECK_NEAR (b.value (ParamId::latch), 1, 0);
@@ -686,7 +737,7 @@ void testPresets()
 {
     Instance inst;
     // the chord section stays as it is through every sound
-    inst.flush ({ { 97, 18 }, { 98, 7 }, { ParamId::progression, 9 }, { ParamId::key, 3 }, { ParamId::voicing, 2 }, { ParamId::latch, 1 }, { ParamId::strum, 0.6 },
+    inst.flush ({ { 99, 29 }, { 100, 1 }, { 97, 18 }, { 98, 7 }, { ParamId::progression, 9 }, { ParamId::key, 3 }, { ParamId::voicing, 2 }, { ParamId::latch, 1 }, { ParamId::strum, 0.6 },
                   { ParamId::bass, 0.3 }, { ParamId::octave, -1 } });
     std::set<std::string> keys, names;
     for (const auto& p : presetTable)
@@ -695,6 +746,8 @@ void testPresets()
         const int before = presetsLoaded;
         CHECK (inst.preset (p.key));
         CHECK (presetsLoaded == before + 1);
+        CHECK_NEAR (inst.value (99), 29, 0);
+        CHECK_NEAR (inst.value (100), 1, 0);
         CHECK_NEAR (inst.value (97), 18, 0);
         CHECK_NEAR (inst.value (98), 7, 0);
         CHECK_NEAR (inst.value (ParamId::progression), 9, 0);
@@ -792,14 +845,15 @@ struct Bench
 // tone left to add), so four strikes of it hold all 24 voices; its pads 1 and 3 (C13sus, Bb13sus) are six notes each.
 int sixNoteProgression()
 {
-    for (int p = 0; p < progressionCount; ++p)
-        if (std::strcmp (progressionTable[p].name, "Velvet Quartet") == 0) return p;
+    for (int p = 0; p < factoryBank::progressionCount; ++p)
+        if (std::strcmp (factoryBank::progressionTable[p].name, "Velvet Quartet") == 0) return p;
     return 0;
 }
 
 void slowSines (Bench& b, float volume)
 {
     using namespace ParamId;
+    b.e.set (progBank, 1);
     b.e.set (progression, (float) sixNoteProgression());
     for (auto [id, v] : std::vector<std::pair<uint32_t, float>> {
              { osc1Wave, 11 }, { osc1Pos, 0 }, { osc1Unison, 1 }, { osc1Detune, 0 }, { osc1Octave, -2 }, { osc2Level, 0 }, { air, 0 },
@@ -1491,8 +1545,7 @@ void testTuning()
     {
         Instance a (rate);
         const Stereo s = a.render ((uint64_t) (rate * 1.5), dry() + std::vector<Cue> { On (0, 36, 1.0) });
-        const ChordNotes& c = [] () -> const ChordNotes& { static VoicingSet v; voiceProgression (0, 0, 0, v); return v.slot[0]; }();
-        const double want = 440.0 * std::pow (2.0, (c.note[0] - 69) / 12.0);
+        const double want = 440.0 * std::pow (2.0, (41 - 69) / 12.0); // F2
         const double got = strongest (s.l, (size_t) (rate * 0.5), (size_t) (rate * 0.9), rate, want * 0.8, want * 1.2);
         CHECK_NEAR (1200.0 * std::log2 (got / want), 0.0, 1.0);
         CHECK (finite (s));
@@ -1500,9 +1553,7 @@ void testTuning()
     // the Key moves the bass
     Instance b;
     const Stereo s = b.render (72000, dry() + std::vector<Cue> { P (0, ParamId::key, 2), On (0, 36, 1.0) });
-    VoicingSet v;
-    voiceProgression (0, 0, 2, v);
-    const double want = 440.0 * std::pow (2.0, (v.slot[0].note[0] - 69) / 12.0);
+    const double want = 440.0 * std::pow (2.0, (43 - 69) / 12.0); // G2
     const double got = strongest (s.l, 24000, 43200, 48000.0, want * 0.8, want * 1.2);
     CHECK_NEAR (1200.0 * std::log2 (got / want), 0.0, 1.0);
 }
@@ -1568,8 +1619,19 @@ void testScreen()
     // K1-K3 on the CHORDS page: Progression, Voicing, Key
     uint32_t ids[3];
     inst.screen->controls (inst.plugin, ids);
-    CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
-    inst.flush ({ { paramTable[ParamId::mood].id, 1 } });
+    CHECK (ids[0] == 99 && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
+    auto* remote = static_cast<const clap_plugin_remote_controls*> (inst.plugin->get_extension (inst.plugin, CLAP_EXT_REMOTE_CONTROLS));
+    clap_remote_controls_page page {};
+    CHECK (remote && remote->count (inst.plugin) == 2);
+    CHECK (remote->get (inst.plugin, 0, &page) && page.param_ids[0] == ids[0]);
+    const int changes = remoteChanges;
+    inst.flush ({ { 100, 1 } });
+    inst.plugin->on_main_thread (inst.plugin);
+    CHECK (remoteChanges == changes + 1);
+    CHECK (remote->get (inst.plugin, 0, &page) && page.param_ids[0] == 0);
+    inst.screen->controls (inst.plugin, ids);
+    CHECK (ids[0] == 0);
+    inst.flush ({ { 100, 0 }, { paramTable[ParamId::mood].id, 1 } });
     CHECK (inst.screen->draw (inst.plugin, &c));
     inst.screen->controls (inst.plugin, ids);
     CHECK (std::all_of (ids, ids + 3, [] (uint32_t id) { return id == MELODEE_SCREEN_NO_CONTROL; }));
@@ -1581,7 +1643,7 @@ void testScreen()
     advance = { MELODEE_SCREEN_WHEEL, -3, 0 };
     CHECK (inst.screen->input (inst.plugin, &advance));
     inst.screen->controls (inst.plugin, ids);
-    CHECK (ids[0] == ParamId::progression && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
+    CHECK (ids[0] == 99 && ids[1] == ParamId::voicing && ids[2] == ParamId::key);
     // a chord sounding, then each page drawn
     inst.render (24000, { On (0, 36), On (0, 44) });
     static const char* const names[] = { "chords", "motion", "osc", "filter", "amp", "fx" };

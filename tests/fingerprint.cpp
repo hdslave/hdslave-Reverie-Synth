@@ -201,6 +201,12 @@ std::vector<Scenario> scenarios()
         s.block = block, s.seconds = 3.0;
         list.push_back (s);
     }
+    // Keep the released factory audio baselines, then cover the new default and its Lift pads.
+    for (auto& s : list) s.events.insert (s.events.begin(), P (0, publicId (progBank), 1));
+    list.push_back ({ "original-velvet-night", "", phrase() });
+    auto moonstone = phrase (44);
+    moonstone.insert (moonstone.begin(), P (0, publicId (originalProgression), 45));
+    list.push_back ({ "original-moonstone-lift", "", moonstone });
     return list;
 }
 } // namespace

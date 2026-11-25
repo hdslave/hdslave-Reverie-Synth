@@ -248,7 +248,7 @@ public:
         }
         const PadKey pad = padOf (key);
         const float* chordSet = target; // the chord section as set: a value sent with the note applies to it
-        const ChordNotes chord = performanceChord ((int) chordSet[ParamId::progression], (int) chordSet[ParamId::voicing], (int) chordSet[ParamId::key],
+        const ChordNotes chord = performanceChord (selectedProgression (chordSet), (int) chordSet[ParamId::voicing], (int) chordSet[ParamId::key],
                                                  pad.slot, (int) chordSet[ParamId::mood], (int) chordSet[ParamId::moodShift]);
         if (chord.count == 0) return;
         const bool latching = chordSet[ParamId::latch] >= 0.5f;
@@ -481,7 +481,7 @@ public:
     const VoicingSet& voicings()
     {
         for (int slot = 0; slot < padSlots; ++slot)
-            shown.slot[slot] = performanceChord ((int) target[ParamId::progression], (int) target[ParamId::voicing],
+            shown.slot[slot] = performanceChord (selectedProgression (target), (int) target[ParamId::voicing],
                                                 (int) target[ParamId::key], slot, (int) target[ParamId::mood], (int) target[ParamId::moodShift]);
         return shown;
     }

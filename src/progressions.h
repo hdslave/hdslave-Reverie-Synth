@@ -4,25 +4,18 @@
 // progression by its place, and hdslaveOS keeps its motion and bindings as a share of the range, so even one added
 // at the end would move them. More progressions go in a new parameter.
 //
-// Since 0.3.0 every progression is one of the M3 workstation's factory pad chord sets (its Motion Synth, Pad, SlowSynth
-// and Vocal presets); since 0.4.0 the TORAIZ SQUID's 18 chord sets follow them, each as two progressions (its pads
-// 1-8, then 9-16). Each chord is named from the pad's own notes so the name holds exactly its pitch classes, moved so
-// pad 1's root is C. tools/make_progressions.py makes the table from the two chord packs; the names are Reverie's
-// own. The 0.1-0.2 progressions were retired: a state saved before 0.3.0 starts at the first progression (reverie.cpp).
+// Factory contains the 172 M3 sets and the 36 later eight-pad sets at their released indices.
+// Original uses the first MPC edition's table and voicings, also shipped by desktop Reverie.
 //
 // Symbols: a root (C, Db, F#...), a quality (chords.h: maj9, m11, 7sus, add9, m7(11)...) and an optional bass after a
 // slash (Cmaj9/G). The tests parse every one.
 #pragma once
 
-namespace reverie
-{
-struct ProgressionText
-{
-    const char* name;
-    bool minor;          // in C minor (the key's minor), else C major
-    const char* chords;  // eight symbols
-};
+// The original MPC bank and the desktop edition share the same released symbols and order.
+#include "../mac-clap/src/progressions.h"
 
+namespace reverie::factoryBank
+{
 inline constexpr ProgressionText progressionTable[] = {
     // --- made by tools/make_progressions.py: do not edit by hand ---
     // Motion Synth Combis
@@ -242,7 +235,6 @@ inline constexpr ProgressionText progressionTable[] = {
     // --- end of the made part ---
 };
 constexpr int progressionCount = (int) (sizeof (progressionTable) / sizeof (progressionTable[0]));
-constexpr int chordsPerProgression = 8;
 
 struct ProgressionNames
 {
@@ -254,4 +246,16 @@ struct ProgressionNames
 };
 inline constexpr ProgressionNames progressionNameList {};
 inline const char* const* const progressionNames = progressionNameList.list;
+} // namespace reverie::factoryBank
+
+namespace reverie
+{
+constexpr int allProgressionCount = factoryBank::progressionCount + progressionCount;
+static_assert (factoryBank::progressionCount == 208 && progressionCount == 46, "Released Prog ranges");
+
+inline const ProgressionText& progressionAt (int index)
+{
+    return index < factoryBank::progressionCount ? factoryBank::progressionTable[index]
+                                                : progressionTable[index - factoryBank::progressionCount];
+}
 } // namespace reverie

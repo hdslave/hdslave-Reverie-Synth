@@ -13,7 +13,7 @@ int main()
                  "// voicing and key, the sixteen pads' chords, eight bytes each: the note count (bit 7: the first is the\n"
                  "// bass), then the notes, ascending.\n");
     std::printf ("inline constexpr unsigned char voicingBytes[] = {\n");
-    for (int p = 0; p < progressionCount; ++p)
+    for (int p = 0; p < factoryBank::progressionCount; ++p)
         for (int v = 0; v < Voicing::count; ++v)
             for (int k = 0; k < 12; ++k)
             {

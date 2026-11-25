@@ -63,7 +63,12 @@ int main (int argc, char** argv)
             if (eq == std::string::npos) continue;
             const std::string k = field.substr (0, eq), v = field.substr (eq + 1);
             if (k == "preset") s.preset = v;
-            else if (k == "prog") s.params.push_back ({ reverie::ParamId::progression, std::atof (v.c_str()) });
+            else if (k == "prog") // existing playlists select the factory bank
+            {
+                s.params.push_back ({ reverie::ParamId::publicId (reverie::ParamId::progBank), 1 });
+                s.params.push_back ({ reverie::ParamId::progression, std::atof (v.c_str()) });
+            }
+            else if (k == "original") s.params.push_back ({ reverie::ParamId::publicId (reverie::ParamId::originalProgression), std::atof (v.c_str()) });
             else if (k == "voicing") s.params.push_back ({ reverie::ParamId::voicing, std::atof (v.c_str()) });
             else if (k == "key") s.params.push_back ({ reverie::ParamId::key, std::atof (v.c_str()) });
             else if (k == "hold") s.hold = std::atof (v.c_str());

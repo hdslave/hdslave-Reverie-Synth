@@ -75,12 +75,14 @@ struct Plugin
     // The Key's text follows the progression's mode (Db in a major one, C# in a minor one): set when the host moved
     // the progression to the other mode, so the main thread tells the host to read the text again.
     std::atomic<bool> keyTextMoved { false };
+    bool shownFactoryBank = false; // main thread: bank last announced to the host
     float applied[paramCount] {};
     Telemetry telemetry;
     Engine engine { &telemetry };
     bool active = false;
     std::vector<float> spare; // the right channel of a mono output
     const clap_host_params* hostParams = nullptr;
+    const clap_host_remote_controls* hostRemote = nullptr;
     const melodee_screen_host_t* hostScreen = nullptr;
     Screen screen { values, telemetry };
     RowBits outgoing;
@@ -100,10 +102,16 @@ void requestPaint (const Plugin& p, uint32_t flags = 0)
 }
 
 // [main thread] The host reads the Key's text again when the progression moved to the other mode.
-void keyTextRescan (Plugin& p, float progressionBefore = -1.0f)
+void refreshChordControls (Plugin& p, int progressionBefore = -1)
 {
-    if (progressionBefore >= 0.0f
-        && progressionMinor (progressionBefore) != progressionMinor (p.values[ParamId::progression].load (std::memory_order_relaxed)))
+    const bool factory = p.values[ParamId::progBank].load (std::memory_order_relaxed) != 0;
+    if (factory != p.shownFactoryBank)
+    {
+        p.shownFactoryBank = factory;
+        if (p.hostRemote && p.hostRemote->changed) p.hostRemote->changed (p.host);
+    }
+    if (progressionBefore >= 0
+        && progressionMinor (progressionBefore) != progressionMinor (selectedProgression (p.values)))
         p.keyTextMoved.store (true, std::memory_order_relaxed);
     if (p.keyTextMoved.exchange (false, std::memory_order_acquire) && p.hostParams != nullptr && p.hostParams->rescan != nullptr)
         p.hostParams->rescan (p.host, CLAP_PARAM_RESCAN_TEXT);
@@ -177,7 +185,7 @@ bool paramsToText (const clap_plugin* plugin, clap_id id, double value, char* te
         return false;
     if (id == ParamId::key) // as the page shows it: in the progression's mode
     {
-        const bool minor = progressionMinor (of (plugin).values[ParamId::progression].load (std::memory_order_relaxed));
+        const bool minor = progressionMinor (selectedProgression (of (plugin).values));
         std::snprintf (text, size, "%s", keyTonic ((int) clampParam (paramTable[index], (float) value), minor));
         return true;
     }
@@ -253,13 +261,16 @@ void handle (Plugin& p, const clap_event_header* e)
                 break;
             const float value = clampParam (paramTable[index], (float) v->value);
             const bool moved = p.applied[index] != value;
-            if (index == (int) ParamId::progression && progressionMinor (p.applied[index]) != progressionMinor (value))
-            {
-                p.keyTextMoved.store (true, std::memory_order_release);
-                if (p.host->request_callback != nullptr) p.host->request_callback (p.host);
-            }
-            p.values[index].store (value, std::memory_order_relaxed);
+            const int before = selectedProgression (p.applied);
             p.applied[index] = value;
+            p.values[index].store (value, std::memory_order_relaxed);
+            if (moved && (index == ParamId::progression || index == ParamId::originalProgression || index == ParamId::progBank))
+            {
+                const bool keyChanged = progressionMinor (before) != progressionMinor (selectedProgression (p.applied));
+                if (keyChanged) p.keyTextMoved.store (true, std::memory_order_release);
+                if ((keyChanged || index == ParamId::progBank) && p.host->request_callback)
+                    p.host->request_callback (p.host);
+            }
             p.engine.set ((uint32_t) index, value);
             p.valuesMoved |= moved;
             break;
@@ -319,13 +330,30 @@ void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const 
         requestPaint (p);
 }
 
+// The MPC's standard Edit view and custom panel bind their first knob to the same bank.
+uint32_t remoteCount (const clap_plugin*) { return 2; }
+bool remoteGet (const clap_plugin* plugin, uint32_t index, clap_remote_controls_page* page)
+{
+    using namespace ParamId;
+    if (index >= 2) return false;
+    const bool factory = of (plugin).values[progBank].load (std::memory_order_relaxed) != 0;
+    const clap_id original = publicId (originalProgression);
+    if (index == 0)
+        *page = { "Chords", 0, "Chords", { factory ? progression : original, key, voicing, octave, strum, humanize,
+                                           CLAP_INVALID_ID, CLAP_INVALID_ID }, false };
+    else
+        *page = { "Chords", 1, "Chord Setup", { publicId (mood), publicId (moodShift), publicId (progBank),
+                                                bass, latch, glide, velocity, factory ? original : progression }, false };
+    return true;
+}
+const clap_plugin_remote_controls remoteExtension { remoteCount, remoteGet };
+
 const clap_plugin_params paramsExtension { paramsCount, paramsInfo, paramsValue, paramsToText, paramsFromText, paramsFlush };
 
 // State: "RVRE", a version, the number of values, then (id, value) pairs; unknown ids are skipped, missing ones keep
-// their defaults, so a state saved by another version still loads. Version 1 (Reverie 0.1-0.2) chose among the
-// progressions 0.3.0 retired: such a state keeps every value but the progression, which starts at the first.
+// their defaults. Version 1 used the original Prog at ID 0; version 2 used the factory bank there.
 constexpr char stateTag[4] = { 'R', 'V', 'R', 'E' };
-constexpr uint32_t stateVersion = 2;
+constexpr uint32_t stateVersion = 3;
 
 bool writeAll (const clap_ostream* s, const void* data, uint64_t size)
 {
@@ -359,7 +387,7 @@ bool readAll (const clap_istream* s, void* data, uint64_t size)
 // dropped: the loaded values win.
 void setAll (Plugin& p, const float* values)
 {
-    const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
+    const int progressionBefore = selectedProgression (p.values);
     p.outgoing.clear();
     for (int i = 0; i < paramCount; ++i)
         p.values[i].store (values[i], std::memory_order_relaxed);
@@ -367,7 +395,7 @@ void setAll (Plugin& p, const float* values)
     if (! p.active)
         for (int i = 0; i < paramCount; ++i)
             p.applied[i] = values[i], p.engine.set ((uint32_t) i, values[i]);
-    keyTextRescan (p, progressionBefore);
+    refreshChordControls (p, progressionBefore);
     requestPaint (p);
 }
 
@@ -406,8 +434,14 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
         if (index >= 0)
             loaded[index] = clampParam (paramTable[index], pair.value);
     }
-    if (const int prog = paramIndex (ParamId::progression); header[0] < 2 && prog >= 0)
-        loaded[prog] = paramTable[prog].def;
+    if (header[0] == 1)
+    {
+        const float old = loaded[ParamId::progression];
+        loaded[ParamId::originalProgression] = old < progressionCount ? old : 0;
+        loaded[ParamId::progBank] = 0;
+    }
+    else if (header[0] == 2)
+        loaded[ParamId::progBank] = 1;
     setAll (p, loaded);
     return true;
 }
@@ -485,6 +519,9 @@ bool pluginInit (const clap_plugin* plugin)
     (void) WaveBank::get(); // the waves, made once (main thread)
     (void) padsJson();
     p.hostParams = static_cast<const clap_host_params*> (p.host->get_extension (p.host, CLAP_EXT_PARAMS));
+    p.hostRemote = static_cast<const clap_host_remote_controls*> (p.host->get_extension (p.host, CLAP_EXT_REMOTE_CONTROLS));
+    if (! p.hostRemote)
+        p.hostRemote = static_cast<const clap_host_remote_controls*> (p.host->get_extension (p.host, CLAP_EXT_REMOTE_CONTROLS_COMPAT));
     p.hostScreen = static_cast<const melodee_screen_host_t*> (p.host->get_extension (p.host, MELODEE_SCREEN_CLAP_HOST));
     return true;
 }
@@ -642,7 +679,7 @@ bool screenInput (const void* plugin, const melodee_screen_input_t* e)
     auto& p = of (static_cast<const clap_plugin*> (plugin));
     hdui::Edits edits;
     const bool used = p.screen.input ((hdui::Key) e->kind, e->value, e->shift != 0, edits);
-    const float progressionBefore = p.values[ParamId::progression].load (std::memory_order_relaxed);
+    const int progressionBefore = selectedProgression (p.values);
     bool changed = false;
     for (int i = 0; i < edits.count; ++i)
     {
@@ -661,7 +698,7 @@ bool screenInput (const void* plugin, const melodee_screen_input_t* e)
     {
         if (p.hostParams->rescan != nullptr)
             p.hostParams->rescan (p.host, CLAP_PARAM_RESCAN_VALUES);
-        keyTextRescan (p, progressionBefore);
+        refreshChordControls (p, progressionBefore);
         if (p.hostParams->request_flush != nullptr)
             p.hostParams->request_flush (p.host);
     }
@@ -687,6 +724,7 @@ const melodee_screen_t screenExtension { screenDraw, screenInput, screenControls
 const void* pluginExtension (const clap_plugin*, const char* id)
 {
     if (std::strcmp (id, MELODEE_SCREEN_CLAP) == 0) return &screenExtension;
+    if (std::strcmp (id, CLAP_EXT_REMOTE_CONTROLS) == 0 || std::strcmp (id, CLAP_EXT_REMOTE_CONTROLS_COMPAT) == 0) return &remoteExtension;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &paramsExtension;
     if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &stateExtension;
     if (std::strcmp (id, CLAP_EXT_AUDIO_PORTS) == 0) return &audioExtension;
@@ -695,7 +733,7 @@ const void* pluginExtension (const clap_plugin*, const char* id)
     return nullptr;
 }
 
-void pluginMainThread (const clap_plugin* plugin) { keyTextRescan (of (plugin)); }
+void pluginMainThread (const clap_plugin* plugin) { refreshChordControls (of (plugin)); }
 
 // Factory -----------------------------------------------------------------------------------------------------
 

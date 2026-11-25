@@ -150,10 +150,10 @@ struct ParsedProgression
 inline const ParsedProgression* parsedProgressions()
 {
     static const auto table = [] {
-        std::array<ParsedProgression, progressionCount> t {};
-        for (int p = 0; p < progressionCount; ++p)
+        std::array<ParsedProgression, allProgressionCount> t {};
+        for (int p = 0; p < allProgressionCount; ++p)
         {
-            const char* s = progressionTable[p].chords;
+            const char* s = progressionAt (p).chords;
             int n = 0;
             bool ok = true;
             while (*s)
@@ -226,9 +226,9 @@ inline const char* keyTonic (int key, bool minor)
     key = ((key % 12) + 12) % 12;
     return minor ? keyMinorChoices[key] : keyChoices[key];
 }
-inline bool progressionMinor (float progression)
+inline bool progressionMinor (int progression)
 {
-    return progressionTable[std::clamp ((int) std::lround (progression), 0, progressionCount - 1)].minor;
+    return progressionAt (std::clamp (progression, 0, allProgressionCount - 1)).minor;
 }
 
 // A note written in C as `letter` / `pc`, spelled in the key: its letter moved as far as the key's, its accidental
@@ -575,7 +575,7 @@ inline ChordNotes voiceChord (const ChordSymbol& c, int voicing, int key, bool l
 // The sixteen pads of a progression in a voicing style and key: 1-8 the chords, 9-16 lifted.
 inline void voiceProgression (int progression, int voicing, int key, VoicingSet& out)
 {
-    const ParsedProgression& p = parsedProgressions()[std::clamp (progression, 0, progressionCount - 1)];
+    const ParsedProgression& p = parsedProgressions()[std::clamp (progression, 0, factoryBank::progressionCount - 1)];
     voicing = std::clamp (voicing, 0, Voicing::count - 1);
     key = detail::mod12 (key);
     int bassNotes[chordsPerProgression];
