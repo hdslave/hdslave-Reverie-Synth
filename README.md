@@ -9,7 +9,7 @@
     <th width="27%">SP-16 · freesp16</th>
   </tr>
   <tr>
-    <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie six Frutiger Aero pages running in hdslaveOS"></a></td>
+    <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie Mood chord sets, Motion, oscillators, and effects in hdslaveOS"></a></td>
     <td align="center"><a href="mac-clap/assets/desktop-preview.gif"><img src="mac-clap/assets/desktop-preview.gif" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
     <td align="center"><a href="docs/reverie-sp16-chords.png"><img src="docs/reverie-sp16-chords.png" alt="Reverie on freesp16 with the Dawn Mood selected and the notes of pad 6 highlighted"></a></td>
   </tr>
