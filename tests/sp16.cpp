@@ -171,6 +171,65 @@ void checkFactoryList (const clap_plugin_entry_t* entry)
     assert (std::equal (std::begin (additions), std::end (additions), sounds.begin() + 20));
 }
 
+void checkProgressionRecall (Fixture& f)
+{
+    using namespace reverie;
+    assert (f.value (99) == 0 && f.value (100) == 0);
+    clap_param_info info {};
+    assert (f.params->get_info (f.plugin, originalProgression, &info) && info.id == 99 && info.max_value == 45);
+    char name[32];
+    for (int i = 0; i < progressionCount; ++i)
+    {
+        assert (f.params->value_to_text (f.plugin, 99, i, name, sizeof (name)));
+        assert (std::strcmp (name, progressionTable[i].name) == 0);
+    }
+    const auto* state = static_cast<const clap_plugin_state*> (f.plugin->get_extension (f.plugin, CLAP_EXT_STATE));
+    struct OldState {
+        char tag[4];
+        uint32_t version, count;
+        struct { uint32_t id; float value; } pairs[3];
+    } old { { 'R', 'V', 'R', 'E' }, 2, 3, {{ 0, 207 }, { 97, 18 }, { 98, -3 }} };
+    static_assert (sizeof (old) == 36);
+    size_t at = 0;
+    struct Reader { const OldState& old; size_t& at; } reader { old, at };
+    clap_istream stream { &reader, [] (const clap_istream* stream, void* data, uint64_t n) -> int64_t {
+        auto& r = *static_cast<Reader*> (stream->ctx);
+        n = std::min<uint64_t> (n, sizeof (r.old) - r.at);
+        std::memcpy (data, reinterpret_cast<const uint8_t*> (&r.old) + r.at, n);
+        r.at += n;
+        return (int64_t) n;
+    } };
+    assert (state && state->load (f.plugin, &stream));
+    assert (f.value (100) == 1 && f.value (0) == 207 && f.value (97) == 18 && f.value (98) == -3);
+    assert (f.params->value_to_text (f.plugin, 0, 207, name, sizeof (name)) && std::strcmp (name, "Onward") == 0);
+    old.version = 1;
+    old.count = 1;
+    old.pairs[0].value = 45;
+    at = 0;
+    assert (state->load (f.plugin, &stream));
+    assert (f.value (100) == 0 && f.value (99) == 45 && f.value (97) == 0);
+    assert (f.params->value_to_text (f.plugin, 99, 45, name, sizeof (name)) && std::strcmp (name, "Moonstone") == 0);
+    f.setValue (99, 0);
+    f.setValue (0, 0);
+
+    uint64_t hash = 14695981039346656037ull;
+    auto add = [&] (int value) { hash = (hash ^ (uint8_t) value) * 1099511628211ull; };
+    float values[paramCount] {};
+    for (int p = 0; p < progressionCount; ++p)
+    {
+        values[originalProgression] = (float) p;
+        for (int style = 0; style < Voicing::count; ++style)
+            for (int tonic = 0; tonic < 12; ++tonic)
+                for (int pad = 0; pad < padSlots; ++pad)
+                {
+                    const auto c = performanceChord (selectedProgression (values), style, tonic, pad, 0, 0);
+                    add (c.count | (c.hasBass ? 0x80 : 0));
+                    for (int i = 0; i < c.count; ++i) add (c.note[i]);
+                }
+    }
+    assert (hash == 0x65792b2a421b52ddull); // 52,992 original desktop pad voicings
+}
+
 void checkUndertow (Fixture& f, const char* out)
 {
     const auto* loader = static_cast<const clap_plugin_preset_load*> (f.plugin->get_extension (f.plugin, CLAP_EXT_PRESET_LOAD));
@@ -253,6 +312,7 @@ int main (int argc, char** argv)
     checkUndertowAudio (*factory);
     Fixture f;
     f.attach (*factory);
+    checkProgressionRecall (f);
 
     const char* out = argc > 2 ? argv[2] : nullptr;
     const auto* screen = f.screen;
@@ -279,7 +339,7 @@ int main (int argc, char** argv)
     uint32_t progIds[6];
     assert (screen->knobs (plugin, progIds, bankName));
     assert (progIds[0] == SIXTEEN_INVALID_PARAM_ID && progIds[1] == SIXTEEN_INVALID_PARAM_ID && progIds[2] == SIXTEEN_INVALID_PARAM_ID);
-    assert (progIds[3] == octave && progIds[4] == strum && progIds[5] == latch);
+    assert (progIds[3] == octave && progIds[4] == strum && progIds[5] == SIXTEEN_INVALID_PARAM_ID);
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 367, 97));
     assert (f.frame (true));
     const auto moodIdle = f.pixels;
@@ -305,7 +365,10 @@ int main (int argc, char** argv)
     assert (f.touch (SIXTEEN_TOUCH_DOWN, 240, 97)); // progression bank
 
     assert (screen->knobs (plugin, progIds, bankName));
-    assert (progIds[0] == progression && progIds[1] == voicing && progIds[2] == key);
+    assert (progIds[0] == 99 && progIds[1] == voicing && progIds[2] == key && progIds[5] == 100);
+    f.setValue (progIds[5], 1);
+    assert (screen->knobs (plugin, progIds, bankName) && progIds[0] == 0);
+    f.setValue (progIds[5], 0);
 
     // Desktop patch strip. The old button location is scenery. Fast arrow taps,
     // external host loads, browser focus and cancelling all follow the same factory order.
@@ -358,13 +421,14 @@ int main (int argc, char** argv)
                 if (id != SIXTEEN_INVALID_PARAM_ID) { const int row = reverie::paramIndex (id); assert (row >= 0); ++uses[row]; }
             if (p == 0 && b == 0)
             {
-                const uint32_t expected[] = { progression, voicing, key, octave, strum, latch };
+                const uint32_t expected[] = { 99, voicing, key, octave, strum, 100 };
                 assert (std::equal (std::begin (ids), std::end (ids), std::begin (expected)));
             }
             assert (screen->selector_turn (plugin, 1));
         }
     }
-    for (int used : uses) assert (used == 1);
+    assert (uses[progression] == 0); // Shares the first encoder with Original Prog when Factory is selected.
+    for (uint32_t i = 1; i < count; ++i) assert (uses[i] == 1);
     assert (screen->selector_push (plugin)); // FX → CHORDS
 
     // Touch each chord, then release outside the grid. The selected pad lights, and audio stays finite.
@@ -527,6 +591,6 @@ int main (int argc, char** argv)
     dlclose (dylib);
     if (! bothRangesMatch || ! oldChordReleased || ! retriggerKept || transitionJump > 1.0e-5f) return 1;
     assert (checkMoodNotes());
-    std::puts ("SP-16 screen, Mood, 86 bindings, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
+    std::puts ("SP-16 screen, Mood, Prog banks, 88 parameters, chord pads, Motion, factory discovery, bottom-row selection and wet phaser audio passed");
     return 0;
 }

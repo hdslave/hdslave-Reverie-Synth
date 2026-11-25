@@ -19,14 +19,15 @@ CXXFLAGS := $(BASE) $(OPT)
 # out the symbol table.
 LDFLAGS := -shared -s -static-libgcc -static-libstdc++ -Wl,--gc-sections -Wl,-z,now -Wl,-O1 -Wl,--version-script=src/exports.map
 PLUGIN_SOURCES := src/reverie.cpp src/screen.cpp
-HEADERS := $(wildcard src/*.h src/ui/*.h) $(OUT)/voicings.inc
+ORIGINAL_NAMES := mac-clap/src/progressions.h
+HEADERS := $(ORIGINAL_NAMES) mac-clap/src/voicings.inc $(wildcard src/*.h src/ui/*.h) $(OUT)/voicings.inc
 
 .PHONY: all test bench clean fingerprint-update sanitize render
 all: $(OUT)/Reverie.clap
 
 # Every pad's chord in every progression, voicing and key, voiced here with the plug-in's flags (the search's fused
 # multiply-adds decide a few near ties), so the plug-in only reads them.
-$(OUT)/voicings.inc: tools/voicings.cpp src/chords.h src/params.h src/progressions.h Makefile
+$(OUT)/voicings.inc: tools/voicings.cpp src/chords.h src/params.h src/progressions.h $(ORIGINAL_NAMES) Makefile
 	@mkdir -p $(OUT)
 	$(CXX) $(CXXFLAGS) $(WARN) tools/voicings.cpp -o $(OUT)/voicings
 	$(OUT)/voicings > $@.tmp

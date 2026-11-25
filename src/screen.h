@@ -59,14 +59,15 @@ private:
     struct Cell { uint32_t id; int16_t x, y, w, h; const char* label; };
     struct Layout { const Cell* cells; int count; };
 
-    static Layout layout (int p);
+    Layout layout (int p) const;
 
     float live (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
     int choice (uint32_t id) const { return (int) std::lround (live (id)); }
     static constexpr Ink mutedBed = 0xffd4dcdc, mutedRule = 0xffafbcbc, mutedText = 0xff536265;
     bool controlEnabled (uint32_t row) const
     {
-        return (row != ParamId::progression && row != ParamId::key && row != ParamId::voicing)
+        return (row != ParamId::progression && row != ParamId::originalProgression && row != ParamId::progBank
+                && row != ParamId::key && row != ParamId::voicing)
             || choice (ParamId::mood) == 0;
     }
     void formatted (uint32_t id, char* s, uint32_t n) const;

@@ -17,7 +17,7 @@
 
 #ifndef REVERIE_VERSION
 #ifdef REVERIE_SP16
-#define REVERIE_VERSION "0.4.4-sp16.12"
+#define REVERIE_VERSION "0.4.4-sp16.13"
 #else
 #define REVERIE_VERSION "0.4.4"
 #endif
@@ -54,7 +54,7 @@ enum : uint32_t
 #ifdef REVERIE_SP16
     phaserMix = 80, phaserRate, phaserFeedback, phaserEnv,
 #endif
-    mood, moodShift, count
+    mood, moodShift, originalProgression, progBank, count
 };
 static_assert (osc2Wave == osc1Wave + 8 && width == 26 && motionShape == 50 && yAmt2 == 66 && volume == 79, "the ids are fixed");
 #ifdef REVERIE_SP16
@@ -66,9 +66,18 @@ constexpr uint32_t chordSection = 10; // the original chord rows
 // The archived wave sequencer uses public IDs 84 through 96. Keep the engine arrays compact.
 constexpr uint32_t firstMoodId = 97;
 inline constexpr uint32_t publicId (uint32_t row) { return row < mood ? row : firstMoodId + (row - mood); }
-inline constexpr bool isSoundRow (uint32_t row) { return row >= chordSection && row < count && row != mood && row != moodShift; }
+inline constexpr bool isSoundRow (uint32_t row) { return row >= chordSection && row < mood; }
 inline constexpr uint32_t osc (int o, uint32_t field) { return (o == 0 ? osc1Wave : osc2Wave) + field; }
 } // namespace ParamId
+
+// Both knobs retain their own IDs and ranges for normalized host automation.
+template <typename Value>
+inline int selectedProgression (const Value* values)
+{
+    return values[ParamId::progBank] == 0
+        ? factoryBank::progressionCount + (int) values[ParamId::originalProgression]
+        : (int) values[ParamId::progression];
+}
 
 enum class Kind : uint8_t { continuous, integer, choice };
 // How a value reads.
@@ -176,7 +185,7 @@ inline const Param* makeTable()
     static Builder b;
     if (b.n != 0) return b.list;
     using namespace ParamId;
-    b.add (progression, "Progression", "PROG", "Chords", 0, (float) (progressionCount - 1), 0, K::choice, U::choice, progressionNames);
+    b.add (progression, "Progression", "PROG", "Chords", 0, (float) (factoryBank::progressionCount - 1), 0, K::choice, U::choice, factoryBank::progressionNames);
     b.add (key, "Key", "KEY", "Chords", 0, 11, 0, K::choice, U::choice, keyChoices);
     b.add (voicing, "Voicing", "VOICE", "Chords", 0, Voicing::count - 1, Voicing::neoSoul, K::choice, U::choice, voicingChoices);
     b.add (octave, "Octave", "OCT", "Chords", -2, 2, 0, K::integer, U::octaves);
@@ -264,6 +273,9 @@ inline const Param* makeTable()
 #endif
     b.add (mood, "Mood", "MOOD", "Chords", 0, moodCount, 0, K::choice, U::choice, moodNames);
     b.add (moodShift, "Mood Transpose", "SHIFT", "Chords", -12, 12, 0, K::integer, U::semis);
+    static constexpr const char* banks[] = { "Original", "Factory" };
+    b.add (originalProgression, "Original Prog", "PROG", "Chords", 0, progressionCount - 1, 0, K::choice, U::choice, progressionNames);
+    b.add (progBank, "Prog Bank", "BANK", "Chords", 0, 1, 0, K::choice, U::choice, banks);
     return b.list;
 }
 

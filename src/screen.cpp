@@ -110,18 +110,24 @@ bool Screen::input (hdui::Key key, int amount, bool shift, hdui::Edits& out)
     return false;
 }
 
-Screen::Layout Screen::layout (int p)
+Screen::Layout Screen::layout (int p) const
 {
     using namespace ParamId;
     constexpr int16_t L = 175, R = 246, W = 70, H = 12;
-    static const Cell chordCells[] = {
+    static constexpr std::array<Cell, 13> chordCells {{
         { progression, L, 1, 141, H, "Prog" }, { voicing, L, 14, 141, H, "Voicing" },
         { key, L, 27, W, H, "Key" }, { octave, R, 27, W, H, "Oct" },
         { strum, L, 40, W, H, "Strum" }, { humanize, R, 40, W, H, "Human" },
         { bass, L, 53, W, H, "Bass" }, { velocity, R, 53, W, H, "Vel" },
         { latch, L, 66, W, H, "Latch" }, { glide, R, 66, W, H, "Glide" },
-        { mood, L, 79, 141, H, "Mood" }, { moodShift, L, 92, 141, H, "Mood shift" },
-    };
+        { mood, L, 79, 141, H, "Mood" }, { moodShift, L, 92, W, H, "Shift" },
+        { progBank, R, 92, W, H, "Bank" },
+    }};
+    static constexpr auto originalCells = [] {
+        auto cells = chordCells;
+        cells[0].id = originalProgression;
+        return cells;
+    }();
     constexpr int16_t ML = 129, MR = 223, MW = 93, MH = 13;
     auto mrow = [] (int r) { return (int16_t) (3 + MH * r); };
     static const Cell motionCells[] = {
@@ -177,7 +183,7 @@ Screen::Layout Screen::layout (int p)
     };
     switch (p)
     {
-        case chordsPage: return { chordCells, (int) std::size (chordCells) };
+        case chordsPage: return { choice (progBank) == 0 ? originalCells.data() : chordCells.data(), (int) chordCells.size() };
         case motionPage: return { motionCells, (int) std::size (motionCells) };
         case oscPage: return { oscCells.data(), (int) oscCells.size() };
         case filterPage: return { filterCells, (int) std::size (filterCells) };
@@ -190,7 +196,7 @@ Screen::Layout Screen::layout (int p)
 bool Screen::moving (uint32_t* pixels, int stride, uint32_t sounding)
 {
     if (page == chordsPage)
-        return picture.region<320, 20> (pixels, stride, false, 0, headH + 104, [&] (Raster& r) { keyboard (r, 4, 4, 312, 14, sounding); });
+        return picture.region<312, 17> (pixels, stride, false, 4, headH + 106, [&] (Raster& r) { keyboard (r, 0, 2, 312, 14, sounding); });
     if (page == oscPage)
         return picture.region<320, 35> (pixels, stride, false, 0, headH, [&] (Raster& r) { plots (r, sounding); });
     if (page == fxPage)
@@ -204,7 +210,7 @@ void Screen::formatted (uint32_t id, char* s, uint32_t n) const
 {
     if (id == ParamId::key)
     {
-        std::snprintf (s, n, "%s", keyTonic (choice (id), progressionMinor (live (ParamId::progression))));
+        std::snprintf (s, n, "%s", keyTonic (choice (id), progressionMinor (selectedProgression (values))));
         return;
     }
     formatParam (paramTable[id], live (id), s, n);
@@ -214,8 +220,8 @@ void Screen::header (const Raster& r) const
 {
     using namespace hdui;
     r.bitmap (0, 0, 320, 43, art::horizon);
-    const int prog = std::clamp (choice (ParamId::progression), 0, progressionCount - 1);
-    const auto& progression = progressionTable[prog];
+    const int prog = selectedProgression (values);
+    const auto& progression = progressionAt (prog);
     char key[5], mode[16];
     formatted (ParamId::key, key, sizeof (key));
     const int mood = choice (ParamId::mood);
@@ -335,9 +341,9 @@ void Screen::cell (const Raster& r, const Cell& c, bool focused, bool edited) co
 void Screen::padGrid (const Raster& r, uint32_t held) const
 {
     using namespace hdui;
-    const int prog = std::clamp (choice (ParamId::progression), 0, progressionCount - 1);
+    const int prog = selectedProgression (values);
     const int key = choice (ParamId::key);
-    const bool minor = progressionTable[prog].minor;
+    const bool minor = progressionAt (prog).minor;
     const int last = tel.lastSlot.load (std::memory_order_relaxed);
     const int mood = choice (ParamId::mood);
     const ParsedProgression& pp = parsedProgressions()[prog];
@@ -412,7 +418,7 @@ void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t s
         if (slot >= 0 && slot < padSlots)
         {
             // the chord the pad plays, read from the same table as the engine (never searched for)
-            const ChordNotes c = performanceChord (choice (ParamId::progression), choice (ParamId::voicing), choice (ParamId::key), slot,
+            const ChordNotes c = performanceChord (selectedProgression (values), choice (ParamId::voicing), choice (ParamId::key), slot,
                                                    choice (ParamId::mood), choice (ParamId::moodShift));
             const int shift = 12 * choice (ParamId::octave);
             for (int i = 0; i < c.count; ++i)

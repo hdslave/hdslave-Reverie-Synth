@@ -4,11 +4,11 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-> **Desktop CLAP version (macOS & Windows):** A separate desktop CLAP build with all MPC screens on one interactive panel lives in [**`mac-clap/`**](mac-clap/) (`cd mac-clap && ./install-macos.sh`). Releases in this repo stay MPC Sample-only for now while the desktop builds are being finalized.
+[Download Reverie for SP-16, MPC Sample, macOS or Windows.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/v0.6.1)
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). The MPC's pads play 208 chord progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New tracks start on Velvet Night, the first of 46 Original progressions. The Factory bank contains 208 progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
-Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
+Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
 Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.4). Not yet run on the MPC itself.
 
@@ -51,9 +51,10 @@ the progressions.
 
 | Control | What it does |
 |---|---|
-| PROG | the progression (208, listed below) |
+| PROG | the progression in the selected bank (46 Original or 208 Factory) |
+| BANK | Original or Factory. Each bank remembers its selection. |
 | VOICING | how the chords are spread (below) |
-| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). KEY itself reads that way too, on the page and in the host: Ab with a major progression, G# with a minor one. The bass is voice-led between G1 and C3 in every key |
+| KEY | the key, C to B. The progressions are written in C (major or minor) and move to it; the chord names on the page are spelled in it (G# minor, not Ab minor). KEY itself reads that way too, on the page and in the host: Ab with a major progression, G# with a minor one. Factory bass lines are voice-led between G1 and C3 in every key |
 | OCT | the whole chord up or down, -2 to +2 octaves |
 | STRUM | the notes enter one after another, bass first, 0 to 150 ms apart. Let go of the pad before the strum is through and the late notes still play their turn, as long as the pad was held |
 | HUMAN | a little velocity and timing jitter per note (up to about 20 ms late) |
@@ -62,7 +63,11 @@ the progressions.
 | LATCH | a struck chord rings on after the pad is up, until the next chord; turning LATCH off lets go of it |
 | GLIDE | Chord Glide: a chord struck while another is held (or latched) takes over its notes, and each slides to the new note over this time (0 to 3 s) without striking again; extra notes enter fresh, missing ones let go |
 
-### Voicings
+### Original voicings
+
+Original uses the desktop edition’s 46 progressions, with the same bass notes, spacing and Lift chords across all six styles and twelve keys. Velvet Night begins with Fmaj9, Em9, Dm9 and G13. In Neo Soul and C, pad 1 plays F2, G3, C4, E4 and A4.
+
+### Factory voicings
 
 Each chord is a bass note (the root, or a slash chord's bass) and an upper structure: the chord's most telling tones
 (third and seventh first, then the colour tones and the fifth; the root left to the bass, except in a triad) placed in
@@ -98,9 +103,9 @@ For example, the first progression's first four chords in Neo Soul are: C = C2 |
 Fadd9 = F2 | C4 G4 A4, A7sus = A2 | D4 E4 G4; lifted: C2 | C4 G4 D5 E5, D2 | D4 F#4 A4 E5, F2 | C4 G4 A4 D5,
 A2 | E4 G4 B4 D5.
 
-### The progressions
+### Factory progressions
 
-Every progression is one of two makers' factory chord sets:
+Each Factory progression is one of two makers' factory chord sets:
 
 - **1-172, the M3's Pad 1-8 chord sets:** the Motion Synth combinations and programs first, then the Pad, SlowSynth
   and Vocal ones, in the order the factory banks hold them.
@@ -115,9 +120,7 @@ presets, or in another key, are listed once. Reverie voices the chords in its ow
 the source's exact spacing and octaves.
 
 `tools/make_progressions.py` makes this table and `src/progressions.h` from the two private chord packs (the M3
-pack's `all-progressions.json`, the SQUID pack's `chord-sets.json`). Projects saved with 0.1 or 0.2 (whose
-progressions were retired) keep everything but the progression, which starts at the first one; projects saved with
-0.3.0 keep theirs, since the M3 progressions keep their places.
+pack's `all-progressions.json`, the SQUID pack's `chord-sets.json`). Older projects saved with the 208-choice parameter reopen on Factory, with their selection and automation range preserved. Original-era states recover slots 1–46 in Original. Slots above 46 from the interim expanded bank recall Velvet Night.
 
 <!-- progressions: made by tools/make_progressions.py -->
 | # | Progression | From | Key | Pads A01-A08 (in C) |
@@ -413,7 +416,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
-The SP-16 build, version **0.4.4-sp16.12**, uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.13**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 
@@ -433,6 +436,8 @@ the selector steps through banks. Pressing it advances to the next section.
 | Amp | Envelope (with output volume), LFO |
 | FX | Ensemble / Delay, Reverb, Phaser |
 
+On **Perform → Chord pads → Progression**, encoder 1 selects a progression and encoder 6 selects **Prog Bank**. New tracks use **Original**, beginning with Velvet Night, Moonlit Two-Five and Sunday Sanctuary. Older SP-16 projects reopen on **Factory**. Latch is on the **Feel** bank. An active Mood overrides either bank with its sixteen chords and transposition. Set **Mood** to **Off** to return to the selected Prog.
+
 Touch and hold a chord or lift to audition it. The pad goes amber and the
 keyboard highlights the sounding notes. Drag the globe on Motion to set X/Y.
 Tap the patch name in the upper right to browse all 25 factory sounds. Its
@@ -446,7 +451,7 @@ The bottom row contains Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello
 and Cloud Loom. These sounds also appear in the host’s **PRESETS** list. Tap
 **Output → Phaser** to edit the stereo phaser.
 Undertow Wah sweeps a low Choir and Hollow Pulse through an envelope-driven phaser.
-For its reference chord, select Bow and Gourd in D with Quartal voicing, a 30 ms
+For its reference chord, select the Factory bank and Bow and Gourd in D with Quartal voicing, a 30 ms
 strum, 5% Humanize and 70% Bass, then hold pad 3 for about 0.7 seconds.
 
 Use freesp16's **SCALE** pad mode with Chromatic, Key Shift 0 and the default
@@ -521,7 +526,7 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes
   (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step
   (at a block's start, twelve at once, a chord never taking its own notes, five chords on one sample taking the
-  earliest one's), a state from 0.1-0.2 keeping all but its retired progression, the effects cleared sounding exactly as
+  earliest one's), state recall across the Original, Factory and Mood banks, the effects cleared sounding exactly as
   wiped ones (and All Sound Off on 16 channels costing what one does), tuning at 44.1, 48 and 96 kHz, bounded output
   at every extreme, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
   against the search, set by set.
