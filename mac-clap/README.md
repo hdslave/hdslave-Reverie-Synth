@@ -4,7 +4,7 @@
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.3.0** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Desktop version **0.3.1** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
 
@@ -12,7 +12,9 @@ The **Phaser** row in Effects & output has Mix, Rate, Feedback (FB) and Filter E
 
 The last four entries in the 25-sound preset menu are Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
 
-## Mood
+## Progression and Mood
+
+With **Mood** set to **Off**, **Progression** selects the 46 original progressions, from Velvet Night through Moonstone. Choose a key and one of six voicing styles. A01–A08 play the eight chords in order. A09–A16 play their lifted voicings.
 
 On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Progression, Voicing and Key are greyed out while a Mood is selected. Choose **Off** to use their stored settings again. The set stays selected when you change sounds.
 
@@ -22,10 +24,10 @@ On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord set
 
 Each desktop ZIP contains CLAP, VST3 and four optional VST3 pad preset files. All 25 sounds are available in Reverie’s preset menu.
 
-| Platform | Version 0.3.0 download | VST3 installation folder | CLAP installation folder |
+| Platform | Version 0.3.1 download | VST3 installation folder | CLAP installation folder |
 | --- | --- | --- | --- |
-| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.0/Reverie-0.3.0-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.0/Reverie-0.3.0-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
+| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.1/Reverie-0.3.1-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
+| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.1/Reverie-0.3.1-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
 
 Quit your DAW and extract the ZIP. For VST3, copy the entire `Reverie.vst3` bundle or folder. For CLAP, copy `Reverie.clap`. Create the installation folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The macOS downloads are ad-hoc signed and unnotarized.
 

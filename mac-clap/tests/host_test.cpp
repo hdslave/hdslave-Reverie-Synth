@@ -347,6 +347,26 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
             modules.insert (info.module);
     }
 
+    // The native editor and the VST3 adapter read these names and values through CLAP.
+    clap_param_info_t prog {};
+    if (!params->get_info (plug, 0, &prog) || prog.id != 0 || prog.min_value != 0
+        || prog.max_value != 45 || prog.default_value != 0) return false;
+    uint64_t nameHash = 14695981039346656037ull;
+    for (int slot = 0; slot <= 45; ++slot)
+    {
+        char name[64] {};
+        double parsed = -1;
+        if (!params->value_to_text (plug, prog.id, slot, name, sizeof (name))
+            || !params->text_to_value (plug, prog.id, name, &parsed) || parsed != slot) return false;
+        for (size_t i = 0; i <= std::strlen (name); ++i)
+            nameHash = (nameHash ^ (uint8_t) name[i]) * 1099511628211ull;
+    }
+    if (nameHash != 0x586bf394a2781510ull)
+    {
+        std::fprintf (stderr, "FAIL: original progression names or order changed\n");
+        return false;
+    }
+
     // 3. Verify CLAP_EXT_STATE round-trip
     const auto* state = static_cast<const clap_plugin_state_t*> (plug->get_extension (plug, CLAP_EXT_STATE));
     MemStream ms;
