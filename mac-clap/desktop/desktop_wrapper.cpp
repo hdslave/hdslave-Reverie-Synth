@@ -104,6 +104,12 @@ struct MergedInputEvents
 namespace
 {
 
+#ifdef REVERIE_VST3_INPUT
+constexpr bool acceptsVst3Input = true;
+#else
+constexpr bool acceptsVst3Input = false;
+#endif
+
 DesktopPlugin& of (const clap_plugin_t* p) { return *static_cast<DesktopPlugin*> (p->plugin_data); }
 
 // Proxy host callbacks ----------------------------------------------------------------------------------------
@@ -619,7 +625,7 @@ void CLAP_ABI wrapParamsFlush (const clap_plugin_t* p, const clap_input_events_t
     drainUiEvents (dp, *dp.mergedFlush, in, safeOut, false);
     clap_input_events_t inList = dp.mergedFlush->asClapList();
     clap_output_events_t outList = safeOut.asClapList();
-    reverie::flushMapped (dp.inner, &inList, out ? &outList : nullptr, { &safeOut, mapMidiCc });
+    reverie::flushMapped (dp.inner, &inList, out ? &outList : nullptr, { &safeOut, mapMidiCc, acceptsVst3Input });
     dp.inAudioCall.store (false, std::memory_order_release);
 }
 
@@ -1038,7 +1044,7 @@ clap_process_status CLAP_ABI wrapProcess (const clap_plugin_t* p, const clap_pro
     clap_output_events_t outList = safeOut.asClapList();
     wrapped.in_events = &inList;
     wrapped.out_events = proc->out_events ? &outList : nullptr;
-    const clap_process_status st = reverie::processMapped (dp.inner, &wrapped, { &safeOut, mapMidiCc });
+    const clap_process_status st = reverie::processMapped (dp.inner, &wrapped, { &safeOut, mapMidiCc, acceptsVst3Input });
     dp.inAudioCall.store (false, std::memory_order_release);
     return st;
 }

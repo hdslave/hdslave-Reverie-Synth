@@ -1,4 +1,5 @@
 #include <clap/clap.h>
+#include "panel_scaling.h"
 
 #include <array>
 #include <cmath>
@@ -967,6 +968,7 @@ int main (int argc, char** argv)
         std::fprintf (stderr, "Usage: %s [--snap <dir>] [--check-focus] <plugin1.clap> ...\n", argv[0]);
         return 1;
     }
+    if (!checkPanelScaling()) return 1;
     int failures = 0;
     for (const auto& p : plugins)
     {

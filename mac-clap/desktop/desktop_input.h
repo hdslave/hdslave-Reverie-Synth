@@ -19,6 +19,7 @@ struct MidiMapper
 {
     void* context;
     bool (*map) (void*, const clap_event_midi_t&, clap_event_param_value_t&);
+    bool vst3Input = false;
 };
 void flushMapped (const clap_plugin_t*, const clap_input_events_t*, const clap_output_events_t*, const MidiMapper&);
 clap_process_status processMapped (const clap_plugin_t*, const clap_process_t*, const MidiMapper&);

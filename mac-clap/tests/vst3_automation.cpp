@@ -58,14 +58,25 @@ struct Points : TestObject<IParamValueQueue, IParamValueQueue_iid>
 {
     struct Point { int32 offset; double value; };
     std::array<Point, 3> list {};
-    int32 count = 0;
-    ParamID PLUGIN_API getParameterId() override { return 79; } // Master Volume
+    ParamID id = 79; // Master Volume in the sparse curve
+    int32 count = 0, start = 0, reads = 0;
+    bool dense = false;
+    ParamID PLUGIN_API getParameterId() override { return id; }
     int32 PLUGIN_API getPointCount() override { return count; }
     tresult PLUGIN_API getPoint (int32 i, int32& offset, ParamValue& value) override
     {
         if (i < 0 || i >= count) return kResultFalse;
-        offset = list[i].offset;
-        value = list[i].value;
+        ++reads;
+        if (dense)
+        {
+            offset = i;
+            value = 0.3 + 0.3 * ((start + i + id) % 27) / 27.0;
+        }
+        else
+        {
+            offset = list[i].offset;
+            value = list[i].value;
+        }
         return kResultOk;
     }
     tresult PLUGIN_API addPoint (int32, ParamValue, int32&) override { return kResultFalse; }
@@ -74,8 +85,27 @@ struct Points : TestObject<IParamValueQueue, IParamValueQueue_iid>
 struct Changes : TestObject<IParameterChanges, IParameterChanges_iid>
 {
     Points points;
-    int32 PLUGIN_API getParameterCount() override { return 1; }
-    IParamValueQueue* PLUGIN_API getParameterData (int32 i) override { return i == 0 ? &points : nullptr; }
+    std::array<Points, 86> grid;
+    bool dense = false;
+
+    void setBlock (int start, int count)
+    {
+        if (!dense) return;
+        for (ParamID row = 0; row < grid.size(); ++row)
+        {
+            auto& q = grid[row];
+            q.dense = true;
+            q.id = row < 84 ? row : row + 13; // the two Mood IDs follow the retired sequencer IDs
+            q.start = start;
+            q.count = count;
+        }
+    }
+    int32 PLUGIN_API getParameterCount() override { return dense ? int32 (grid.size()) : 1; }
+    IParamValueQueue* PLUGIN_API getParameterData (int32 i) override
+    {
+        if (i < 0 || i >= getParameterCount()) return nullptr;
+        return dense ? &grid[size_t (i)] : &points;
+    }
     IParamValueQueue* PLUGIN_API addParameterData (const ParamID&, int32&) override { return nullptr; }
 };
 
@@ -99,7 +129,7 @@ struct Note : TestObject<IEventList, IEventList_iid>
 constexpr int frames = 512, transition = 128;
 using Stereo = std::array<std::array<float, frames>, 2>;
 
-Stereo render (IPluginFactory& factory, bool split)
+Stereo render (IPluginFactory& factory, bool split, bool dense = false)
 {
     PClassInfo info {};
     CHECK (factory.getClassInfo (0, &info) == kResultOk);
@@ -118,7 +148,9 @@ Stereo render (IPluginFactory& factory, bool split)
     Stereo audio {};
     Note note;
     Changes changes;
+    changes.dense = dense;
     auto process = [&] (int start, int count, IEventList* events) {
+        changes.setBlock (start, count);
         float* channels[] { audio[0].data() + start, audio[1].data() + start };
         AudioBusBuffers bus {};
         bus.numChannels = 2;
@@ -142,6 +174,8 @@ Stereo render (IPluginFactory& factory, bool split)
         changes.points.count = 1;
         process (transition, frames - transition, nullptr);
     }
+    if (dense)
+        for (const auto& queue : changes.grid) CHECK (queue.reads == frames);
     CHECK (processor->setProcessing (false) == kResultOk && component->setActive (false) == kResultOk);
     processor->release();
     CHECK (component->terminate() == kResultOk);
@@ -183,6 +217,11 @@ int main (int argc, char** argv)
     CHECK (together == split);
     CHECK (std::all_of (together[0].begin(), together[0].begin() + transition, [] (float x) { return x == 0.0f; }));
     CHECK (std::any_of (together[0].begin() + transition, together[0].end(), [] (float x) { return std::abs (x) > 1.0e-6f; }));
+    // One point at every sample for every instrument parameter. Queue boundaries,
+    // tied offsets and the simultaneous note must produce the same stereo render.
+    const auto dense = render (*factory, false, true);
+    CHECK (dense == render (*factory, true, true));
+    CHECK (std::any_of (dense[0].begin(), dense[0].end(), [] (float x) { return std::abs (x) > 1.0e-6f; }));
     factory->release();
-    std::puts ("PASS: VST3 automation audio matches at both block sizes");
+    std::puts ("PASS: sparse and dense VST3 automation audio matches at both block sizes");
 }

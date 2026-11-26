@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace hdslave_desktop
 {
@@ -297,44 +298,55 @@ public:
         const int cy0 = std::max (clip.y, dy0), cy1 = std::min (clip.y + clip.h, dy0 + dh);
         if (cx0 >= cx1 || cy0 >= cy1) return;
 
-        const float scaleX = (float) sw / (float) dw;
-        const float scaleY = (float) sh / (float) dh;
+        if (sampleSourceWidth != sw || int (horizontalSamples.size()) != dw)
+        {
+            const float scaleX = float (sw) / float (dw);
+            horizontalSamples.resize (dw);
+            for (auto& row : filteredRows) row.resize (dw);
+            for (int x = 0; x < dw; ++x)
+                horizontalSamples[x] = sampleAt (x, sw, scaleX);
+            sampleSourceWidth = sw;
+        }
 
+        // Only the sampling positions survive this paint. The source art and the clip can change every frame.
+        const int firstX = cx0 - dx0, endX = cx1 - dx0;
+        int sourceRows[2] = { -1, -1 };
+        auto filteredRow = [&] (int sourceY, int keepSlot) {
+            for (int slot = 0; slot < 2; ++slot)
+                if (sourceRows[slot] == sourceY) return slot;
+            // Output rows advance top to bottom. Keep the newer row if neither slot is reserved.
+            const int slot = keepSlot >= 0 ? 1 - keepSlot : (sourceRows[0] <= sourceRows[1] ? 0 : 1);
+            const uint32_t* source = src + size_t (sourceY) * sw;
+            uint32_t* row = filteredRows[slot].data();
+            for (int x = firstX; x < endX; ++x)
+            {
+                const auto& sample = horizontalSamples[x];
+                uint32_t pixel = source[sample.first];
+                if (sample.weight != 0) pixel = blend (pixel, source[sample.second], sample.weight);
+                row[x] = pixel | 0xff000000u;
+            }
+            sourceRows[slot] = sourceY;
+            return slot;
+        };
+
+        const float scaleY = float (sh) / float (dh);
         for (int py = cy0; py < cy1; ++py)
         {
-            const float sy0 = (py - dy0) * scaleY;
-            const float sy1 = sy0 + scaleY;
-            const int iy0 = std::clamp ((int) sy0, 0, sh - 1);
-            const int iy1 = std::clamp ((int) sy1, 0, sh - 1);
-            const uint32_t wy = (iy0 == iy1) ? 0u : (uint32_t) std::clamp ((int) ((sy1 - (float) iy1) / scaleY * 256.0f), 0, 256);
-
-            const uint32_t* row0 = src + (size_t) iy0 * (size_t) sw;
-            const uint32_t* row1 = src + (size_t) iy1 * (size_t) sw;
-            uint32_t* drow = px + (size_t) py * (size_t) pw;
-
-            for (int pxl = cx0; pxl < cx1; ++pxl)
+            const auto sample = sampleAt (py - dy0, sh, scaleY);
+            uint32_t* output = px + size_t (py) * pw + cx0;
+            if (sample.weight == 0 || sample.weight >= 255)
             {
-                const float sx0 = (pxl - dx0) * scaleX;
-                const float sx1 = sx0 + scaleX;
-                const int ix0 = std::clamp ((int) sx0, 0, sw - 1);
-                const int ix1 = std::clamp ((int) sx1, 0, sw - 1);
-                if (ix0 == ix1 && wy == 0u)
-                {
-                    drow[pxl] = row0[ix0] | 0xFF000000u;
-                }
-                else
-                {
-                    const uint32_t wx = (ix0 == ix1) ? 0u : (uint32_t) std::clamp ((int) ((sx1 - (float) ix1) / scaleX * 256.0f), 0, 256);
-                    uint32_t top = row0[ix0];
-                    if (wx > 0u) top = blend (top, row0[ix1], wx);
-                    if (wy > 0u)
-                    {
-                        uint32_t bot = row1[ix0];
-                        if (wx > 0u) bot = blend (bot, row1[ix1], wx);
-                        top = blend (top, bot, wy);
-                    }
-                    drow[pxl] = top | 0xFF000000u;
-                }
+                const int slot = filteredRow (sample.weight == 0 ? sample.first : sample.second, -1);
+                std::copy_n (filteredRows[slot].data() + firstX, cx1 - cx0, output);
+            }
+            else
+            {
+                const int top = filteredRow (sample.first, -1);
+                const int bottom = filteredRow (sample.second, top);
+                const uint32_t* upper = filteredRows[top].data() + firstX;
+                const uint32_t* lower = filteredRows[bottom].data() + firstX;
+                for (int i = 0; i < cx1 - cx0; ++i)
+                    output[i] = blend (upper[i], lower[i], sample.weight);
             }
         }
     }
@@ -364,6 +376,26 @@ public:
         line (cx + std::cos (a) * (r - 15.0f) * 0.25f, cy + std::sin (a) * (r - 15.0f) * 0.25f,
               cx + std::cos (a) * (r - 10.5f), cy + std::sin (a) * (r - 10.5f), 2.0f, hot ? 0xFFFFFFFFu : lit);
     }
+
+private:
+    struct Sample
+    {
+        int first, second;
+        uint32_t weight;
+    };
+
+    static Sample sampleAt (int position, int sourceLength, float scale)
+    {
+        const float start = position * scale, end = start + scale;
+        const int first = std::clamp (int (start), 0, sourceLength - 1);
+        const int second = std::clamp (int (end), 0, sourceLength - 1);
+        const int weight = first == second ? 0 : std::clamp (int ((end - float (second)) / scale * 256.0f), 0, 256);
+        return { first, second, uint32_t (weight) };
+    }
+
+    int sampleSourceWidth = 0;
+    std::vector<Sample> horizontalSamples;
+    std::vector<uint32_t> filteredRows[2];
 };
 
 } // namespace hdslave_desktop

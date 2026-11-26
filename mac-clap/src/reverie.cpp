@@ -9,6 +9,7 @@
 #include "sample_rate.h"
 #include "panel_note.h"
 #include "desktop_input.h"
+#include "vst3_input.h"
 
 #include <clap/clap.h>
 
@@ -271,7 +272,9 @@ void flushEvents (const clap_plugin* plugin, const clap_input_events* in, const 
     bool changed = false;
     for (uint32_t i = 0; i < count; ++i)
     {
+        Vst3ExpandedEvent expanded;
         const auto* e = in->get (in, i);
+        if (mapper && mapper->vst3Input && e->space_id == vst3InputSpace) e = expanded.decode (e);
         if (e->space_id != CLAP_CORE_EVENT_SPACE_ID) continue;
         if (e->type == CLAP_EVENT_MIDI)
         {
@@ -559,7 +562,9 @@ clap_process_status processEvents (const clap_plugin* plugin, const clap_process
     uint32_t at = 0;
     for (uint32_t i = 0; i < count; ++i)
     {
+        Vst3ExpandedEvent expanded;
         const auto* e = in->get (in, i);
+        if (mapper && mapper->vst3Input && e->space_id == vst3InputSpace) e = expanded.decode (e);
         const uint32_t time = std::min (e->time, frames);
         if (time > at)
         {
