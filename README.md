@@ -4,7 +4,7 @@
 
 ![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
 
-[Download Reverie for SP-16, MPC Sample, macOS or Windows.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/tag/v0.6.1)
+[Download Reverie for SP-16, MPC Sample, macOS or Windows.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/latest)
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New tracks start on Velvet Night, the first of 46 Original progressions. The Factory bank contains 208 progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
