@@ -26,10 +26,10 @@ Hardware states saved with the Original progression bank recall their selected s
 
 Each desktop ZIP contains CLAP, VST3 and four optional VST3 pad preset files. All 25 sounds are available in Reverie’s preset menu.
 
-| Platform | Version 0.3.1 download | VST3 installation folder | CLAP installation folder |
+| Platform | Version 0.3.4 download | VST3 installation folder | CLAP installation folder |
 | --- | --- | --- | --- |
-| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.1/Reverie-0.3.1-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.1/Reverie-0.3.1-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
+| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.3/Reverie-0.3.4-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
+| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.3/Reverie-0.3.4-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
 
 Quit your DAW and extract the ZIP. For VST3, copy the entire `Reverie.vst3` bundle or folder. For CLAP, copy `Reverie.clap`. Create the installation folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The macOS downloads are ad-hoc signed and unnotarized.
 
