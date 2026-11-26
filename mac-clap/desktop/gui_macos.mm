@@ -5,6 +5,7 @@
 
 #include "desktop_wrapper.h"
 #include "panel_ui.h"
+#include "panel_presentation.h"
 
 #ifndef HDSLAVE_OBJC_VIEW_CLASS
 #define HDSLAVE_OBJC_VIEW_CLASS HdslavePanelView
@@ -26,7 +27,7 @@ static uint32_t modsFromEvent (NSEvent* event)
     hdslave_desktop::DesktopPlugin* _plugin;
     NSTimer* _timer;
     NSTrackingArea* _trackingArea;
-    int _scale;
+    hdslave_desktop::PanelPresentation _presented;
 }
 - (instancetype)initWithPlugin:(hdslave_desktop::DesktopPlugin*)plugin frame:(NSRect)frame;
 - (void)startTimer;
@@ -45,7 +46,6 @@ static uint32_t modsFromEvent (NSEvent* event)
         _plugin = plugin;
         _timer = nil;
         _trackingArea = nil;
-        _scale = 2;
         self.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
         [self setAllowedTouchTypes:NSTouchTypeMaskIndirect];
     }
@@ -82,10 +82,10 @@ static uint32_t modsFromEvent (NSEvent* event)
 - (void)syncSize
 {
     if (!_plugin || !_plugin->ui) return;
-    _scale = [self backingScaleInt];
+    const int scale = [self backingScaleInt];
     const int w = std::max (320, int (std::round (self.bounds.size.width)));
     const int h = std::max (240, int (std::round (self.bounds.size.height)));
-    _plugin->ui->setSize (w, h, _scale);
+    _plugin->ui->setSize (w, h, scale);
 }
 
 - (void)viewDidMoveToWindow
@@ -174,9 +174,10 @@ static uint32_t modsFromEvent (NSEvent* event)
 {
     if (!_plugin || !_plugin->ui) return;
     [self syncSize];
-    const hdslave_desktop::Rect dirty = _plugin->ui->update (hdslave_desktop::nowMs());
-    if (!dirty.empty())
-        [self setNeedsDisplayInRect:NSMakeRect (dirty.x, dirty.y, dirty.w, dirty.h)];
+    auto& ui = *_plugin->ui;
+    const auto dirty = ui.update (hdslave_desktop::nowMs());
+    _presented.publish (ui.pixels(), ui.physWidth(), ui.physHeight(), ui.scale(), dirty,
+        [self] (hdslave_desktop::Rect r) { [self setNeedsDisplayInRect:NSMakeRect (r.x, r.y, r.w, r.h)]; });
 }
 
 - (void)onTick:(NSTimer*)timer
@@ -189,58 +190,46 @@ static uint32_t modsFromEvent (NSEvent* event)
 {
     if (!_plugin || !_plugin->ui) return;
     [self syncSize];
-    if (_plugin->ui->physWidth() <= 0 || _plugin->ui->physHeight() <= 0)
-        _plugin->ui->update (hdslave_desktop::nowMs());
-
-    const uint32_t* px = _plugin->ui->pixels();
-    const int pw = _plugin->ui->physWidth();
-    const int ph = _plugin->ui->physHeight();
-    const int sc = _plugin->ui->scale();
-    if (!px || pw <= 0 || ph <= 0) return;
+    if (_presented.width != _plugin->ui->physWidth() || _presented.height != _plugin->ui->physHeight() ||
+        _presented.scale != _plugin->ui->scale())
+        [self pumpFrame];
+    const int pw = _presented.width, ph = _presented.height, sc = _presented.scale;
+    if (!pw || !ph) return;
 
     CGContextRef ctx = [[NSGraphicsContext currentContext] CGContext];
     if (!ctx) return;
+    const int x = std::clamp (int (std::floor (NSMinX (dirtyRect) * sc)), 0, pw);
+    const int y = std::clamp (int (std::floor (NSMinY (dirtyRect) * sc)), 0, ph);
+    const int w = std::clamp (int (std::ceil (NSMaxX (dirtyRect) * sc)), 0, pw) - x;
+    const int h = std::clamp (int (std::ceil (NSMaxY (dirtyRect) * sc)), 0, ph) - y;
+    if (w <= 0 || h <= 0) return;
 
+    // Quartz may retain the image after drawRect returns. Give it an owned copy
+    // of just this patch so a later animation tick or resize cannot change it.
+    const size_t stride = size_t (w) * sizeof (uint32_t);
+    CFMutableDataRef data = CFDataCreateMutable (nullptr, stride * h);
+    if (!data) return;
+    CFDataSetLength (data, stride * h);
+    auto* dst = CFDataGetMutableBytePtr (data);
+    for (int row = 0; row < h; ++row)
+        std::memcpy (dst + row * stride, _presented.pixels.data() + size_t (y + row) * pw + x, stride);
+    CGDataProviderRef provider = CGDataProviderCreateWithCFData (data);
+    CFRelease (data);
+    if (!provider) return;
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGDataProviderRef provider = CGDataProviderCreateWithData (nullptr, px, size_t (pw) * size_t (ph) * 4, nullptr);
-    CGImageRef fullImg = CGImageCreate (
-        size_t (pw), size_t (ph), 8, 32, size_t (pw * 4), cs,
-        kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst,
-        provider, nullptr, false, kCGRenderingIntentDefault);
-
-    if (fullImg)
-    {
-        // Crop to dirtyRect in physical pixels so dragging a knob only blits that small rect.
-        const int rx0 = std::clamp (int (std::floor (dirtyRect.origin.x)) * sc, 0, pw);
-        const int ry0 = std::clamp (int (std::floor (dirtyRect.origin.y)) * sc, 0, ph);
-        const int rx1 = std::clamp (int (std::ceil (dirtyRect.origin.x + dirtyRect.size.width)) * sc, 0, pw);
-        const int ry1 = std::clamp (int (std::ceil (dirtyRect.origin.y + dirtyRect.size.height)) * sc, 0, ph);
-
-        if (rx1 > rx0 && ry1 > ry0)
-        {
-            CGRect cropRect = CGRectMake (rx0, ry0, rx1 - rx0, ry1 - ry0);
-            CGImageRef subImg = CGImageCreateWithImageInRect (fullImg, cropRect);
-            if (subImg)
-            {
-                const CGFloat lx = CGFloat (rx0) / CGFloat (sc);
-                const CGFloat ly = CGFloat (ry0) / CGFloat (sc);
-                const CGFloat lw = CGFloat (rx1 - rx0) / CGFloat (sc);
-                const CGFloat lh = CGFloat (ry1 - ry0) / CGFloat (sc);
-
-                CGContextSaveGState (ctx);
-                CGContextTranslateCTM (ctx, lx, ly + lh);
-                CGContextScaleCTM (ctx, 1.0, -1.0);
-                CGContextSetInterpolationQuality (ctx, kCGInterpolationNone);
-                CGContextDrawImage (ctx, CGRectMake (0, 0, lw, lh), subImg);
-                CGContextRestoreGState (ctx);
-                CGImageRelease (subImg);
-            }
-        }
-        CGImageRelease (fullImg);
-    }
-
+    CGImageRef image = CGImageCreate (w, h, 8, 32, stride, cs,
+        kCGBitmapByteOrder32Little | kCGImageAlphaNoneSkipFirst, provider, nullptr, false, kCGRenderingIntentDefault);
     CGDataProviderRelease (provider);
     CGColorSpaceRelease (cs);
+    if (!image) return;
+
+    CGContextSaveGState (ctx);
+    CGContextTranslateCTM (ctx, CGFloat (x) / sc, CGFloat (y + h) / sc);
+    CGContextScaleCTM (ctx, 1.0, -1.0);
+    CGContextSetInterpolationQuality (ctx, kCGInterpolationNone);
+    CGContextDrawImage (ctx, CGRectMake (0, 0, CGFloat (w) / sc, CGFloat (h) / sc), image);
+    CGContextRestoreGState (ctx);
+    CGImageRelease (image);
 }
 
 - (NSPoint)localPoint:(NSEvent*)event
@@ -410,6 +399,7 @@ bool platformGuiShow (PlatformGui* gui)
 {
     if (!gui || !gui->view) return false;
     [gui->view setHidden:NO];
+    [gui->view setNeedsDisplay:YES];
     [gui->view syncSize];
     if (gui->plugin && gui->plugin->ui) gui->plugin->ui->invalidateAll();
     [gui->view startTimer];

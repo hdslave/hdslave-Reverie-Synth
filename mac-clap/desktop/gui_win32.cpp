@@ -15,6 +15,7 @@
 
 #include "desktop_wrapper.h"
 #include "panel_ui.h"
+#include "panel_presentation.h"
 
 #ifndef HDSLAVE_WIN32_CLASS_NAME
 #define HDSLAVE_WIN32_CLASS_NAME L"HdslaveDesktopClapView"
@@ -27,6 +28,7 @@ struct PlatformGui
 {
     DesktopPlugin* plugin = nullptr;
     HWND hwnd = nullptr;
+    PanelPresentation presented;
     int scale = 1;
     bool trackingMouse = false;
 };
@@ -67,17 +69,16 @@ void syncAndPump (PlatformGui* gui)
     const int lh = std::max (240, ph / gui->scale);
     gui->plugin->ui->setSize (lw, lh, gui->scale);
 
-    const Rect dirty = gui->plugin->ui->update (nowMs());
-    if (!dirty.empty())
-    {
-        RECT inv {
-            dirty.x * gui->scale,
-            dirty.y * gui->scale,
-            (dirty.x + dirty.w) * gui->scale,
-            (dirty.y + dirty.h) * gui->scale
-        };
-        InvalidateRect (gui->hwnd, &inv, FALSE);
-    }
+    auto& ui = *gui->plugin->ui;
+    const Rect dirty = ui.update (nowMs());
+    const int logicalW = ui.physWidth() / ui.scale(), logicalH = ui.physHeight() / ui.scale();
+    gui->presented.publish (ui.pixels(), ui.physWidth(), ui.physHeight(), ui.scale(), dirty,
+        [=] (Rect r) {
+            RECT inv {r.x * pw / logicalW, r.y * ph / logicalH,
+                      ((r.x + r.w) * pw + logicalW - 1) / logicalW,
+                      ((r.y + r.h) * ph + logicalH - 1) / logicalH};
+            InvalidateRect (gui->hwnd, &inv, FALSE);
+        });
 }
 
 LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -108,12 +109,12 @@ LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         HDC hdc = BeginPaint (hwnd, &ps);
         if (gui && gui->plugin && gui->plugin->ui)
         {
-            if (gui->plugin->ui->physWidth() <= 0)
+            if (gui->presented.pixels.empty())
                 syncAndPump (gui);
 
-            const uint32_t* px = gui->plugin->ui->pixels();
-            const int pw = gui->plugin->ui->physWidth();
-            const int ph = gui->plugin->ui->physHeight();
+            const uint32_t* px = gui->presented.pixels.data();
+            const int pw = gui->presented.width;
+            const int ph = gui->presented.height;
             if (px && pw > 0 && ph > 0)
             {
                 BITMAPINFO bmi {};
@@ -317,6 +318,7 @@ bool platformGuiSetParent (PlatformGui* gui, const clap_window_t* window)
 bool platformGuiShow (PlatformGui* gui)
 {
     if (!gui || !gui->hwnd) return false;
+    SetTimer (gui->hwnd, kTimerId, 16, nullptr);
     ShowWindow (gui->hwnd, SW_SHOW);
     if (gui->plugin && gui->plugin->ui) gui->plugin->ui->invalidateAll();
     syncAndPump (gui);
@@ -326,6 +328,7 @@ bool platformGuiShow (PlatformGui* gui)
 bool platformGuiHide (PlatformGui* gui)
 {
     if (!gui || !gui->hwnd) return false;
+    KillTimer (gui->hwnd, kTimerId);
     ShowWindow (gui->hwnd, SW_HIDE);
     return true;
 }
