@@ -138,7 +138,7 @@ LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONDOWN:
         if (gui && gui->plugin && gui->plugin->ui)
         {
-            SetFocus (hwnd);
+            // Capture the drag while the host keeps its typing-keyboard note routing.
             SetCapture (hwnd);
             const float lx = float (GET_X_LPARAM (lParam)) / float (gui->scale);
             const float ly = float (GET_Y_LPARAM (lParam)) / float (gui->scale);
@@ -160,7 +160,6 @@ LRESULT CALLBACK wndProc (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_RBUTTONDOWN:
         if (gui && gui->plugin && gui->plugin->ui)
         {
-            SetFocus (hwnd);
             SetCapture (hwnd);
             const float lx = float (GET_X_LPARAM (lParam)) / float (gui->scale);
             const float ly = float (GET_Y_LPARAM (lParam)) / float (gui->scale);
@@ -300,7 +299,7 @@ bool platformGuiSetParent (PlatformGui* gui, const clap_window_t* window)
         gui->scale = dpiScaleForWindow (parent);
         gui->hwnd = CreateWindowExW (
             0, HDSLAVE_WIN32_CLASS_NAME, L"",
-            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_TABSTOP,
             0, 0, int (gui->plugin->guiWidth) * gui->scale, int (gui->plugin->guiHeight) * gui->scale,
             parent, nullptr, GetModuleHandleW (nullptr), nullptr);
         if (!gui->hwnd) return false;

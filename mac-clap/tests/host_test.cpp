@@ -17,6 +17,12 @@
 #include <dlfcn.h>
 #endif
 
+#if defined(__APPLE__) || defined(_WIN32)
+bool checkEditorFocus (const clap_plugin_t* plugin, const clap_plugin_gui_t* gui);
+#else
+static bool checkEditorFocus (const clap_plugin_t*, const clap_plugin_gui_t*) { return false; }
+#endif
+
 extern "C"
 {
 typedef struct hdslave_desktop_debug_api
@@ -244,7 +250,7 @@ std::string resolveBinaryPath (const std::string& clapPath, std::string& baseOut
 #endif
 }
 
-bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
+bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, bool checkFocus)
 {
     std::string baseName;
     const std::string binPath = resolveBinaryPath (clapPath, baseName);
@@ -334,6 +340,12 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
         || !gui->set_size (plug, 1200, 648) || !currentSize (1200, 810)
         || !gui->set_size (plug, 1200, 945) || !currentSize (1400, 945)
         || !gui->set_size (plug, gw, gh) || ctx.resizeRequests != 4) return false;
+
+    if (checkFocus && !checkEditorFocus (plug, gui))
+    {
+        std::fprintf (stderr, "FAIL: panel click changed host keyboard focus\n");
+        return false;
+    }
 
     // 2. Verify CLAP_EXT_PARAMS
     const auto* params = static_cast<const clap_plugin_params_t*> (plug->get_extension (plug, CLAP_EXT_PARAMS));
@@ -716,23 +728,26 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir)
 int main (int argc, char** argv)
 {
     std::string snapDir;
+    bool checkFocus = false;
     std::vector<std::string> plugins;
     for (int i = 1; i < argc; ++i)
     {
         if (std::strcmp (argv[i], "--snap") == 0 && i + 1 < argc)
             snapDir = argv[++i];
+        else if (std::strcmp (argv[i], "--check-focus") == 0)
+            checkFocus = true;
         else
             plugins.push_back (argv[i]);
     }
     if (plugins.empty())
     {
-        std::fprintf (stderr, "Usage: %s [--snap <dir>] <plugin1.clap> ...\n", argv[0]);
+        std::fprintf (stderr, "Usage: %s [--snap <dir>] [--check-focus] <plugin1.clap> ...\n", argv[0]);
         return 1;
     }
     int failures = 0;
     for (const auto& p : plugins)
     {
-        if (!testOnePlugin (p, snapDir))
+        if (!testOnePlugin (p, snapDir, checkFocus))
             ++failures;
     }
     if (failures > 0)

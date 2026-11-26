@@ -66,7 +66,15 @@ static uint32_t modsFromEvent (NSEvent* event)
 
 - (BOOL)isFlipped { return YES; }
 - (BOOL)isOpaque { return YES; }
-- (BOOL)acceptsFirstResponder { return YES; }
+- (BOOL)acceptsFirstResponder
+{
+    // Let the host keep both halves of a typing-keyboard note across panel clicks.
+    // Keyboard navigation can still focus the editor for arrow keys and Escape.
+    NSEvent* event = NSApp.currentEvent;
+    return event.window != self.window ||
+           (event.type != NSEventTypeLeftMouseDown && event.type != NSEventTypeRightMouseDown &&
+            event.type != NSEventTypeOtherMouseDown);
+}
 - (BOOL)acceptsFirstMouse:(NSEvent*)event { (void)event; return YES; }
 
 - (int)backingScaleInt
@@ -240,7 +248,6 @@ static uint32_t modsFromEvent (NSEvent* event)
 - (void)mouseDown:(NSEvent*)event
 {
     if (!_plugin || !_plugin->ui) return;
-    if (self.window) [self.window makeFirstResponder:self];
     NSPoint pt = [self localPoint:event];
     _plugin->ui->mouseDown (float (pt.x), float (pt.y), 0, modsFromEvent (event), int ([event clickCount]));
     [self pumpFrame];
@@ -249,7 +256,6 @@ static uint32_t modsFromEvent (NSEvent* event)
 - (void)rightMouseDown:(NSEvent*)event
 {
     if (!_plugin || !_plugin->ui) return;
-    if (self.window) [self.window makeFirstResponder:self];
     NSPoint pt = [self localPoint:event];
     _plugin->ui->mouseDown (float (pt.x), float (pt.y), 1, modsFromEvent (event), int ([event clickCount]));
     [self pumpFrame];
