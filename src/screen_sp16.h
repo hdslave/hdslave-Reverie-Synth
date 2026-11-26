@@ -35,6 +35,7 @@ private:
     void header (const Raster& r, int sound) const;
     void sounds (const Raster& r) const;
     void performance (const Raster& r, uint32_t sounding, uint32_t held) const;
+    bool performanceChanged (uint32_t sounding);
     void synthesis (const Raster& r, bool sounding) const;
     void output (const Raster& r, bool sounding) const;
     void field (const Raster& r, int x, int y, int width, const char* label, uint32_t id) const;
@@ -54,5 +55,8 @@ private:
     Gesture gesture = Gesture::none;
     bool dirty = true, wasMoving = false;
     uint32_t shownHeld = 0, shownSounding = 0, shownStrikes = 0, frameAt = 0;
+    struct VoiceLight { int note = -1, x = 0, y = 0; float level = 0; };
+    std::array<VoiceLight, maxVoices> shownLights {};
+    int shownPathX = 0, shownPathY = 0, shownSlot = -1;
 };
 }

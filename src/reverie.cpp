@@ -128,7 +128,6 @@ enum MainChange : uint32_t { valuesChanged = 1, releasePresetNotes = 2 };
 
 struct Plugin
 {
-    Plugin() { for (auto& id : noteIdByKey) id = -1; }
     clap_plugin clap {};
     const clap_host* host = nullptr;
     // Every parameter's value. The audio thread writes it from events; the main thread reads it, and writes it when a
@@ -161,9 +160,6 @@ struct Plugin
     RowBits outgoing;
     bool valuesMoved = false;
     uint32_t shownStrikes = 0, shownSounding = 0, shownHeld = 0;
-    // [audio thread] Each key's CLAP note id (-1: none held by id), for note-offs and chokes that give only the
-    // id. A slot a key, so no held note's id is ever overwritten by a later strike.
-    int32_t noteIdByKey[128];
 };
 
 Plugin& of (const clap_plugin* p) { return *static_cast<Plugin*> (p->plugin_data); }
@@ -283,43 +279,18 @@ bool paramsFromText (const clap_plugin*, clap_id id, const char* text, double* v
 // at 0: they stop sound or notes and never move a parameter).
 void midi (Plugin& p, const uint8_t* data)
 {
-    const int status = data[0] & 0xf0, a = data[1] & 0x7f, b = data[2] & 0x7f;
+    const int status = data[0] & 0xf0, channel = data[0] & 0x0f;
+    const int a = data[1] & 0x7f, b = data[2] & 0x7f;
     switch (status)
     {
         case 0x90:
-            if (b > 0) { p.noteIdByKey[a] = -1, p.engine.noteOn (a, (float) b / 127.0f); break; } // MIDI names no id
-            [[fallthrough]];
-        case 0x80: p.noteIdByKey[a] = -1, p.engine.noteOff (a); break;
-        case 0xb0: p.engine.controller (a, b); break;
+            if (b > 0) { p.engine.noteOn (a, (float) b / 127.0f, channel); break; }
+            [[fallthrough]]; // MIDI 1.0 reserves velocity zero for a release.
+        case 0x80: p.engine.noteOff (a, channel); break;
+        case 0xb0: p.engine.controller (a, b, channel); break;
         case 0xe0: p.engine.pitchBend (((float) ((b << 7) | a) - 8192.0f) / 8192.0f); break;
         default: break;
     }
-}
-
-// The key a CLAP note event stands for: its own, or (key -1) the key of the note it names by id; -1 when it names
-// neither (a wildcard: every key), -2 when it names an id Reverie does not know or a key out of range (ignored).
-int keyOf (Plugin& p, const clap_event_note& n, bool forget)
-{
-    if (n.key >= 0 && n.key < 128)
-    {
-        if (n.note_id >= 0 && p.noteIdByKey[n.key] != n.note_id)
-            return -2;
-        if (forget) p.noteIdByKey[n.key] = -1; // let go by key: its id must not name a later strike of the pad
-        return n.key;
-    }
-    if (n.key >= 0) return -2;
-    if (n.note_id < 0) // neither named: a wildcard lets go of every key, so no id survives it either
-    {
-        if (forget) for (auto& id : p.noteIdByKey) id = -1;
-        return -1;
-    }
-    for (int key = 0; key < 128; ++key)
-        if (p.noteIdByKey[key] == n.note_id)
-        {
-            if (forget) p.noteIdByKey[key] = -1;
-            return key;
-        }
-    return -2;
 }
 
 void handle (Plugin& p, const clap_event_header* e)
@@ -352,37 +323,28 @@ void handle (Plugin& p, const clap_event_header* e)
         }
         case CLAP_EVENT_NOTE_ON:
         {
-            const auto* n = reinterpret_cast<const clap_event_note*> (e);
-            if (n->key >= 0 && n->key < 128)
-            {
-                if (n->velocity > 0.0)
-                {
-                    if (n->note_id >= 0)
-                    {
-                        for (auto& id : p.noteIdByKey) // an id names one note: a key that held it no longer does
-                            if (id == n->note_id) id = -1;
-                        p.noteIdByKey[n->key] = n->note_id;
-                    }
-                    else p.noteIdByKey[n->key] = -1; // struck with no id: an older id must not name this strike
-                    p.engine.noteOn (n->key, (float) std::min (1.0, n->velocity));
-                }
-                else p.noteIdByKey[n->key] = -1, p.engine.noteOff (n->key);
-            }
+            const auto& n = *reinterpret_cast<const clap_event_note*> (e);
+            if (n.port_index == 0 && n.channel >= 0 && n.channel < 16 && n.key >= 0 && n.key < 128
+                && std::isfinite (n.velocity))
+                p.engine.noteOn (n.key, (float) n.velocity, n.channel, n.note_id);
             break;
         }
         case CLAP_EVENT_NOTE_OFF:
-        {
-            const int key = keyOf (p, *reinterpret_cast<const clap_event_note*> (e), true);
-            if (key != -2) p.engine.noteOff (key); // -1: every key
-            break;
-        }
         case CLAP_EVENT_NOTE_CHOKE:
         {
-            const int key = keyOf (p, *reinterpret_cast<const clap_event_note*> (e), true);
-            if (key != -2) p.engine.choke (key);
+            const auto& n = *reinterpret_cast<const clap_event_note*> (e);
+            if ((n.port_index != -1 && n.port_index != 0) || n.channel < -1 || n.channel >= 16
+                || n.key < -1 || n.key >= 128 || n.note_id < -1) break;
+            if (e->type == CLAP_EVENT_NOTE_OFF) p.engine.noteOff (n.key, n.channel, n.note_id);
+            else p.engine.choke (n.key, n.channel, n.note_id);
             break;
         }
-        case CLAP_EVENT_MIDI: midi (p, reinterpret_cast<const clap_event_midi*> (e)->data); break;
+        case CLAP_EVENT_MIDI:
+        {
+            const auto& m = *reinterpret_cast<const clap_event_midi*> (e);
+            if (m.port_index == 0) midi (p, m.data);
+            break;
+        }
         default: break;
     }
 }
@@ -655,7 +617,6 @@ void pluginStop (const clap_plugin*) {}
 void pluginReset (const clap_plugin* plugin)
 {
     auto& p = of (plugin);
-    for (auto& id : p.noteIdByKey) id = -1; // no note survives a reset, so no id may name a later one
     p.engine.reset();
 #ifdef REVERIE_SP16
     p.audition.store (0, std::memory_order_relaxed);
@@ -740,7 +701,6 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
     if (changes & releasePresetNotes)
     {
         p.engine.allNotesOff();
-        std::fill (std::begin (p.noteIdByKey), std::end (p.noteIdByKey), -1);
         p.auditionKey = -1;
         p.presetFade.begin();
     }

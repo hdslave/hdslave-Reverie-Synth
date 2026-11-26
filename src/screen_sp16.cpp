@@ -339,6 +339,32 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
     return result;
 }
 
+// Perform shows the sounding pitches and levels on the keyboard and lens, plus the path cursor.
+// A chord can sustain at fixed positions for minutes without changing any of those pixels.
+bool Sp16Screen::performanceChanged (uint32_t sounding)
+{
+    bool changed = false;
+    auto observe = [&changed] (auto& prior, auto value) {
+        changed |= prior != value;
+        prior = value;
+    };
+    auto coordinate = [] (const std::atomic<float>& v) {
+        return int (std::lround (v.load (std::memory_order_relaxed) * globeRadius));
+    };
+    observe (shownPathX, coordinate (telemetry.pathX));
+    observe (shownPathY, coordinate (telemetry.pathY));
+    for (int i = 0; i < maxVoices; ++i)
+    {
+        if (((sounding >> i) & 1u) == 0) continue;
+        auto& light = shownLights[i];
+        observe (light.note, telemetry.notes[i].load (std::memory_order_relaxed));
+        observe (light.level, telemetry.levels[i].load (std::memory_order_relaxed));
+        observe (light.x, coordinate (telemetry.x[i]));
+        observe (light.y, coordinate (telemetry.y[i]));
+    }
+    return changed;
+}
+
 bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
 {
     if (surface.pixels == nullptr || surface.width != w || surface.height != h || surface.stride < w)
@@ -353,13 +379,24 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     const uint32_t sounding = telemetry.sounding.load (std::memory_order_relaxed);
     const uint32_t held = telemetry.padsHeld.load (std::memory_order_relaxed);
     const uint32_t strikes = telemetry.strikes.load (std::memory_order_relaxed);
+    const bool perform = !soundsOpen && page / 2 == 0;
+    const int slot = telemetry.lastSlot.load (std::memory_order_relaxed);
     const bool moving = ! soundsOpen && (sounding != 0 || (page / 2 == 2 && telemetry.peak.load (std::memory_order_relaxed) > 0.003f));
-    const bool changed = sounding != shownSounding || held != shownHeld || strikes != shownStrikes;
+    const bool changed = sounding != shownSounding || held != shownHeld || strikes != shownStrikes || (perform && slot != shownSlot);
     if (! refresh && (soundsOpen || (! changed && moving == wasMoving && (! moving || surface.now_ms - frameAt < 40))))
         return false;
 
+    if (perform)
+    {
+        const bool lightsChanged = performanceChanged (sounding);
+        if (!refresh && !changed && !lightsChanged && moving == wasMoving)
+        {
+            frameAt = surface.now_ms;
+            return false;
+        }
+    }
     const Raster r { pixels.data(), w, h };
-    const bool refreshHeader = refresh || (! soundsOpen && page / 2 == 0 && strikes != shownStrikes);
+    const bool refreshHeader = refresh || (perform && (strikes != shownStrikes || slot != shownSlot));
     if (refreshHeader)
     {
         const int match = matchingSound();
@@ -385,6 +422,7 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     shownSounding = sounding;
     shownHeld = held;
     shownStrikes = strikes;
+    shownSlot = slot;
     bool drew = false;
     for (int y = refreshHeader ? 0 : bodyTop; y < h; ++y)
     {
