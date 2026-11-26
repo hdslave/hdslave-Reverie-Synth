@@ -4,7 +4,7 @@
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.3.1** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Desktop version **0.3.2** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
 
@@ -19,6 +19,8 @@ With **Mood** set to **Off**, **Progression** selects the 46 original progressio
 On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Progression, Voicing and Key are greyed out while a Mood is selected. Choose **Off** to use their stored settings again. The set stays selected when you change sounds.
 
 ![Mood selected on the desktop panel, with Progression, Voicing and Key greyed out](assets/mood-controls.png)
+
+Hardware states saved with the Original progression bank recall their selected slot. To transfer a patch that uses a Factory progression, select an Original progression on the hardware and save a separate copy first. Desktop reports an unsupported Factory state without changing the current patch.
 
 ## Download and install
 

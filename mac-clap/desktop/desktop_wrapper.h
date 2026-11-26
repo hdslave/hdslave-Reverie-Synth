@@ -37,6 +37,7 @@ struct UiParamEvent
     UiEventKind kind;
     clap_id paramId;
     double value;
+    uint64_t sequence;
 };
 
 // Single producer (main thread) / single consumer (process or flush, never both at once) queue.
@@ -44,22 +45,26 @@ template <size_t Capacity>
 class SpscQueue
 {
 public:
-    bool push (const UiParamEvent& item)
+    bool push (const UiParamEvent& item, size_t reserve = 0)
     {
         const size_t w = writeIdx_.load (std::memory_order_relaxed);
         const size_t next = (w + 1) % Capacity;
-        if (next == readIdx_.load (std::memory_order_acquire)) return false;
+        const size_t r = readIdx_.load (std::memory_order_acquire);
+        if ((r + Capacity - next) % Capacity <= reserve) return false;
         buf_[w] = item;
         writeIdx_.store (next, std::memory_order_release);
         return true;
     }
-    bool pop (UiParamEvent& out)
+    const UiParamEvent* frontThrough (uint64_t sequence) const
     {
         const size_t r = readIdx_.load (std::memory_order_relaxed);
-        if (r == writeIdx_.load (std::memory_order_acquire)) return false;
-        out = buf_[r];
+        if (r == writeIdx_.load (std::memory_order_acquire) || buf_[r].sequence > sequence) return nullptr;
+        return &buf_[r];
+    }
+    void pop()
+    {
+        const size_t r = readIdx_.load (std::memory_order_relaxed);
         readIdx_.store ((r + 1) % Capacity, std::memory_order_release);
-        return true;
     }
 
 private:
@@ -150,7 +155,11 @@ struct DesktopPlugin
     std::atomic<uint32_t> midiLearnTarget { CLAP_INVALID_ID };
     std::atomic<int> lastMidiCc { -1 };
 
-    SpscQueue<2048> uiToAudio;
+    static constexpr size_t kControlQueueSize = 2048, kNoteQueueSize = 256;
+    SpscQueue<kControlQueueSize> uiToAudio;
+    SpscQueue<kNoteQueueSize> uiNotes; // Only process consumes notes. A parameter flush cannot play one.
+    std::atomic<uint64_t> publishedUiSequence { 0 }; // single producer, both queues
+    int admittedPad = -1; // the panel has one mouse audition at a time
 
     // What the panel shows while the user drags: the value it sent, until the plug-in has caught up. Main thread.
     std::vector<double> uiValue;

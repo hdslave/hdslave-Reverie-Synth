@@ -81,10 +81,10 @@ struct Events
         a.param = { { sizeof (clap_event_param_value), time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 }, id, nullptr, -1, -1, -1, -1, value };
         list.push_back (a);
     }
-    void note (uint32_t time, uint16_t type, int16_t key, double velocity, int32_t id = -1)
+    void note (uint32_t time, uint16_t type, int16_t key, double velocity, int32_t id = -1, int16_t channel = 0)
     {
         Any a {};
-        a.note = { { sizeof (clap_event_note), time, CLAP_CORE_EVENT_SPACE_ID, type, 0 }, id, 0, 0, key, velocity };
+        a.note = { { sizeof (clap_event_note), time, CLAP_CORE_EVENT_SPACE_ID, type, 0 }, id, 0, channel, key, velocity };
         list.push_back (a);
     }
     void midi (uint32_t time, uint8_t status, uint8_t d1, uint8_t d2)
@@ -105,11 +105,12 @@ struct Cue
     uint32_t a = 0;   // parameter id, key, or MIDI status
     double b = 0.0;   // value, velocity, or MIDI data 1
     int c = 0;        // MIDI data 2, or a note's CLAP note id (-1: none)
+    int16_t channel = 0;
 };
 Cue P (uint64_t f, uint32_t id, double v) { return { f, Cue::param, id, v, 0 }; }
-Cue On (uint64_t f, int key, double vel = 0.8, int noteId = -1) { return { f, Cue::on, (uint32_t) key, vel, noteId }; }
-Cue Off (uint64_t f, int key, int noteId = -1) { return { f, Cue::off, (uint32_t) key, 0.0, noteId }; }
-Cue Choke (uint64_t f, int key, int noteId = -1) { return { f, Cue::choke, (uint32_t) key, 0.0, noteId }; }
+Cue On (uint64_t f, int key, double vel = 0.8, int noteId = -1, int16_t channel = 0) { return { f, Cue::on, (uint32_t) key, vel, noteId, channel }; }
+Cue Off (uint64_t f, int key, int noteId = -1, int16_t channel = 0) { return { f, Cue::off, (uint32_t) key, 0.0, noteId, channel }; }
+Cue Choke (uint64_t f, int key, int noteId = -1, int16_t channel = 0) { return { f, Cue::choke, (uint32_t) key, 0.0, noteId, channel }; }
 Cue Midi (uint64_t f, int status, int d1, int d2) { return { f, Cue::midi, (uint32_t) status, (double) d1, d2 }; }
 
 struct Stereo { std::vector<float> l, r; };
@@ -186,9 +187,9 @@ struct Instance
                     switch (c.kind)
                     {
                         case Cue::param: e.param (time, c.a, c.b); break;
-                        case Cue::on: e.note (time, CLAP_EVENT_NOTE_ON, (int16_t) c.a, c.b, c.c); break;
-                        case Cue::off: e.note (time, CLAP_EVENT_NOTE_OFF, (int16_t) (int) c.a, 0.0, c.c); break;
-                        case Cue::choke: e.note (time, CLAP_EVENT_NOTE_CHOKE, (int16_t) (int) c.a, 0.0, c.c); break;
+                        case Cue::on: e.note (time, CLAP_EVENT_NOTE_ON, (int16_t) c.a, c.b, c.c, c.channel); break;
+                        case Cue::off: e.note (time, CLAP_EVENT_NOTE_OFF, (int16_t) (int) c.a, 0.0, c.c, c.channel); break;
+                        case Cue::choke: e.note (time, CLAP_EVENT_NOTE_CHOKE, (int16_t) (int) c.a, 0.0, c.c, c.channel); break;
                         case Cue::midi: e.midi (time, (uint8_t) c.a, (uint8_t) c.b, (uint8_t) c.c); break;
                     }
                 }
@@ -1313,6 +1314,54 @@ void testNotes()
         b.run (480);
         CHECK (b.tel.padsHeld.load() == 0);
     }
+    {   // An interleaved, softer duplicate on the same sample cannot replace the loud strike.
+        Instance a, b;
+        CHECK (same (a.render (12000, { On (0, 36, 0.9), On (0, 37, 0.5), On (0, 36, 0.1) }),
+                     b.render (12000, { On (0, 36, 0.9), On (0, 37, 0.5) })));
+    }
+    {   // Key, note ID and channel all constrain a release. A channel wildcard releases just
+        // that channel, even when both channels use the same pitch.
+        const std::vector<Cue> chord { On (0, 36, 0.8, 10, 0), On (0, 36, 0.7, 11, 1) };
+        Instance a, b, c;
+        const Stereo scoped = a.render (36000, chord + std::vector<Cue> { Off (12000, -1, -1, 0) });
+        CHECK (same (scoped, b.render (36000, chord + std::vector<Cue> { Off (12000, 36, 10, 0) })));
+        CHECK (!same (scoped, c.render (36000, chord + std::vector<Cue> { Off (12000, -1, -1, -1) })));
+        Instance d, e;
+        CHECK (same (d.render (36000, chord + std::vector<Cue> { Off (12000, 36, 11, 0), Choke (16000, -1, 10, 1) }),
+                     e.render (36000, chord)));
+    }
+    {   // A release from the first strike can follow a new strike of the same key.
+        const std::vector<Cue> chord { On (0, 36, 0.8, 10), On (8000, 36, 0.8, 11) };
+        Instance a, b;
+        CHECK (same (a.render (36000, chord + std::vector<Cue> { Off (12000, 36, 10), Choke (16000, 36, 10) }),
+                     b.render (36000, chord)));
+    }
+    {   // Real gain at zero velocity depends on the velocity knob. CLAP still strikes;
+        // MIDI's zero-velocity note-on releases the preceding note.
+        const std::vector<Cue> neutral { P (0, ParamId::velocity, 0), P (0, ParamId::humanize, 0) };
+        Instance a, b, c, d;
+        CHECK (same (a.render (12000, neutral + std::vector<Cue> { On (0, 36, 0) }),
+                     b.render (12000, neutral + std::vector<Cue> { On (0, 36, 0.02) })));
+        CHECK (same (c.render (20000, { On (0, 36), Midi (8000, 0x90, 36, 0) }),
+                     d.render (20000, { On (0, 36), Off (8000, 36) })));
+    }
+    {   // The pedal holds the channel that pressed it. A raw MIDI key release and
+        // a CLAP note-on can address the same note.
+        Bench b;
+        b.e.noteOn (36, 0.8f, 0, 10);
+        b.e.noteOn (37, 0.8f, 1, 11);
+        b.e.controller (64, 127, 1);
+        b.e.noteOff (36, 0);
+        b.e.noteOff (37, 1);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 2);
+        b.e.controller (64, 0, 0);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 2);
+        b.e.controller (64, 0, 1);
+        b.run (480);
+        CHECK (b.tel.padsHeld.load() == 0);
+    }
     {   // (review) A note-off or a choke naming only a note id (key -1) lets go of that note's chord alone; one naming
         // an id never played does nothing
         auto two = [] (const std::vector<Cue>& more) { return std::vector<Cue> { On (0, 36, 0.8, 7), On (0, 40, 0.8, 8) } + more; };
@@ -1603,6 +1652,40 @@ void testSleep()
     CHECK (rms (t.l) > 1e-3);
 }
 
+// Model the stopped instrument gate, including its request_process wake path.
+void testStoppedDelay()
+{
+    using namespace ParamId;
+    constexpr int block = 128, rate = 48000;
+    const std::vector<Cue> setup {
+        P (0, ampAttack, 0), P (0, ampRelease, 0), P (0, strum, 0), P (0, humanize, 0),
+        P (0, ensMix, 0), P (0, revMix, 0), P (0, dlyMix, 0.8), P (0, dlyTime, 11),
+        P (0, dlyFeedback, 0), On (0, 36)
+    };
+    Instance inst;
+    int quietFrames = 0, lastRequests = processRequests, startRequests = processRequests;
+    double echo = 0;
+    bool sleeping = false;
+    for (int frame = 0; frame < 8 * rate; frame += block)
+    {
+        const bool tap = frame == 0, release = frame == 1920;
+        if (tap || release || lastRequests != processRequests) quietFrames = 0;
+        lastRequests = processRequests;
+        sleeping = quietFrames >= rate / 2;
+        if (sleeping) continue;
+        const Stereo audio = inst.render (block, tap ? setup : release ? std::vector<Cue> { Off (0, 36) } : std::vector<Cue> {});
+        const double level = peak (audio);
+        quietFrames = level > 1e-5 ? 0 : quietFrames + block;
+        if (frame >= rate && frame < rate + rate / 5) echo = std::max (echo, level);
+    }
+    CHECK (echo > 0.1 && sleeping);
+    CHECK (processRequests > startRequests && processRequests - startRequests <= 33);
+    const int before = processRequests;
+    inst.render (rate, { P (0, dlyMix, 0), On (0, 36), Off (1920, 36) });
+    inst.render (rate, { P (0, dlyMix, 0.8), On (0, 37), Off (1920, 37) }, block, true);
+    CHECK (processRequests == before);
+}
+
 void testScreen()
 {
     Instance inst;
@@ -1734,6 +1817,7 @@ int main (int argc, char** argv)
     testTuning();
     testExtremes();
     testSleep();
+    testStoppedDelay();
     testScreen();
     entry->deinit();
     std::printf ("%d checks, %d failures\n", checks, failures);

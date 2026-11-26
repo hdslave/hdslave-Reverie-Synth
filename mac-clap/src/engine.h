@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bitset>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -175,12 +176,12 @@ public:
         for (auto& v : voices) v = Voice {};
         for (int i = 0; i < paramCount; ++i) smooth[i] = target[i];
         phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
-        std::fill (std::begin (keyDown), std::end (keyDown), false);
+        for (auto& input : channels) input = {};
+        fxChannels = 0;
         tickPos = 0;
         now = 0;
         motionPhase = 0.0;
         groups = 0;
-        sustain = false;
         fxAwake = false;
         noise = 0x1234567u;
         airLp[0] = airLp[1] = airHp[0] = airHp[1] = 0.0f;
@@ -188,7 +189,6 @@ public:
         bend = 0.0f;
         wheel = 0.0f;
         beatClock = hostBeats = 0.0, hostAt = 0;
-        lastStrikeKey = -1, lastStrikeAt = ~0ull, lastStrikeGroup = 0, lastStrikeVelocity = 0.0f;
         volumePrimed = false;
         for (auto& f : fading) f.ticks = 0;
         fadingSlots = 0;
@@ -211,9 +211,10 @@ public:
     }
 
     // --- Notes ------------------------------------------------------------------------------------------------------
-    void noteOn (int key, float velocity)
+    void noteOn (int key, float velocity, int channel = 0, int32_t noteId = -1)
     {
-        if (key < 0 || key > 127) return;
+        if (key < 0 || key >= 128 || channel < 0 || channel >= 16) return;
+        auto& input = channels[channel];
         velocity = std::clamp (velocity, 0.0f, 1.0f);
         // Asleep (or woken on this sample, nothing yet heard), a value sent with the note is the note's from its
         // first sample: no glide in from the one before.
@@ -225,20 +226,24 @@ public:
             volumeNow = target[ParamId::volume], volumeStep = 0.0f;
         }
         if (stale) derive(), stale = false; // asleep, the ticks only kept the knobs
-        // Two strikes of one key on one sample: the louder plays once.
-        if (lastStrikeKey == key && lastStrikeAt == now)
+        // Events at one sample can interleave several pads. Only an intervening release permits
+        // a second strike of this key. The louder velocity uses the original chord's jitter.
+        if (input.strikeSample != now)
         {
-            if (velocity > lastStrikeVelocity)
-            {
-                // as if struck once at the louder velocity (the same jitter, the same sums)
-                for (auto& v : voices)
-                    if (v.active && v.group == lastStrikeGroup)
-                    {
-                        v.velocity = std::clamp (velocity * v.jitter, 0.02f, 1.0f);
-                        v.gain = velocityGain (v.velocity, target[ParamId::velocity]) * v.level;
-                    }
-                lastStrikeVelocity = velocity;
-            }
+            input.struck.reset();
+            input.strikeSample = now;
+        }
+        if (input.struck.test (key))
+        {
+            for (auto& v : voices)
+                if (v.active && v.pressed && v.key == key && v.channel == channel)
+                {
+                    v.noteId = noteId;
+                    if (velocity <= v.strikeVelocity) continue;
+                    v.strikeVelocity = velocity;
+                    v.velocity = std::clamp (velocity * v.jitter, 0.02f, 1.0f);
+                    v.gain = velocityGain (v.velocity, target[ParamId::velocity]) * v.level;
+                }
             return;
         }
         const PadKey pad = padOf (key);
@@ -250,8 +255,7 @@ public:
         const float glideTime = glideMs (chordSet[ParamId::glide]);
 
         // A key struck again while it holds a chord: that chord lets go first (a fresh strike, never a slide).
-        releaseKey (key, true);
-        keyDown[key] = true;
+        replaceKey (key, channel);
 
         int notes[maxChordNotes], count = 0;
         const int shift = 12 * (int) chordSet[ParamId::octave] + pad.shift;
@@ -308,6 +312,7 @@ public:
             if (i < reused)
             {
                 Voice& v = *glideFrom[i];
+                v.pressed = true, v.channel = channel, v.noteId = noteId, v.strikeVelocity = velocity;
                 v.key = key, v.group = group, v.index = i, v.size = count, v.isBass = isBass;
                 v.target = (float) notes[i];
                 v.velocity = vel, v.gain = gain, v.jitter = jitter, v.level = level;
@@ -320,8 +325,10 @@ public:
             if (human > 0.0f) wait += (int) (human * human * 0.02f * tickRate * rng.unit()); // up to 20 ms late
             start (v, key, group, notes[i], vel, gain, i, count, isBass, wait, latching);
             v.jitter = jitter, v.level = level;
+            v.pressed = true, v.channel = channel, v.noteId = noteId, v.strikeVelocity = velocity;
         }
-        lastStrikeKey = key, lastStrikeAt = now, lastStrikeGroup = group, lastStrikeVelocity = velocity;
+        input.struck.set (key);
+        fxChannels |= 1u << channel;
         tel->lastSlot.store (pad.slot, std::memory_order_relaxed);
         tel->strikes.fetch_add (1, std::memory_order_relaxed);
         if (! fxAwake && activeCount == 0) wokeAt = now;
@@ -329,66 +336,62 @@ public:
         silentTicks = 0;
     }
 
-    void noteOff (int key)
+    void noteOff (int key, int channel = -1, int32_t noteId = -1)
     {
-        if (key < 0)
-        {
-            for (int k = 0; k < 128; ++k) keyDown[k] = false;
-            for (auto& v : voices)
-                if (v.active && v.gated && ! v.latched)
-                {
-                    if (sustain) v.sustained = true;
-                    else v.releaseNow();
-                }
-            return;
-        }
-        if (key > 127) return;
-        keyDown[key] = false;
-        releaseKey (key, false);
+        if (key < 0 && noteId == -1) allNotesOff (channel);
+        else releaseNotes (key, channel, noteId, false);
     }
 
-    // A choke (or All Sound Off): the voices stop within a few milliseconds.
-    void choke (int key)
+    void choke (int key, int channel = -1, int32_t noteId = -1)
     {
-        for (auto& v : voices)
-            if (v.active && (key < 0 || v.key == key)) v.chokeNow();
-        if (key < 0) std::fill (std::begin (keyDown), std::end (keyDown), false);
-        else if (key < 128) keyDown[key] = false;
+        releaseNotes (key, channel, noteId, true);
     }
 
     // All Sound Off (CC 120): every voice choked and the effects' tails gone. The effects' resets do no work on their
     // lines, and none at all when they are already silent (Melodee sends it on all 16 channels at once).
-    void silence()
+    void silence (int channel = -1)
     {
-        choke (-1);
-        phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
+        choke (-1, channel);
+        if (channel >= 0) fxChannels &= ~(1u << channel);
+        else fxChannels = 0;
+        // Effect returns are shared. Clear them once every contributing channel is silenced.
+        if (fxChannels == 0) { phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset(); }
     }
     // The effects' resets that had something to clear (for the tests).
     uint32_t fxResets() const { return ensemble.resets + delay.resets + reverb.resets; }
 
-    void allNotesOff() // CC 123 and the like: every chord lets go, latched ones too (notes yet to strum never start)
+    void allNotesOff (int channel = -1)
     {
         for (auto& v : voices)
-            if (v.active && v.waitTicks > 0) v.active = false, v.gated = false, v.waitTicks = 0;
-            else if (v.active && v.gated) v.releaseNow();
-        std::fill (std::begin (keyDown), std::end (keyDown), false);
-        sustain = false;
+            if (v.active && (channel < 0 || channel == v.channel))
+            {
+                v.pressed = false;
+                if (v.waitTicks > 0) v.active = false, v.gated = false, v.waitTicks = 0;
+                else if (v.gated) v.releaseNow();
+            }
+        for (int i = 0; i < 16; ++i)
+            if (channel < 0 || channel == i) channels[i].struck.reset(), channels[i].sustain = false;
     }
 
-    void controller (int cc, int value)
+    void controller (int cc, int value, int channel = 0)
     {
+        auto& input = channels[channel];
         switch (cc)
         {
             case 1: wheel = (float) value / 127.0f, dirty = true; break;
             case 64:
-                if (value >= 64) sustain = true;
-                else liftSustain();
+                if (value >= 64) input.sustain = true;
+                else liftSustain (channel);
                 break;
-            case 120: if (value == 0) silence(); break;
-            case 121: // Reset All Controllers (RP-015): the bend, the wheel and the pedal
-                if (value == 0) bend = 0.0f, wheel = 0.0f, dirty = true, liftSustain();
+            case 120: if (value == 0) silence (channel); break;
+            case 121:
+                if (value == 0)
+                {
+                    bend = 0.0f, wheel = 0.0f, dirty = true;
+                    liftSustain (channel);
+                }
                 break;
-            case 123: if (value == 0) allNotesOff(); break;
+            case 123: if (value == 0) allNotesOff (channel); break;
             default: break;
         }
     }
@@ -476,7 +479,10 @@ private:
     struct Voice
     {
         bool active = false, gated = false, latched = false, sustained = false, isBass = false, choking = false;
-        int key = -1;
+        int key = -1, channel = 0;
+        int32_t noteId = -1;
+        bool pressed = false;
+        float strikeVelocity = 0.0f;
         uint32_t group = 0;
         int index = 0, size = 1;
         int waitTicks = 0;
@@ -544,13 +550,15 @@ private:
     uint64_t hostAt = 0;
     bool songPlaying = false;
     uint32_t groups = 0;
-    bool keyDown[128] {};
-    bool sustain = false;
+    struct ChannelInput
+    {
+        uint64_t strikeSample = ~0ull;
+        std::bitset<128> struck;
+        bool sustain = false;
+    };
+    ChannelInput channels[16] {};
+    uint32_t fxChannels = 0;
     float bend = 0.0f, wheel = 0.0f;
-    int lastStrikeKey = -1;
-    uint64_t lastStrikeAt = ~0ull;
-    uint32_t lastStrikeGroup = 0;
-    float lastStrikeVelocity = 0.0f;
     VoicingSet shown {};
     bool fxAwake = false;
     uint64_t wokeAt = ~0ull; // the sample a note woke the engine on
@@ -589,26 +597,49 @@ private:
         float volume = 0.7f, ensHz = 0.35f, decay = 5.0f, damp = 5500.0f, predelay = 20.0f;
     } sh;
 
-    // A pad let go (its strummed notes still play their turn), or struck again (`restrike`: its chord is replaced,
-    // notes yet to strum never start).
-    void releaseKey (int key, bool restrike)
+    void replaceKey (int key, int channel)
     {
         for (auto& v : voices)
-            if (v.active && v.gated && v.key == key)
+            if (v.active && v.key == key && v.channel == channel)
             {
-                if (restrike) { v.replaceNow(); continue; }
-                if (v.latched) continue;
-                if (sustain) { v.sustained = true; continue; }
-                v.releaseNow();
+                v.pressed = false;
+                v.noteId = -1;
+                if (v.gated) v.replaceNow();
             }
     }
 
-    // The sustain pedal up: the notes it held let go.
-    void liftSustain()
+    // Match the full CLAP note address. An ID-only release can find its sounding chord even
+    // after other pads have been retriggered or its delayed strum has started.
+    void releaseNotes (int key, int channel, int32_t noteId, bool choking)
     {
-        sustain = false;
         for (auto& v : voices)
-            if (v.active && v.sustained) v.releaseNow();
+        {
+            if (!v.active || (key >= 0 && key != v.key) || (channel >= 0 && channel != v.channel)
+                || (noteId != -1 && noteId != v.noteId)) continue;
+            if (v.pressed) channels[v.channel].struck.reset (v.key);
+            v.pressed = false;
+            if (choking) v.chokeNow();
+            else if (v.gated && !v.latched)
+            {
+                if (channels[v.channel].sustain) v.sustained = true;
+                else v.releaseNow();
+            }
+        }
+        // A voice may already have been stolen on this same sample.
+        if (noteId == -1)
+            for (int i = 0; i < 16; ++i)
+                if (channel < 0 || channel == i)
+                {
+                    if (key < 0) channels[i].struck.reset();
+                    else if (key < int (channels[i].struck.size())) channels[i].struck.reset (key);
+                }
+    }
+
+    void liftSustain (int channel)
+    {
+        channels[channel].sustain = false;
+        for (auto& v : voices)
+            if (v.active && v.channel == channel && v.sustained) v.releaseNow();
     }
 
     // A new chord replaces the latched ones (but `keep`, the chord now sounding).
@@ -729,9 +760,12 @@ private:
             {
                 if (smooth[i] == target[i]) continue;
                 if (paramTable[i].kind != Kind::continuous) { smooth[i] = target[i]; continue; }
+                const float previous = smooth[i];
                 smooth[i] += (target[i] - smooth[i]) * smoothCoef;
                 if (std::fabs (target[i] - smooth[i]) <= 1e-6f * (1.0f + std::fabs (target[i]))) smooth[i] = target[i];
-                else moving = true;
+                // At high rates a float may stop changing just outside the tolerance. Keep
+                // its settled value: later ticks would calculate exactly the same coefficients.
+                else if (smooth[i] != previous) moving = true;
             }
             dirty = false, smoothing = moving;
             derive();
@@ -753,7 +787,7 @@ private:
                 if (v.active && v.latched)
                 {
                     v.latched = false;
-                    if (! (v.key >= 0 && v.key < 128 && keyDown[v.key])) v.releaseNow();
+                    if (!v.pressed) v.releaseNow();
                 }
         newestVoice = nullptr;
         for (const auto& v : voices)
@@ -798,6 +832,7 @@ private:
                 if (++silentTicks > (uint32_t) (4.0f * tickRate))
                 {
                     fxAwake = false;
+                    fxChannels = 0;
                     phaser.reset(), ensemble.reset(), delay.reset(), reverb.reset();
                 }
             }

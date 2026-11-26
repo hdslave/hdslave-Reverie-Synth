@@ -242,30 +242,31 @@ Rect PanelUI::update (uint64_t now)
         endWheelGesture();
 
     if (layoutDirty_)
+    {
         layout();
+        fullDirty_ = true;
+    }
 
-    // Paint all MPC screen tiles every frame (~60 fps) when open or requested
     const auto t0 = std::chrono::steady_clock::now();
-    if (!p_->surface) p_->paintAllTiles (now_);
-    renderAll();
+    c_.resetClip();
+    bool rendered = true;
+    if (p_->surface)
+        rendered = updateSurface();
+    else
+    {
+        p_->paintAllTiles (now_);
+        renderTiles();
+    }
     const auto t1 = std::chrono::steady_clock::now();
     lastRenderMs_ = std::chrono::duration<double, std::milli> (t1 - t0).count();
 
     fullDirty_ = false;
-    return { 0, 0, w_, h_ };
+    return rendered ? Rect { 0, 0, w_, h_ } : Rect {};
 }
 
-void PanelUI::renderAll()
+void PanelUI::renderTiles()
 {
     const auto& th = p_->theme;
-    c_.resetClip();
-    if (p_->surface)
-    {
-        drawSurface();
-        drawHighlight (0);
-        if (popup_ != PopupKind::None) drawPopup();
-        return;
-    }
     c_.gradient ({ 0, 0, w_, h_ }, th.bgTop, th.bgBottom);
 
     drawHeaderBar();
@@ -306,19 +307,35 @@ std::string PanelUI::presetLabel() const
     return "INIT PATCH";
 }
 
-void PanelUI::drawSurface()
+bool PanelUI::updateSurface()
 {
     const auto& dst = tiles_[0].screenRect;
 
     const auto preset = presetLabel();
     bool learning = false;
     const auto line = readoutText (learning);
-    SurfaceHeader header {preset.c_str(), line.c_str(), p_->countMappedCc(), learning,
+    const int mappings = p_->countMappedCc();
+    const auto& spot = drag_ == Drag::None ? hoverSpot_ : dragSpot_;
+    const int badgeCc = spot.kind == HDSLAVE_HOTSPOT_PARAM ? p_->findCcForParam (spot.param_id) : -1;
+    const bool contentChanged = p_->surface->content_changed (p_->inner);
+    if (!fullDirty_ && !contentChanged && shownPreset_ == preset && shownReadout_ == line
+        && shownMappings_ == mappings && shownBadgeCc_ == badgeCc && shownLearning_ == learning)
+        return false;
+
+    shownPreset_ = preset;
+    shownReadout_ = line;
+    shownMappings_ = mappings;
+    shownBadgeCc_ = badgeCc;
+    shownLearning_ = learning;
+    SurfaceHeader header {preset.c_str(), line.c_str(), mappings, learning,
                           popup_ == PopupKind::Presets, SurfaceControl::Count};
     for (size_t i = 0; i < std::size (surfaceItems); ++i)
         if (hoverItem_ == surfaceItems[i]) header.hovered = (SurfaceControl) i;
     p_->surface->paint (p_->inner, surfacePixels_.data(), &header);
     c_.blitSharp (surfacePixels_.data(), nativeWidth(), nativeHeight(), dst);
+    drawHighlight (0);
+    if (popup_ != PopupKind::None) drawPopup();
+    return true;
 }
 
 void PanelUI::drawHeaderBar()
@@ -606,6 +623,7 @@ void PanelUI::applyAbsoluteSpot (int tileIdx, const hdslave_tile_hotspot_t& spot
 void PanelUI::mouseDown (float x, float y, int button, uint32_t mods, int clicks)
 {
     if (drag_ != Drag::None) return;
+    fullDirty_ = true;
     endWheelGesture();
     downX_ = lastX_ = x;
     downY_ = lastY_ = y;
@@ -846,15 +864,18 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
 {
     if (popup_ != PopupKind::None)
     {
+        const int previous = popupHover_;
         popupHover_ = -1;
         for (size_t i = 0; i < popupRects_.size(); ++i)
             if (popupRects_[i].contains (int (x), int (y)))
                 popupHover_ = int (i);
+        fullDirty_ |= previous != popupHover_;
         return;
     }
 
     if (drag_ != Drag::None)
     {
+        fullDirty_ = true;
         if (dragParam_ >= 0 && !controlEnabled (dragParam_)) { cancelInput(); return; }
         const float dx = x - lastX_;
         const float dy = y - lastY_;
@@ -933,6 +954,8 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
     }
 
     // Hover tracking
+    const auto previousItem = hoverItem_;
+    const auto previousSpot = hoverSpot_;
     hoverItem_ = hitItem (x, y);
     hoverZoomBtnTile_ = -1;
     hoverTabTile_ = -1;
@@ -961,6 +984,9 @@ void PanelUI::mouseMove (float x, float y, uint32_t mods)
                 hoverParam_ = p_->findParamIndex (hoverSpot_.param_id);
         }
     }
+    fullDirty_ |= previousItem != hoverItem_ || previousSpot.kind != hoverSpot_.kind
+                  || previousSpot.param_id != hoverSpot_.param_id || previousSpot.x != hoverSpot_.x
+                  || previousSpot.y != hoverSpot_.y || previousSpot.w != hoverSpot_.w || previousSpot.h != hoverSpot_.h;
 }
 
 void PanelUI::mouseUp (float, float, int button, uint32_t mods)
@@ -968,6 +994,7 @@ void PanelUI::mouseUp (float, float, int button, uint32_t mods)
     if (drag_ == Drag::None || button != dragButton_)
         return;
 
+    fullDirty_ = true;
     if (drag_ == Drag::MenuPending) openMenu (dragParam_, downX_, downY_);
 
     const bool shift = ((mods & kModShift) != 0) || ((downMods_ & kModShift) != 0) || p_->screenShift;
@@ -1057,6 +1084,7 @@ void PanelUI::rotate (float x, float y, float degrees)
 
 void PanelUI::mouseExit()
 {
+    fullDirty_ |= hoverItem_ != Item::Count || hoverSpot_.kind != HDSLAVE_HOTSPOT_NONE;
     hoverItem_ = Item::Count;
     hoverTile_ = -1;
     hoverZoomBtnTile_ = -1;
@@ -1216,6 +1244,7 @@ void PanelUI::openMenu (int param, float x, float y)
 
 void PanelUI::closePopup()
 {
+    fullDirty_ |= popup_ != PopupKind::None;
     popup_ = PopupKind::None;
     popupParam_ = -1;
     popupItems_.clear();

@@ -21,7 +21,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory bank uses the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.1). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.2). Not yet run on the MPC itself.
 
 ## Install
 
@@ -488,7 +488,9 @@ Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter en
 
 ## Cost
 
-Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
+The 0.6.2 AArch64 build averaged 3,810 guest instructions per silent block, 252,750 for a held chord, 381,236 during the progression, and 212,070 for Undertow Wah in QEMU at 48 kHz with 128-frame blocks.
+
+The earlier Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
 
 | Scene | Instructions | Share of one core |
 |---|---|---|

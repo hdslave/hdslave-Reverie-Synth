@@ -215,6 +215,68 @@ struct MemStream
     }
 };
 
+// Exercise raw hardware streams through the desktop wrapper, including failure
+// atomicity of both the sound parameters and the desktop-only MIDI CC map.
+bool checkStateImports (const clap_plugin_t* plugin, const clap_plugin_state_t* state,
+                        const clap_plugin_params_t* params, MemStream initial)
+{
+    auto save = [&] {
+        MemStream result;
+        clap_ostream_t out { &result, MemStream::write };
+        if (!state->save (plugin, &out)) std::abort();
+        return result;
+    };
+    auto load = [&] (MemStream& data) {
+        data.readPos = 0;
+        clap_istream_t input { &data, MemStream::read };
+        return state->load (plugin, &input);
+    };
+    using Param = std::pair<uint32_t, float>;
+    auto hardware = [] (uint32_t version, std::initializer_list<Param> params) {
+        MemStream s;
+        clap_ostream_t out { &s, MemStream::write };
+        const uint32_t count = uint32_t (params.size());
+        out.write (&out, "RVRE", 4);
+        out.write (&out, &version, 4);
+        out.write (&out, &count, 4);
+        for (const auto& [id, value] : params)
+        {
+            out.write (&out, &id, 4);
+            out.write (&out, &value, 4);
+        }
+        return s;
+    };
+    auto imports = [&] (MemStream data, double expected) {
+        double progression = -1;
+        return load (data) && params->get_value (plugin, 0, &progression) && progression == expected;
+    };
+    auto rejects = [&] (MemStream data) {
+        const auto before = save();
+        return !load (data) && save().data == before.data;
+    };
+
+    MemStream withMap = initial;
+    if (withMap.data.size() < 128 * sizeof (uint32_t)) return false;
+    const uint32_t mapped = 57;
+    std::memcpy (withMap.data.data() + withMap.data.size() - (128 - 24) * sizeof (mapped), &mapped, sizeof (mapped));
+    if (!load (withMap) || save().data != withMap.data) return false;
+    if (!imports (hardware (1, {{0, 9}}), 9)) return false;
+    const auto otherSound = save();
+    if (!imports (hardware (3, {{0, 20}, {99, 12}, {100, 0}}), 12) ||
+        !imports (hardware (3, {{99, 13}, {100, 0}, {0, 20}}), 13)) return false;
+    if (!rejects (hardware (2, {{0, 9}})) ||
+        !rejects (hardware (3, {{0, 9}, {99, 14}, {100, 1}})) ||
+        !rejects (hardware (3, {{99, 46}, {100, 0}})) ||
+        !rejects (hardware (4, {{0, 5}}))) return false;
+    for (size_t missing : { size_t (1), 128 * sizeof (uint32_t) })
+    {
+        MemStream truncated = otherSound;
+        truncated.data.resize (truncated.data.size() - missing);
+        if (!rejects (truncated)) return false;
+    }
+    return load (initial);
+}
+
 void writePpm (const std::string& path, const uint32_t* argb, int w, int h)
 {
     FILE* f = std::fopen (path.c_str(), "wb");
@@ -392,6 +454,11 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
     if (!state->load (plug, &is))
     {
         std::fprintf (stderr, "FAIL: state load failed for %s\n", desc->id);
+        return false;
+    }
+    if (!checkStateImports (plug, state, params, ms))
+    {
+        std::fprintf (stderr, "FAIL: desktop or raw hardware state import\n");
         return false;
     }
 
@@ -630,9 +697,16 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
         clap_event_midi_t cc {};
         cc.header = { sizeof (cc), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0 };
         cc.data[0] = 0xb0;
+        clap_input_events_t ccIn { &cc, oneNoteSize, oneNoteGet };
+        for (uint8_t mode = 120; mode < 128; ++mode)
+        {
+            cc.data[1] = mode;
+            cc.data[2] = 0;
+            process (&ccIn);
+            if (value (57) != 0) { std::fprintf (stderr, "FAIL: MIDI Learn captured channel mode %d\n", mode); return false; }
+        }
         cc.data[1] = 24;
         cc.data[2] = 127;
-        clap_input_events_t ccIn { &cc, oneNoteSize, oneNoteGet };
         process (&ccIn);
         if (value (57) != 1) { std::fprintf (stderr, "FAIL: masthead MIDI Learn\n"); return false; }
         click (575, 33);
@@ -650,6 +724,57 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
             return ((rgb >> 16) & 255) > (rgb & 255) + 60;
         };
         plug->reset (plug);
+        // A DAW can call params.flush between any two audio blocks, even while an audition is held.
+        mouse (0, 26, 166);
+        params->flush (plug, &inEv, &outEv);
+        process (&inEv);
+        if (!padLit (26, 166)) { std::fprintf (stderr, "FAIL: flush ate mouse-down\n"); return false; }
+        mouse (2, 26, 166);
+        params->flush (plug, &inEv, &outEv);
+        clap_input_events_t dense { &cc.header, [] (const clap_input_events_t*) -> uint32_t { return 8193; }, oneNoteGet };
+        process (&dense);
+        if (padLit (26, 166)) { std::fprintf (stderr, "FAIL: lost mouse-up during automation\n"); return false; }
+        for (int i = 0; i < 300; ++i)
+        {
+            mouse (0, 26, 166);
+            mouse (2, 26, 166);
+        }
+        process (&inEv);
+        if (padLit (26, 166)) { std::fprintf (stderr, "FAIL: unpaired audition after queue filled\n"); return false; }
+        // The host can use the pad's key number as the ID of a different note.
+        mouse (0, 26, 166);
+        process (&inEv);
+        testNote.key = 36;
+        testNote.note_id = -2;
+        testNote.header.flags = CLAP_EVENT_IS_LIVE;
+        testNote.header.type = CLAP_EVENT_NOTE_OFF;
+        process (&noteIn);
+        testNote.key = 37;
+        testNote.header.type = CLAP_EVENT_NOTE_ON;
+        process (&noteIn);
+        if (!padLit (26, 166) || padLit (68, 166)) { std::fprintf (stderr, "FAIL: invalid public note ID accepted\n"); return false; }
+        testNote.header.flags = 0;
+        testNote.key = 37;
+        testNote.note_id = 36;
+        testNote.header.type = CLAP_EVENT_NOTE_ON;
+        process (&noteIn);
+        testNote.key = -1;
+        testNote.header.type = CLAP_EVENT_NOTE_OFF;
+        process (&noteIn);
+        if (!padLit (26, 166) || padLit (68, 166)) { std::fprintf (stderr, "FAIL: audition collided with host ID\n"); return false; }
+
+        // A later host attack of the same key owns the release, including when
+        // the new attack and an old mouse-up share a block.
+        mouse (2, 26, 166);
+        testNote.key = 36;
+        testNote.note_id = 501;
+        testNote.header.type = CLAP_EVENT_NOTE_ON;
+        process (&noteIn);
+        if (!padLit (26, 166)) { std::fprintf (stderr, "FAIL: mouse-up cut host retrigger\n"); return false; }
+        testNote.header.type = CLAP_EVENT_NOTE_OFF;
+        process (&noteIn);
+        if (padLit (26, 166)) { std::fprintf (stderr, "FAIL: host retrigger did not release\n"); return false; }
+        testNote.note_id = -1;
         for (int slot = 0; slot < 16; ++slot)
         {
             const int x = 4 + slot % 4 * 42 + 22, y = 83 + (3 - slot / 4) * 25 + 8;

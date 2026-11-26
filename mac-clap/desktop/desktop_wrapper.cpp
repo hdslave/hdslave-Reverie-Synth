@@ -1,5 +1,6 @@
 #include "desktop_wrapper.h"
 #include "panel_ui.h"
+#include "panel_note.h"
 
 #include <algorithm>
 #include <chrono>
@@ -19,31 +20,26 @@ namespace hdslave_desktop
 // the plug-ins cut their blocks at each event). Lives in the DesktopPlugin; process and flush never overlap.
 struct MergedInputEvents
 {
-    static constexpr uint32_t kMaxInjected = 1024;
-    static constexpr uint32_t kMaxTotal = 8192;
+    static constexpr uint32_t kMaxInjected = DesktopPlugin::kControlQueueSize + DesktopPlugin::kNoteQueueSize + 1024;
 
     union InjectedEvent
     {
         clap_event_header_t header;
         clap_event_param_value_t param;
-        clap_event_note_t note;
+        PanelNote panel;
     };
 
     const clap_input_events_t* hostIn = nullptr;
     uint32_t hostCount = 0;
     InjectedEvent injected[kMaxInjected] {};
     uint32_t injectedCount = 0;
-    const clap_event_header_t* order[kMaxTotal] {};
-    uint32_t orderCount = 0;
-    bool passthrough = false; // too many events to merge: the host's alone
+    uint32_t insertionIndex[kMaxInjected] {};
 
     void reset (const clap_input_events_t* in)
     {
         hostIn = in;
         hostCount = (in && in->size) ? in->size (in) : 0;
         injectedCount = 0;
-        orderCount = 0;
-        passthrough = false;
     }
 
     void addInjected (uint32_t time, clap_id paramId, double value)
@@ -65,17 +61,19 @@ struct MergedInputEvents
         ev.value = value;
     }
 
-    void addInjectedNote (uint32_t time, bool on, int16_t key, double velocity)
+    void addInjectedNote (uint32_t time, bool on, int16_t key, double velocity, const clap_plugin_t* owner)
     {
         if (injectedCount >= kMaxInjected) return;
-        auto& ev = injected[injectedCount++].note;
-        ev = {};
-        ev.header.size = sizeof (clap_event_note_t);
+        auto& panel = injected[injectedCount++].panel;
+        panel = {};
+        panel.owner = owner;
+        auto& ev = panel.note;
+        ev.header.size = sizeof (PanelNote);
         ev.header.time = time;
         ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
         ev.header.type = on ? CLAP_EVENT_NOTE_ON : CLAP_EVENT_NOTE_OFF;
         ev.header.flags = CLAP_EVENT_IS_LIVE;
-        ev.note_id = key;
+        ev.note_id = PanelNote::id;
         ev.port_index = 0;
         ev.channel = 0;
         ev.key = key;
@@ -86,33 +84,30 @@ struct MergedInputEvents
     // event), and the panel's (time 0) before the block's first host event at time > 0.
     void finish()
     {
-        if (injectedCount == 0) { passthrough = true; return; }
-        if (hostCount + injectedCount > kMaxTotal) { passthrough = true; return; }
-        // Injected events arrive in time order already (UI at 0, then CCs as the host's events are scanned).
-        uint32_t h = 0, j = 0;
-        while (h < hostCount || j < injectedCount)
+        // Keep only the insertion points. A large automation block must still deliver a queued mouse-up.
+        uint32_t h = 0;
+        for (uint32_t j = 0; j < injectedCount; ++j)
         {
-            const clap_event_header_t* he = h < hostCount ? hostIn->get (hostIn, h) : nullptr;
-            if (h < hostCount && he == nullptr) { ++h; continue; }
-            if (j < injectedCount && (he == nullptr || injected[j].header.time < he->time))
-                order[orderCount++] = &injected[j++].header;
-            else
-                order[orderCount++] = he, ++h;
+            while (h < hostCount && hostIn->get (hostIn, h)->time <= injected[j].header.time) ++h;
+            insertionIndex[j] = h + j;
         }
     }
 
     static uint32_t CLAP_ABI sizeCb (const clap_input_events_t* list)
     {
         const auto* self = static_cast<const MergedInputEvents*> (list->ctx);
-        return self->passthrough ? self->hostCount : self->orderCount;
+        return self->hostCount + self->injectedCount;
     }
 
     static const clap_event_header_t* CLAP_ABI getCb (const clap_input_events_t* list, uint32_t index)
     {
         const auto* self = static_cast<const MergedInputEvents*> (list->ctx);
-        if (self->passthrough)
-            return (self->hostIn && index < self->hostCount) ? self->hostIn->get (self->hostIn, index) : nullptr;
-        return index < self->orderCount ? self->order[index] : nullptr;
+        if (index >= self->hostCount + self->injectedCount) return nullptr;
+        const auto* end = self->insertionIndex + self->injectedCount;
+        const auto* it = std::lower_bound (self->insertionIndex, end, index);
+        const uint32_t before = uint32_t (it - self->insertionIndex);
+        if (it != end && *it == index) return &self->injected[before].header;
+        return self->hostIn->get (self->hostIn, index - before);
     }
 
     clap_input_events_t asClapList() { return clap_input_events_t { this, sizeCb, getCb }; }
@@ -447,22 +442,30 @@ struct SafeOutputEvents
     clap_output_events_t asClapList() { return clap_output_events_t { this, tryPushCb }; }
 };
 
-void drainUiAndMidiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const clap_input_events_t* in, SafeOutputEvents& out)
+void drainUiAndMidiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const clap_input_events_t* in, SafeOutputEvents& out,
+                           bool processingAudio)
 {
     merged.reset (in);
 
     // 1. The panel's edits: to the inner plug-in, and to the host with their gestures (automation, Last Tweaked).
-    UiParamEvent uev {};
-    while (dp.uiToAudio.pop (uev))
+    const uint64_t sequence = dp.publishedUiSequence.load (std::memory_order_acquire);
+    for (;;)
     {
+        const auto* control = dp.uiToAudio.frontThrough (sequence);
+        const auto* note = processingAudio ? dp.uiNotes.frontThrough (sequence) : nullptr;
+        if (note && (!control || note->sequence < control->sequence))
+        {
+            merged.addInjectedNote (0, note->kind == UiEventKind::NoteOn, (int16_t) note->paramId, note->value, dp.inner);
+            dp.uiNotes.pop();
+            continue;
+        }
+        if (!control) break;
+        const auto uev = *control;
+        dp.uiToAudio.pop();
         if (uev.kind == UiEventKind::GestureBegin)
             out.pushGesture (0, uev.paramId, true);
         else if (uev.kind == UiEventKind::GestureEnd)
             out.pushGesture (0, uev.paramId, false);
-        else if (uev.kind == UiEventKind::NoteOn)
-            merged.addInjectedNote (0, true, (int16_t) uev.paramId, uev.value);
-        else if (uev.kind == UiEventKind::NoteOff)
-            merged.addInjectedNote (0, false, (int16_t) uev.paramId, uev.value);
         else
         {
             merged.addInjected (0, uev.paramId, uev.value);
@@ -480,6 +483,7 @@ void drainUiAndMidiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const c
 
         const uint8_t cc = m->data[1] & 0x7Fu;
         const uint8_t val = m->data[2] & 0x7Fu;
+        if (cc >= 120) continue; // Channel Mode, including All Sound Off, Reset Controllers and All Notes Off.
         dp.lastMidiCc.store (int (cc), std::memory_order_relaxed);
 
         const uint32_t target = dp.midiLearnTarget.load (std::memory_order_acquire);
@@ -592,7 +596,7 @@ void CLAP_ABI wrapParamsFlush (const clap_plugin_t* p, const clap_input_events_t
     if (dp.inAudioCall.exchange (true, std::memory_order_acq_rel))
         return;
     SafeOutputEvents safeOut { &dp, out, 0, 0 };
-    drainUiAndMidiEvents (dp, *dp.mergedFlush, in, safeOut);
+    drainUiAndMidiEvents (dp, *dp.mergedFlush, in, safeOut, false);
     clap_input_events_t inList = dp.mergedFlush->asClapList();
     clap_output_events_t outList = safeOut.asClapList();
     dp.innerParams->flush (dp.inner, &inList, out ? &outList : nullptr);
@@ -644,30 +648,26 @@ bool CLAP_ABI wrapStateLoad (const clap_plugin_t* p, const clap_istream_t* strea
         raw.insert (raw.end(), chunk, chunk + size_t (n));
     }
 
-    if (raw.size() >= 12 && std::memcmp (raw.data(), "HDSD", 4) == 0)
+    if (raw.size() >= 4 && std::memcmp (raw.data(), "HDSD", 4) == 0)
     {
+        if (raw.size() < 12) return false;
         uint32_t version = 0, innerSize = 0;
         std::memcpy (&version, raw.data() + 4, 4);
         std::memcpy (&innerSize, raw.data() + 8, 4);
-        if (version == 1 && raw.size() >= size_t (12) + innerSize)
-        {
-            MemIStream innerIn { raw.data() + 12, innerSize, 0 };
-            clap_istream_t memIn { &innerIn, MemIStream::readCb };
-            if (!dp.innerState->load (dp.inner, &memIn))
-                return false;
+        uint32_t ccTable[128];
+        if (version != 1 || innerSize > raw.size() - 12 || raw.size() - 12 - innerSize < sizeof (ccTable))
+            return false;
 
-            const size_t ccOffset = size_t (12) + innerSize;
-            if (raw.size() >= ccOffset + 128 * sizeof (uint32_t))
-            {
-                uint32_t ccTable[128];
-                std::memcpy (ccTable, raw.data() + ccOffset, sizeof (ccTable));
-                for (int i = 0; i < 128; ++i)
-                    dp.ccMap[i].store (ccTable[i], std::memory_order_release);
-            }
-            dp.currentPresetIndex = -1;
-            dp.markAllDirty();
-            return true;
-        }
+        MemIStream innerIn { raw.data() + 12, innerSize, 0 };
+        clap_istream_t memIn { &innerIn, MemIStream::readCb };
+        if (!dp.innerState->load (dp.inner, &memIn)) return false;
+
+        std::memcpy (ccTable, raw.data() + 12 + innerSize, sizeof (ccTable));
+        for (int i = 0; i < 128; ++i)
+            dp.ccMap[i].store (i < 120 ? ccTable[i] : CLAP_INVALID_ID, std::memory_order_release);
+        dp.currentPresetIndex = -1;
+        dp.markAllDirty();
+        return true;
     }
 
     // Raw MPC state fallback
@@ -1012,7 +1012,7 @@ clap_process_status CLAP_ABI wrapProcess (const clap_plugin_t* p, const clap_pro
 
     const uint32_t maxTime = proc->frames_count > 0 ? proc->frames_count - 1 : 0;
     SafeOutputEvents safeOut { &dp, proc->out_events, maxTime, 0 };
-    drainUiAndMidiEvents (dp, *dp.mergedProcess, proc->in_events, safeOut);
+    drainUiAndMidiEvents (dp, *dp.mergedProcess, proc->in_events, safeOut, true);
 
     clap_process_t wrapped = *proc;
     clap_input_events_t inList = dp.mergedProcess->asClapList();
@@ -1321,7 +1321,9 @@ std::string DesktopPlugin::formatParamValue (clap_id id, double value) const
 
 void DesktopPlugin::enqueue (UiEventKind kind, clap_id id, double value)
 {
-    uiToAudio.push ({ kind, id, value });
+    const uint64_t sequence = publishedUiSequence.load (std::memory_order_relaxed) + 1;
+    if (uiToAudio.push ({ kind, id, value, sequence }))
+        publishedUiSequence.store (sequence, std::memory_order_release);
     // When the audio thread is actively running process(), it drains uiToAudio on the very next audio block;
     // avoid spamming request_flush() mid-stream (which can trigger concurrent main-thread flush in some hosts).
     const bool audioTicking = processing.load (std::memory_order_acquire)
@@ -1460,7 +1462,21 @@ void DesktopPlugin::sendScreenInput (uint32_t kind, int32_t value)
 void DesktopPlugin::sendNote (int midiNote, bool on, double velocity)
 {
     const int clamped = std::clamp (midiNote, 0, 127);
-    uiToAudio.push ({ on ? UiEventKind::NoteOn : UiEventKind::NoteOff, (clap_id) clamped, velocity });
+    const uint64_t sequence = publishedUiSequence.load (std::memory_order_relaxed) + 1;
+    // Reserve the mouse-up slot before accepting the mouse-down. If the host is
+    // stopped long enough to fill the queue, omit whole auditions in pairs.
+    if (on)
+    {
+        if (!uiNotes.push ({ UiEventKind::NoteOn, (clap_id) clamped, velocity, sequence }, 1)) return;
+        admittedPad = clamped;
+    }
+    else
+    {
+        if (admittedPad != clamped) return;
+        uiNotes.push ({ UiEventKind::NoteOff, (clap_id) clamped, velocity, sequence });
+        admittedPad = -1;
+    }
+    publishedUiSequence.store (sequence, std::memory_order_release);
     if (realHost && realHost->request_process)
         realHost->request_process (realHost);
     screenRequested.store (true, std::memory_order_release);

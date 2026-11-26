@@ -88,11 +88,19 @@ private:
     void envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const;
     void lfoPicture (const Raster& r, int x0, int y0, int w, int h) const;
     void outputMeter (const Raster& r, int x, int y) const;
+    static int meterSegments (float peak);
     static void knob (const Raster& r, int x, int y, float unit, Ink trackColor);
     void dock (const Raster& r, const Host& h) const;
 
     const std::atomic<float>* values;
     const Telemetry& tel;
+    // Separate from the MPC page's invalidation state. Only consulted by the desktop faceplate.
+    struct {
+        std::array<float, paramCount> params {};
+        uint32_t held = 0;
+        int slot = -1, meter = 0, pathX = 0, pathY = 0;
+        bool sounding = false;
+    } faceplate;
     float seen[paramCount] {};
     hdui::Picture picture;
     int page = chordsPage;

@@ -79,7 +79,6 @@ private:
     int physW_ = 0, physH_ = 0;
     Canvas c_;
     bool fullDirty_ = true, layoutDirty_ = true;
-    Rect dirty_ {};
     double lastRenderMs_ = 0.0;
     uint64_t now_ = 0;
 
@@ -92,9 +91,12 @@ private:
 
     // One viewport for an integrated surface, or one per page for older instruments.
     std::vector<uint32_t> surfacePixels_;
+    std::string shownPreset_, shownReadout_;
+    int shownMappings_ = 0, shownBadgeCc_ = -1;
+    bool shownLearning_ = false;
     void layout();
     void layoutSurface();
-    void drawSurface();
+    bool updateSurface();
     void drawHighlight (int tileIdx);
     std::string presetLabel() const;
     int nativeWidth() const { return p_->surface ? p_->surface->metrics.width : MELODEE_SCREEN_WIDTH; }
@@ -177,7 +179,7 @@ private:
     Rect spotToLogicalRect (int tileIdx, const hdslave_tile_hotspot_t& spot) const;
 
     // Drawing
-    void renderAll();
+    void renderTiles();
     void drawHeaderBar();
     void drawTile (int tileIdx);
     void drawPopup();

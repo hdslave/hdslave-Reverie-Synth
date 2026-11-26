@@ -688,16 +688,23 @@ void Screen::lfoPicture (const Raster& r, int x0, int y0, int w, int h) const
 }
 
 // Post-limiter stereo peak, in 3 dB segments from -48 dBFS to full scale.
+int Screen::meterSegments (float peak)
+{
+    const float db = 20.f * std::log10 (std::max (peak, 1.e-5f));
+    int count = 0;
+    while (count < 16 && db >= -48.f + (float) count * 3.f) ++count;
+    return count;
+}
+
 void Screen::outputMeter (const Raster& r, int x, int y) const
 {
     using namespace hdui;
     r.box (x, y, 103, 13, ink::deep);
     r.text (x + 4, y + 1, "OUT", ink::ice, 10);
-    const float peak = tel.reverb.load (std::memory_order_relaxed);
-    const float db = 20.f * std::log10 (std::max (peak, 1.e-5f));
+    const int count = meterSegments (tel.reverb.load (std::memory_order_relaxed));
     for (int i = 0; i < 16; ++i)
     {
-        const bool lit = db >= -48.f + (float) i * 3.f;
+        const bool lit = i < count;
         r.box (x + 28 + i * 4, y + 4, 3, 5, lit ? (i > 13 ? ink::gold : ink::lime) : ink::grid);
     }
 }

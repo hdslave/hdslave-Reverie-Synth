@@ -7,6 +7,7 @@
 #include "presets.h"
 #include "screen.h"
 #include "sample_rate.h"
+#include "panel_note.h"
 
 #include <clap/clap.h>
 
@@ -83,11 +84,6 @@ struct Plugin
     RowBits outgoing;
     bool valuesMoved = false;
     uint32_t shownStrikes = 0, shownSounding = 0, shownHeld = 0;
-    // [audio thread] The keys of the last notes the host named by CLAP note id, for note-offs and chokes that give
-    // only the id.
-    struct NoteId { int32_t id = -1; int16_t key = -1; };
-    NoteId noteIds[32];
-    uint32_t noteIdNext = 0;
 };
 
 Plugin& of (const clap_plugin* p) { return *static_cast<Plugin*> (p->plugin_data); }
@@ -184,33 +180,18 @@ bool paramsFromText (const clap_plugin*, clap_id id, const char* text, double* v
 // and the channel modes (120, 121, 123 at 0: they stop sound or notes and never move a parameter).
 void midi (Plugin& p, const uint8_t* data)
 {
-    const int status = data[0] & 0xf0, a = data[1] & 0x7f, b = data[2] & 0x7f;
+    const int status = data[0] & 0xf0, channel = data[0] & 0x0f;
+    const int a = data[1] & 0x7f, b = data[2] & 0x7f;
     switch (status)
     {
         case 0x90:
-            if (b > 0) { p.engine.noteOn (a, (float) b / 127.0f); break; }
-            [[fallthrough]];
-        case 0x80: p.engine.noteOff (a); break;
-        case 0xb0: p.engine.controller (a, b); break;
+            if (b > 0) { p.engine.noteOn (a, (float) b / 127.0f, channel); break; }
+            [[fallthrough]]; // MIDI 1.0 reserves velocity zero for a release.
+        case 0x80: p.engine.noteOff (a, channel); break;
+        case 0xb0: p.engine.controller (a, b, channel); break;
         case 0xe0: p.engine.pitchBend (((float) ((b << 7) | a) - 8192.0f) / 8192.0f); break;
         default: break;
     }
-}
-
-// The key a CLAP note event stands for: its own, or (key -1) the key of the note it names by id; -1 when it names
-// neither (a wildcard: every key), -2 when it names an id Reverie does not know or a key out of range (ignored).
-int keyOf (Plugin& p, const clap_event_note& n, bool forget)
-{
-    if (n.key >= 0 && n.key < 128) return n.key;
-    if (n.key >= 0 || n.note_id < 0) return n.key < 0 ? -1 : -2;
-    for (auto& s : p.noteIds)
-        if (s.id == n.note_id)
-        {
-            const int key = s.key;
-            if (forget) s.id = -1;
-            return key;
-        }
-    return -2;
 }
 
 void handle (Plugin& p, const clap_event_header* e)
@@ -235,28 +216,28 @@ void handle (Plugin& p, const clap_event_header* e)
         }
         case CLAP_EVENT_NOTE_ON:
         {
-            const auto* n = reinterpret_cast<const clap_event_note*> (e);
-            if (n->key >= 0 && n->key < 128)
-            {
-                if (n->note_id >= 0) p.noteIds[p.noteIdNext++ % 32] = { n->note_id, (int16_t) n->key };
-                if (n->velocity > 0.0) p.engine.noteOn (n->key, (float) std::min (1.0, n->velocity));
-                else p.engine.noteOff (n->key);
-            }
+            const auto& n = *reinterpret_cast<const clap_event_note*> (e);
+            if (n.port_index == 0 && n.channel >= 0 && n.channel < 16 && n.key >= 0 && n.key < 128
+                && std::isfinite (n.velocity) && hdslave_desktop::PanelNote::validId (n, &p.clap))
+                p.engine.noteOn (n.key, (float) n.velocity, n.channel, n.note_id);
             break;
         }
         case CLAP_EVENT_NOTE_OFF:
-        {
-            const int key = keyOf (p, *reinterpret_cast<const clap_event_note*> (e), true);
-            if (key != -2) p.engine.noteOff (key); // -1: every key
-            break;
-        }
         case CLAP_EVENT_NOTE_CHOKE:
         {
-            const int key = keyOf (p, *reinterpret_cast<const clap_event_note*> (e), true);
-            if (key != -2) p.engine.choke (key);
+            const auto& n = *reinterpret_cast<const clap_event_note*> (e);
+            if ((n.port_index != -1 && n.port_index != 0) || n.channel < -1 || n.channel >= 16
+                || n.key < -1 || n.key >= 128 || !hdslave_desktop::PanelNote::validId (n, &p.clap)) break;
+            if (e->type == CLAP_EVENT_NOTE_OFF) p.engine.noteOff (n.key, n.channel, n.note_id);
+            else p.engine.choke (n.key, n.channel, n.note_id);
             break;
         }
-        case CLAP_EVENT_MIDI: midi (p, reinterpret_cast<const clap_event_midi*> (e)->data); break;
+        case CLAP_EVENT_MIDI:
+        {
+            const auto& m = *reinterpret_cast<const clap_event_midi*> (e);
+            if (m.port_index == 0) midi (p, m.data);
+            break;
+        }
         default: break;
     }
 }
@@ -349,8 +330,13 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
     char tag[4] = {};
     uint32_t header[2] = {};
     if (! readAll (stream, tag, 4) || std::memcmp (tag, stateTag, 4) != 0 || ! readAll (stream, header, sizeof (header))
-        || header[0] == 0 || header[1] > 4096)
+        || (header[0] != stateVersion && header[0] != 3) || header[1] > 4096)
         return false;
+    // Hardware v2 only has the Factory bank. In v3 ID 0 remembers a Factory slot
+    // even when Original is selected. Desktop v1 stores its Original slot in ID 0.
+    constexpr uint32_t hardwareOriginalSlot = 99, hardwareBank = 100;
+    const bool banked = header[0] == 3;
+    float bank = 0.0f, original = 0.0f;
     float loaded[paramCount];
     for (int i = 0; i < paramCount; ++i)
         loaded[i] = paramTable[i].def;
@@ -359,9 +345,18 @@ bool stateLoad (const clap_plugin* plugin, const clap_istream* stream)
         struct { uint32_t id; float value; } pair {};
         if (! readAll (stream, &pair, sizeof (pair)))
             return false;
+        if (banked && pair.id == ParamId::progression) continue;
+        if (banked && pair.id == hardwareBank) { bank = pair.value; continue; }
+        if (banked && pair.id == hardwareOriginalSlot) { original = pair.value; continue; }
         const int index = paramIndex (pair.id);
         if (index >= 0)
             loaded[index] = clampParam (paramTable[index], pair.value);
+    }
+    if (banked)
+    {
+        if (bank != 0.0f || !(original >= 0.0f && original < progressionCount) || std::floor (original) != original)
+            return false;
+        loaded[ParamId::progression] = original;
     }
     setAll (p, loaded);
     return true;
@@ -646,7 +641,8 @@ namespace
 const void* pluginExtension (const clap_plugin*, const char* id)
 {
     if (std::strcmp (id, MELODEE_SCREEN_CLAP) == 0) return &screenExtension;
-    if (std::strcmp (id, CLAP_EXT_HDSLAVE_SURFACE) == 0 || std::strcmp (id, "com.hdslave.surface/1") == 0) return &surfaceExtension;
+    if (std::strcmp (id, CLAP_EXT_HDSLAVE_SURFACE) == 0 || std::strcmp (id, "com.hdslave.surface/2") == 0
+        || std::strcmp (id, "com.hdslave.surface/1") == 0) return &surfaceExtension;
     if (std::strcmp (id, CLAP_EXT_HDSLAVE_TILES) == 0) return &tilesExtension;
     if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &paramsExtension;
     if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &stateExtension;

@@ -261,6 +261,32 @@ struct Surface
         }
     }
 
+    static bool CLAP_ABI contentChanged (const clap_plugin_t* plugin)
+    {
+        Screen& s = of (plugin).screen;
+        auto& shown = s.faceplate;
+        // Live voices drive the scopes, envelopes, filter, keyboard and motion lens.
+        // Keep their normal frame rate, then paint the transition back to the resting plots.
+        const bool sounding = s.tel.sounding.load (std::memory_order_relaxed) != 0;
+        const bool wasSounding = shown.sounding;
+        shown.sounding = sounding;
+        if (sounding) return true;
+
+        bool changed = wasSounding;
+        auto observe = [&changed] (auto& prior, auto value) {
+            changed |= prior != value;
+            prior = value;
+        };
+        for (int i = 0; i < paramCount; ++i) observe (shown.params[i], s.live (i));
+        observe (shown.held, s.tel.padsHeld.load (std::memory_order_relaxed));
+        observe (shown.slot, s.tel.lastSlot.load (std::memory_order_relaxed));
+        observe (shown.meter, Screen::meterSegments (s.tel.reverb.load (std::memory_order_relaxed)));
+        // field() draws the path cursor on a lens with a 45-pixel radius.
+        observe (shown.pathX, int (std::lround (s.tel.pathX.load (std::memory_order_relaxed) * 45)));
+        observe (shown.pathY, int (std::lround (s.tel.pathY.load (std::memory_order_relaxed) * 45)));
+        return changed;
+    }
+
     static bool CLAP_ABI controlEnabled (const clap_plugin_t* plugin, clap_id id)
     {
         const int row = paramIndex (id);
@@ -330,5 +356,6 @@ struct Surface
     }
 };
 
-const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, nullptr, Surface::controlEnabled};
+const clap_plugin_hdslave_surface_t surfaceExtension {Surface::metrics, Surface::paint, Surface::hitTest, nullptr,
+                                                      Surface::controlEnabled, Surface::contentChanged};
 } // namespace reverie
