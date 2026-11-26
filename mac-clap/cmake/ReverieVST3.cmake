@@ -24,7 +24,7 @@ target_compile_definitions(clap-wrapper-shared-detail PRIVATE STATICALLY_LINKED_
 add_reverie_editor(ReverieVST3 HdslavePanelView_reverie_vst3)
 target_add_vst3_wrapper(TARGET ReverieVST3 OUTPUT_NAME Reverie
     BUNDLE_IDENTIFIER com.hdslave.desktop.reverie.vst3
-    BUNDLE_VERSION 0.3.4
+    BUNDLE_VERSION 0.3.5
     WINDOWS_FOLDER_VST3 TRUE
     ASSET_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/vst3")
 set_target_properties(ReverieVST3 PROPERTIES PREFIX "")

@@ -1738,6 +1738,77 @@ void testStoppedDelay()
     CHECK (processRequests == before);
 }
 
+// 0.6.4: two defects a review reproduced.
+void testShortNotesAndLp24()
+{
+    using namespace ParamId;
+    auto differs = [] (const Stereo& a, const Stereo& b, size_t from, size_t to) {
+        double d = 0.0;
+        for (size_t i = from; i < to && i < a.l.size(); ++i)
+            d = std::max (d, (double) std::max (std::fabs (a.l[i] - b.l[i]), std::fabs (a.r[i] - b.r[i])));
+        return d;
+    };
+    // A chord let go on the frame it struck (hdslaveOS sends a note shorter than its 128-frame block so: its on and
+    // off both at frame 0) plays its first control tick and lets go at the next, to the bit as when its off comes on
+    // that tick (the rule a strummed note let go before its turn already followed). Before, it released from level 0
+    // before a tick ran: the chord was silent, and with Strum the bass was dropped (the later notes played their turn).
+    for (float strumMs : { 0.0f, 40.0f })
+    {
+        const std::vector<Cue> sound { P (0, ampAttack, 0), P (0, strum, strumKnob (strumMs)), P (0, humanize, 0) };
+        const uint64_t at = 1280; // a block's first frame, on a control tick
+        Instance a, b;
+        const Stereo shortNote = a.render (48000, sound + std::vector<Cue> { On (at, 36), Off (at, 36) });
+        const Stereo nextTick = b.render (48000, sound + std::vector<Cue> { On (at, 36), Off (at + 16, 36) });
+        std::printf ("  on and off on one frame (strum %.0f ms): peak %.4f (let go a tick later: %.4f)\n", strumMs, peak (shortNote),
+                     peak (nextTick));
+        CHECK (peak (shortNote, at, at + 4800) > 0.01);
+        CHECK (same (shortNote, nextTick));
+        for (uint32_t block : { 1u, 37u, 4096u })
+        {
+            Instance c;
+            CHECK (same (c.render (48000, sound + std::vector<Cue> { On (at, 36), Off (at, 36) }, block), shortNote));
+        }
+        // On, on, off of the pad on one frame (Melodee's retrigger) is the same short chord.
+        Instance d;
+        CHECK (same (d.render (48000, sound + std::vector<Cue> { On (at, 36), On (at, 36), Off (at, 36) }), shortNote));
+        // Struck between ticks, it already played to the next tick; it still does.
+        Instance e, f;
+        CHECK (same (e.render (48000, sound + std::vector<Cue> { On (at + 5, 36), Off (at + 5, 36) }),
+                     f.render (48000, sound + std::vector<Cue> { On (at + 5, 36), Off (at + 16, 36) })));
+        // A choke, All Sound Off or All Notes Off on the strike's frame still means it never sounds.
+        for (const Cue& cut : { Choke (at, 36), Midi (at, 0xb0, 120, 0), Midi (at, 0xb0, 123, 0) })
+        {
+            Instance g;
+            CHECK (peak (g.render (48000, sound + std::vector<Cue> { On (at, 36), cut })) == 0.0);
+        }
+    }
+
+    // LP 24's second stage starts clean whenever the filter comes back to LP 24, as on the first switch to it.
+    // Two held chords in LP 24, one with Motion sweeping its Resonance (which LP 24's first stage ignores), differ
+    // only in that second stage. Both then go to LP 12 (one stage, the same in both: they sound the same to the bit)
+    // and back to LP 24: from there they are the same to the bit too. Before, the second stage came back with its
+    // state from before the switch (a burst: a peak of 0.976 against 0.794 in the review).
+    {
+        auto play = [] (bool swept) {
+            Instance a;
+            std::vector<Cue> c = dry() + std::vector<Cue> { P (0, cutoff, 0.35), P (0, resonance, 0.8), P (0, filterType, Filter::lp24),
+                                                            P (0, xDest1, Dest::resonance), P (0, xAmt1, 1), P (0, xAmt2, 0), P (0, yAmt1, 0),
+                                                            P (0, yAmt2, 0), P (0, motionX, 0), P (0, motionY, 0), P (0, motionDepth, 1),
+                                                            P (0, motionRate, 1), P (0, motionShape, swept ? Motion::orbit : 0), On (0, 36, 1.0),
+                                                            P (24000, motionShape, 0), P (24000, filterType, Filter::lp12),
+                                                            P (48000, filterType, Filter::lp24) };
+            return a.render (72000, c);
+        };
+        const Stereo swept = play (true), still = play (false);
+        const double before = differs (swept, still, 0, 24000), between = differs (swept, still, 25000, 48000),
+                     after = differs (swept, still, 48000, 72000);
+        std::printf ("  LP 24 left and come back to: they differ by %.4f in LP 24, %.4f in LP 12, %.4f back in LP 24\n", before, between, after);
+        CHECK (before > 0.01);  // the second stages differ
+        CHECK (between == 0.0); // the first stages do not
+        CHECK (after == 0.0);
+    }
+}
+
 void testScreen()
 {
     Instance inst;
@@ -1870,6 +1941,7 @@ int main (int argc, char** argv)
     testExtremes();
     testSleep();
     testStoppedDelay();
+    testShortNotesAndLp24();
     testScreen();
     entry->deinit();
     std::printf ("%d checks, %d failures\n", checks, failures);

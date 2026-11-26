@@ -303,7 +303,7 @@ public:
                 for (int i = 1; i < n; ++i) // by pitch (insertion: at most eight)
                     for (int j = i; j > 0 && glideFrom[j - 1]->target > glideFrom[j]->target; --j) std::swap (glideFrom[j - 1], glideFrom[j]);
                 reused = std::min (n, count);
-                for (int i = reused; i < n; ++i) glideFrom[i]->releaseNow();
+                for (int i = reused; i < n; ++i) glideFrom[i]->letGoNow(); // replaced, as the rest
                 for (int i = 0; i < reused; ++i) glideFrom[i]->group = group; // spared by releaseLatched below
             }
         }
@@ -378,7 +378,7 @@ public:
             {
                 v.pressed = false;
                 if (v.waitTicks > 0) v.active = false, v.gated = false, v.waitTicks = 0;
-                else if (v.gated) v.releaseNow();
+                else if (v.gated) v.letGoNow(); // at once: struck on this sample, it never sounds (as one yet to strum)
             }
         for (int i = 0; i < 16; ++i)
             if (channel < 0 || channel == i) channels[i].struck.reset(), channels[i].sustain = false;
@@ -518,16 +518,25 @@ private:
         float drift[2] {};
         double startBeat = 0.0;
 
-        int releaseIn = -1; // a note let go before its strum turn: the ticks it plays from its turn, then lets go
+        int releaseIn = -1; // a note let go before it was heard: the ticks it plays from its turn, then lets go
 
+        // Let go (its pad up, the pedal up, Latch off). A note not heard yet plays as long as the pad was held, at
+        // least its first tick: one before its strum turn, or one let go on the sample it struck, before its first
+        // tick (a host sending a note shorter than its block with its on and off on one frame).
         void releaseNow()
         {
             latched = false, sustained = false;
-            if (waitTicks > 0)
+            if (waitTicks > 0 || ticks == 0)
             {
                 if (releaseIn < 0) releaseIn = std::max (1, (int) (ticks)); // as long as the pad was held
                 return;
             }
+            letGoNow();
+        }
+        // Lets go at once, heard yet or not.
+        void letGoNow()
+        {
+            latched = false, sustained = false;
             gated = false, releaseIn = -1;
             amp.off(), flt.off();
         }
@@ -535,12 +544,12 @@ private:
         void replaceNow()
         {
             if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; }
-            releaseNow();
+            letGoNow();
         }
         void chokeNow()
         {
             if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; } // never sounded
-            releaseNow();
+            letGoNow();
             choking = true;
         }
     };
@@ -829,7 +838,8 @@ private:
                 control (v, true);
                 continue;
             }
-            if (v.releaseIn > 0 && --v.releaseIn == 0) v.releaseNow();
+            // (A note let go on the sample it struck, on this tick's, waits for this first tick before counting.)
+            if (v.releaseIn > 0 && v.ticks > 0 && --v.releaseIn == 0) v.releaseNow();
             control (v, false);
             if (v.active) ++active;
         }
@@ -1065,6 +1075,9 @@ private:
                     + lfo * sh.lfoCutoff + mod[Dest::cutoff] * 4.0f;
         const float hz = std::clamp (fast::exp2 (oct), 16.0f, std::min (20000.0f, 0.45f * rate));
         const float reso = std::clamp (sh.reso + mod[Dest::resonance], 0.0f, 1.0f);
+        // LP 24's second stage runs only in LP 24. Coming back to it, the stage starts clean, as on a first switch
+        // (the voice's start cleared it), not from where it stopped when the filter left LP 24.
+        if (sh.filter == Filter::lp24 && v.filterMode != Filter::lp24) v.fl[1].clear(), v.fr[1].clear();
         v.filterMode = sh.filter;
         v.g = fast::tan (3.14159265f * hz / rate);
         v.k = 2.0f - 1.94f * reso;

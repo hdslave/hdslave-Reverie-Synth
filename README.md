@@ -21,7 +21,7 @@ Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melo
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory bank uses the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.3). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.4). Not yet run on the MPC itself.
 
 ## Install
 
@@ -43,6 +43,10 @@ hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.scr
 A chord sounds while its pad is held. A pad struck again while it still holds its chord (Melodee sends on, on, off
 when a step repeats) starts the chord fresh and lets the old one ring out. Two strikes of one pad on the same sample
 play once, at the louder velocity; one struck, let go and struck again all on one sample plays its second strike.
+A pad let go on the sample it struck (Melodee sends a note shorter than its 128-frame block that way, its on and off
+together) plays its chord's first control tick, 16 samples, and then lets go, as a strummed note let go before its
+turn does; every note plays, the bass too. A choke, All Sound Off or All Notes Off on that sample still means it never
+sounds. (Before 0.6.4 it released from silence: the chord was silent, and with Strum the bass was dropped.)
 A step the sequencer ties (or slides) goes on with no new attack, travelling at Chord Glide's pace — at once while
 the legato pedal is down.
 
@@ -424,7 +428,9 @@ bass stays near the middle). AIR adds breath: a band of noise under each note's 
 DRIFT makes each oscillator wander in pitch, slowly, as analog ones do (up to 20 cents).
 
 **Filter.** LP 12, LP 24, BP or HP (a state-variable filter, stereo), CUTOFF, RESO, ENV (the filter envelope's
-depth, up to 6 octaves either way), KEYTRK and VEL (soft notes darker). **Envelopes:** amplitude and filter, each
+depth, up to 6 octaves either way), KEYTRK and VEL (soft notes darker). LP 24 is two stages, the first without
+resonance; switched back to LP 24 while a chord sounds, its second stage starts clean, as on the first switch.
+(Before 0.6.4 it resumed from where it stopped, a burst: a peak of 0.976 against 0.794.) **Envelopes:** amplitude and filter, each
 ATTACK, DECAY, SUSTAIN, RELEASE (up to 20 s).
 
 **LFO.** One a note, each starting at its own phase (so a chord shimmers rather than wobbles together): SHAPE (Sine,
@@ -520,11 +526,13 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   that they leave the chord section alone), all 52,992 original pad voicings against the desktop note digest, and the factory bank in every voicing and key (239,616 chords: each a sound
   chord, the third there, only the chord's own tones on pads 1-8 and one colour tone more on 9-16, no root in Rootless,
   no stray minor ninths, a bass line that does not jump), every chord name fitting its pad, the pad map Melodee reads, chords from the pads and banks,
-  Melodee's on-on-off and same-sample strikes, strum, latch, sustain, Chord Glide, chokes and the channel modes
+  Melodee's on-on-off and same-sample strikes, a pad struck and let go on one sample (the same to the bit as let go a
+  tick later, with and without Strum, at any block size), strum, latch, sustain, Chord Glide, chokes and the channel modes
   (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step
   (at a block's start, twelve at once, a chord never taking its own notes, five chords on one sample taking the
   earliest one's), state recall across the Original, Factory and Mood banks, the effects cleared sounding exactly as
-  wiped ones (and All Sound Off on 16 channels costing what one does), tuning at 44.1, 48 and 96 kHz, bounded output
+  wiped ones (and All Sound Off on 16 channels costing what one does), LP 24 left and come back to while a chord
+  sounds (the same to the bit whatever its second stage did before), tuning at 44.1, 48 and 96 kHz, bounded output
   at every extreme, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
   against the search, set by set.
 - `tests/fingerprint.cpp` hashes every output sample over 58 scenes (`tests/fingerprint.txt`), including one in
