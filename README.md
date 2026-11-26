@@ -416,7 +416,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
-The SP-16 build, version **0.4.4-sp16.14**, uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.15**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 

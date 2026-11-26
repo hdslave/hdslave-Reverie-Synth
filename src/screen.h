@@ -82,7 +82,9 @@ private:
     void padGrid (const Raster& r, uint32_t held) const;
     void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
     void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
-    void motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding) const;
+    struct MotionCursor { int x = 0, y = 0; };
+    MotionCursor motionCursor (int radius) const;
+    void motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding, MotionCursor cursor) const;
     static void well (const Raster& r, int x, int y, int w, int h);
     void scope (const Raster& r, int x0, int y0, int w, int h, int o, bool drawWell = true) const;
     void response (const Raster& r, int x0, int y0, int w, int h, bool drawWell = true) const;

@@ -488,12 +488,18 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
     for (int j = 0; j < gh; ++j)
         std::copy_n (lens.data() + j * gw, gw, r.px + (y0 + j) * r.w + x0);
     const int shape = choice (ParamId::motionShape);
-    motionTrace (r, x0 + w / 2, y0 + 53, 45, shape, sounding);
+    motionTrace (r, x0 + w / 2, y0 + 53, 45, shape, sounding, motionCursor (45));
     r.text (x0 + 5, y0 + h - 15, motionChoices[std::clamp (shape, 0, Motion::count - 1)], ink::white);
     r.right (x0 + w - 5, y0 + h - 14, "X / Y", ink::ice, 10);
 }
 
-void Screen::motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding) const
+Screen::MotionCursor Screen::motionCursor (int radius) const
+{
+    return {int (std::lround (tel.pathX.load (std::memory_order_relaxed) * radius)),
+            int (std::lround (tel.pathY.load (std::memory_order_relaxed) * radius))};
+}
+
+void Screen::motionTrace (const Raster& r, int centerX, int centerY, int radius, int shape, uint32_t sounding, MotionCursor cursor) const
 {
     using namespace hdui;
     auto px = [&] (float v) { return centerX + (int) std::lround (v * radius); };
@@ -517,7 +523,7 @@ void Screen::motionTrace (const Raster& r, int centerX, int centerY, int radius,
     r.box (ccx - 4, ccy, 9, 1, ink::gold);
     r.box (ccx, ccy - 4, 1, 9, ink::gold);
     // the path's own point, then each note's
-    r.ring (px (tel.pathX.load (std::memory_order_relaxed)), py (tel.pathY.load (std::memory_order_relaxed)), 4, ink::white);
+    r.ring (centerX + cursor.x, centerY - cursor.y, 4, ink::white);
     for (int i = 0; i < maxVoices; ++i)
         if ((sounding >> i) & 1u)
         {

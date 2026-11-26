@@ -57,6 +57,7 @@ private:
     uint32_t shownHeld = 0, shownSounding = 0, shownStrikes = 0, frameAt = 0;
     struct VoiceLight { int note = -1, x = 0, y = 0; float level = 0; };
     std::array<VoiceLight, maxVoices> shownLights {};
-    int shownPathX = 0, shownPathY = 0, shownSlot = -1;
+    Screen::MotionCursor shownCursor;
+    int shownSlot = -1;
 };
 }

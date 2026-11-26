@@ -267,6 +267,34 @@ void checkUndertow (Fixture& f, const char* out)
     f.setValue (98, 0);
 }
 
+void checkMotionDuringTail (const clap_plugin_factory_t& factory)
+{
+    Fixture f;
+    f.attach (factory);
+    f.setValue (motionShape, reverie::Motion::orbit);
+    f.setValue (motionSync, 0);
+    f.setValue (motionDepth, 1);
+    f.setValue (motionRate, 0.75);
+    f.setValue (ampRelease, 0.01);
+    f.setValue (strum, 0);
+    f.setValue (revMix, 0.7);
+    f.setValue (revDecay, 0.8);
+    f.block (CLAP_EVENT_NOTE_ON);
+    for (int i = 0; i < 90; ++i) f.block();
+    f.block (CLAP_EVENT_NOTE_OFF);
+    for (int i = 0; i < 20; ++i) f.block();
+    assert (f.frame (true));
+    const auto released = f.pixels;
+    float peak = 0.0f;
+    for (int i = 0; i < 10; ++i) peak = std::max (peak, f.block());
+    assert (peak > 0.001f);
+    assert (f.frame() && f.pixels != released);
+    const auto partial = f.pixels;
+    assert (f.frame (true) && f.pixels == partial);
+    assert (! f.frame());
+    f.stop();
+}
+
 void checkUndertowAudio (const clap_plugin_factory_t& factory)
 {
     Fixture host, touch;
@@ -309,6 +337,7 @@ int main (int argc, char** argv)
     const auto* factory = static_cast<const clap_plugin_factory_t*> (entry->get_factory (CLAP_PLUGIN_FACTORY_ID));
     assert (factory);
     checkFactoryList (entry);
+    checkMotionDuringTail (*factory);
     checkUndertowAudio (*factory);
     Fixture f;
     f.attach (*factory);

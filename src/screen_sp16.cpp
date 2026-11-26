@@ -351,8 +351,10 @@ bool Sp16Screen::performanceChanged (uint32_t sounding)
     auto coordinate = [] (const std::atomic<float>& v) {
         return int (std::lround (v.load (std::memory_order_relaxed) * globeRadius));
     };
-    observe (shownPathX, coordinate (telemetry.pathX));
-    observe (shownPathY, coordinate (telemetry.pathY));
+    const auto cursor = plots.motionCursor (globeRadius);
+    observe (shownCursor.x, cursor.x);
+    observe (shownCursor.y, cursor.y);
+    if (!sounding) return changed;
     for (int i = 0; i < maxVoices; ++i)
     {
         if (((sounding >> i) & 1u) == 0) continue;
@@ -383,7 +385,9 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     const int slot = telemetry.lastSlot.load (std::memory_order_relaxed);
     const bool moving = ! soundsOpen && (sounding != 0 || (page / 2 == 2 && telemetry.peak.load (std::memory_order_relaxed) > 0.003f));
     const bool changed = sounding != shownSounding || held != shownHeld || strikes != shownStrikes || (perform && slot != shownSlot);
-    if (! refresh && (soundsOpen || (! changed && moving == wasMoving && (! moving || surface.now_ms - frameAt < 40))))
+    // The path can keep moving during the effects tail after all the keys go dark.
+    const bool pollMotion = moving || perform;
+    if (! refresh && (soundsOpen || (! changed && moving == wasMoving && (! pollMotion || surface.now_ms - frameAt < 40))))
         return false;
 
     if (perform)
@@ -579,7 +583,7 @@ void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held)
     plots.keyboard (r, 8, 256, 373, 22, sounding);
     picture (r, globeX, globeY, globeSize, sp16Art::lens);
     const int shape = choice (motionShape);
-    plots.motionTrace (r, globeCenterX, globeCenterY, globeRadius, shape, sounding);
+    plots.motionTrace (r, globeCenterX, globeCenterY, globeRadius, shape, sounding, shownCursor);
     text<14> (r, globeX + 7, globeY + 127, motionChoices[shape], ink::white);
     text<14> (r, globeX + 112, globeY + 127, "X / Y", ink::ice);
 
