@@ -93,11 +93,13 @@ private:
     std::vector<uint32_t> surfacePixels_;
     std::string shownPreset_, shownReadout_;
     int shownMappings_ = 0, shownBadgeCc_ = -1;
-    bool shownLearning_ = false;
+    bool shownLearning_ = false, shownHighlightVisible_ = false;
     void layout();
     void layoutSurface();
     bool updateSurface();
-    void drawHighlight (int tileIdx);
+    struct Highlight { Rect bounds {}; bool dragging = false; int cc = -1; };
+    Highlight highlight (int tileIdx) const;
+    void drawHighlight (int tileIdx, const Highlight& highlight);
     std::string presetLabel() const;
     int nativeWidth() const { return p_->surface ? p_->surface->metrics.width : MELODEE_SCREEN_WIDTH; }
     int nativeHeight() const { return p_->surface ? p_->surface->metrics.height : p_->tileScreenH; }

@@ -1314,6 +1314,43 @@ void testNotes()
         b.run (480);
         CHECK (b.tel.padsHeld.load() == 0);
     }
+    {   // The first pad's strike address survives a glide or a full voice steal on its sample.
+        // A stale ID cannot unlock it; its own identified release does, including an ID-only off.
+        for (bool gliding : { false, true })
+        {
+            for (int releaseKey : { -1, 36 })
+            {
+                Bench b;
+                b.e.set (ParamId::glide, gliding ? 0.35f : 0.0f);
+                b.e.set (ParamId::strum, 0.0f), b.e.set (ParamId::humanize, 0.0f);
+                const int strikes = gliding ? 2 : 12;
+                for (int i = 0; i < strikes; ++i) b.e.noteOn (36 + i, 0.8f, 2, 100 + i);
+                b.e.noteOff (releaseKey, 1, 100); // wrong channel
+                b.e.noteOff (releaseKey, 2, 999); // stale ID
+                b.e.noteOn (36, 0.8f, 2, 200);
+                CHECK (b.tel.strikes.load() == (uint32_t) strikes);
+                b.e.noteOff (releaseKey, 2, 200);
+                b.e.noteOn (36, 0.8f, 2, 201);
+                b.run (128);
+                CHECK (b.tel.strikes.load() == (uint32_t) strikes + 1);
+                CHECK (b.tel.lastSlot.load() == 0 && (b.tel.padsHeld.load() & 1u));
+            }
+        }
+    }
+    {   // A louder duplicate arriving after another pad must have the same attack and later
+        // random modulation as a single loud hit, including between two control ticks.
+        const std::vector<Cue> patch { P (0, ParamId::strum, 0), P (0, ParamId::humanize, 0),
+                                       P (0, ParamId::ampAttack, 0), P (0, ParamId::velocity, 1),
+                                       P (0, ParamId::velCutoff, 0.9), P (0, ParamId::air, 0.3) };
+        for (uint64_t t : { 0, 1, 7, 15, 16 })
+        {
+            Instance a, b;
+            CHECK (same (a.render (4800, patch + std::vector<Cue> {
+                            On (t, 36, 0.08), On (t, 37, 0.6), On (t, 36, 0.98), On (1021, 40) }),
+                         b.render (4800, patch + std::vector<Cue> {
+                            On (t, 36, 0.98), On (t, 37, 0.6), On (1021, 40) })));
+        }
+    }
     {   // An interleaved, softer duplicate on the same sample cannot replace the loud strike.
         Instance a, b;
         CHECK (same (a.render (12000, { On (0, 36, 0.9), On (0, 37, 0.5), On (0, 36, 0.1) }),
@@ -1457,6 +1494,21 @@ template <class Fx, class Control> bool clearedSoundsWiped (Control control)
 
 void testEffects()
 {
+    {   // Check the first wet repeat in sample time, including a division longer than the line.
+        using namespace ParamId;
+        constexpr int rate = 16000;
+        struct Tap { double bpm; int division; double seconds; };
+        for (const Tap tap : { Tap { 30, 8, 2.0 }, Tap { 360, 8, 1.0 / 6.0 }, Tap { 20, 11, 3.2 } })
+        {
+            Instance inst (rate);
+            const auto cues = dry() + std::vector<Cue> { P (0, ampRelease, 0), P (0, dlyMix, 0.8),
+                P (0, dlyTime, tap.division), P (0, dlyFeedback, 0), On (0, 36), Off (160, 36) };
+            const int expected = (int) std::lround (rate * tap.seconds);
+            const Stereo audio = inst.render (expected + 800, cues, 128, false, tap.bpm);
+            CHECK (peak (audio, rate / 10, expected - 2) < 1e-5);
+            CHECK (peak (audio, expected, expected + 160) > 0.01);
+        }
+    }
     // each effect cleared after its lines are full of sound, then played (its times and sizes moving while the lines
     // fill again): as if wiped, to the bit
     CHECK (clearedSoundsWiped<Ensemble> ([] (Ensemble& e, int) { e.control (0.7f, 0.8f, 0.5f); }));

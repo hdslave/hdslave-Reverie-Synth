@@ -1,6 +1,7 @@
 #include "desktop_wrapper.h"
 #include "panel_ui.h"
 #include "panel_note.h"
+#include "desktop_input.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,12 +21,12 @@ namespace hdslave_desktop
 // the plug-ins cut their blocks at each event). Lives in the DesktopPlugin; process and flush never overlap.
 struct MergedInputEvents
 {
-    static constexpr uint32_t kMaxInjected = DesktopPlugin::kControlQueueSize + DesktopPlugin::kNoteQueueSize + 1024;
+    static constexpr uint32_t kMaxInjected = DesktopPlugin::kControlQueueSize + DesktopPlugin::kNoteQueueSize;
 
     union InjectedEvent
     {
         clap_event_header_t header;
-        clap_event_param_value_t param;
+        reverie::PanelParameter param;
         PanelNote panel;
     };
 
@@ -33,7 +34,7 @@ struct MergedInputEvents
     uint32_t hostCount = 0;
     InjectedEvent injected[kMaxInjected] {};
     uint32_t injectedCount = 0;
-    uint32_t insertionIndex[kMaxInjected] {};
+    uint32_t insertionIndex = 0;
 
     void reset (const clap_input_events_t* in)
     {
@@ -42,28 +43,21 @@ struct MergedInputEvents
         injectedCount = 0;
     }
 
-    void addInjected (uint32_t time, clap_id paramId, double value)
+    void addInjected (const UiParamEvent& control, const clap_plugin_t* owner)
     {
-        if (injectedCount >= kMaxInjected) return;
-        auto& ev = injected[injectedCount++].param;
-        ev = {};
-        ev.header.size = sizeof (clap_event_param_value_t);
-        ev.header.time = time;
-        ev.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
-        ev.header.type = CLAP_EVENT_PARAM_VALUE;
-        ev.header.flags = 0;
-        ev.param_id = paramId;
-        ev.cookie = nullptr;
-        ev.note_id = -1;
-        ev.port_index = -1;
-        ev.channel = -1;
-        ev.key = -1;
-        ev.value = value;
+        auto& param = injected[injectedCount++].param;
+        param = {};
+        param.sequence = control.sequence;
+        param.owner = owner;
+        auto& ev = param.event;
+        ev.header = { sizeof (param), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, CLAP_EVENT_IS_LIVE };
+        ev.param_id = control.paramId;
+        ev.note_id = ev.port_index = ev.channel = ev.key = -1;
+        ev.value = control.value;
     }
 
     void addInjectedNote (uint32_t time, bool on, int16_t key, double velocity, const clap_plugin_t* owner)
     {
-        if (injectedCount >= kMaxInjected) return;
         auto& panel = injected[injectedCount++].panel;
         panel = {};
         panel.owner = owner;
@@ -80,17 +74,12 @@ struct MergedInputEvents
         ev.velocity = velocity;
     }
 
-    // Merge by time: injected events go just after host events of the same time (a CC lands after its own MIDI
-    // event), and the panel's (time 0) before the block's first host event at time > 0.
+    // Panel events share frame zero. Keep their FIFO together after the host's frame-zero events.
     void finish()
     {
-        // Keep only the insertion points. A large automation block must still deliver a queued mouse-up.
-        uint32_t h = 0;
-        for (uint32_t j = 0; j < injectedCount; ++j)
-        {
-            while (h < hostCount && hostIn->get (hostIn, h)->time <= injected[j].header.time) ++h;
-            insertionIndex[j] = h + j;
-        }
+        insertionIndex = 0;
+        if (injectedCount)
+            while (insertionIndex < hostCount && hostIn->get (hostIn, insertionIndex)->time == 0) ++insertionIndex;
     }
 
     static uint32_t CLAP_ABI sizeCb (const clap_input_events_t* list)
@@ -103,11 +92,10 @@ struct MergedInputEvents
     {
         const auto* self = static_cast<const MergedInputEvents*> (list->ctx);
         if (index >= self->hostCount + self->injectedCount) return nullptr;
-        const auto* end = self->insertionIndex + self->injectedCount;
-        const auto* it = std::lower_bound (self->insertionIndex, end, index);
-        const uint32_t before = uint32_t (it - self->insertionIndex);
-        if (it != end && *it == index) return &self->injected[before].header;
-        return self->hostIn->get (self->hostIn, index - before);
+        if (index < self->insertionIndex) return self->hostIn->get (self->hostIn, index);
+        if (index - self->insertionIndex < self->injectedCount)
+            return &self->injected[index - self->insertionIndex].header;
+        return self->hostIn->get (self->hostIn, index - self->injectedCount);
     }
 
     clap_input_events_t asClapList() { return clap_input_events_t { this, sizeCb, getCb }; }
@@ -364,11 +352,11 @@ struct SafeOutputEvents
 
     bool pushGesture (uint32_t time, clap_id id, bool begin)
     {
-        if (!dp || !hostOut || !hostOut->try_push) return false;
         const int index = dp->findParamIndex (id);
         if (index < 0) return false;
-        auto& open = dp->openGestures[size_t (index)];
-        if (bool (open) == begin) return true;
+        auto& state = dp->openGestures[size_t (index)];
+        if (begin && state == GestureState::Ending && !pushGesture (time, id, false)) return false;
+        if (begin == (state != GestureState::Closed)) return true;
         clap_event_param_gesture_t ev {};
         ev.header.size = sizeof (ev);
         ev.header.time = clampTime (time);
@@ -377,8 +365,25 @@ struct SafeOutputEvents
         ev.header.flags = 0;
         ev.param_id = id;
         const bool ok = pushRaw (&ev.header);
-        if (ok) open = begin;
+        if (ok)
+            state = begin ? GestureState::Open : GestureState::Closed;
+        else if (!begin)
+        {
+            state = GestureState::Ending;
+            dp->retryGestureEnds = true;
+            if (!dp->pendingGestureFlush.exchange (true, std::memory_order_acq_rel) && dp->realHost->request_callback)
+                dp->realHost->request_callback (dp->realHost);
+        }
         return ok;
+    }
+
+    void retryEnds()
+    {
+        if (!dp->retryGestureEnds || !hostOut) return;
+        dp->retryGestureEnds = false;
+        for (size_t i = 0; i < dp->openGestures.size(); ++i)
+            if (dp->openGestures[i] == GestureState::Ending)
+                pushGesture (0, dp->params[i].id, false);
     }
 
     bool pushParamValue (uint32_t time, clap_id id, double value)
@@ -391,7 +396,7 @@ struct SafeOutputEvents
         value = std::clamp (value, p.minVal, p.maxVal);
 
         const uint32_t t = clampTime (time);
-        const bool alreadyOpen = dp->openGestures[size_t (idx)] != 0;
+        const bool alreadyOpen = dp->openGestures[size_t (idx)] == GestureState::Open;
         if (!alreadyOpen && !pushGesture (t, id, true)) return false;
 
         clap_event_param_value_t ev {};
@@ -442,9 +447,10 @@ struct SafeOutputEvents
     clap_output_events_t asClapList() { return clap_output_events_t { this, tryPushCb }; }
 };
 
-void drainUiAndMidiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const clap_input_events_t* in, SafeOutputEvents& out,
+void drainUiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const clap_input_events_t* in, SafeOutputEvents& out,
                            bool processingAudio)
 {
+    out.retryEnds();
     merged.reset (in);
 
     // 1. The panel's edits: to the inner plug-in, and to the host with their gestures (automation, Last Tweaked).
@@ -466,47 +472,61 @@ void drainUiAndMidiEvents (DesktopPlugin& dp, MergedInputEvents& merged, const c
             out.pushGesture (0, uev.paramId, true);
         else if (uev.kind == UiEventKind::GestureEnd)
             out.pushGesture (0, uev.paramId, false);
-        else
+        else if (reverie::currentPanelEdit (dp.inner, uev.sequence))
         {
-            merged.addInjected (0, uev.paramId, uev.value);
+            merged.addInjected (uev, dp.inner);
             out.pushParamValue (0, uev.paramId, uev.value);
         }
     }
 
-    // 2. MIDI CCs: learn, then mapped CC -> parameter at the CC's own frame.
-    for (uint32_t i = 0; i < merged.hostCount; ++i)
+    merged.finish();
+}
+
+// All channel-mode numbers are reserved for new Learn assignments. Older saved maps
+// can still use their non-command values while real MIDI mode messages pass untouched.
+bool channelModeCommand (uint8_t cc, uint8_t value)
+{
+    return cc >= 120 && (value == 0 || (cc == 122 && value == 127) || (cc == 126 && value <= 16));
+}
+
+bool mapMidiCc (void* context, const clap_event_midi_t& midi, clap_event_param_value_t& event)
+{
+    auto& out = *static_cast<SafeOutputEvents*> (context);
+    auto& dp = *out.dp;
+    const uint8_t cc = midi.data[1] & 127, value = midi.data[2] & 127;
+    if (channelModeCommand (cc, value)) return false;
+    if (cc < 120)
     {
-        const auto* h = in->get (in, i);
-        if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID || h->type != CLAP_EVENT_MIDI) continue;
-        const auto* m = reinterpret_cast<const clap_event_midi_t*> (h);
-        if ((m->data[0] & 0xF0u) != 0xB0u) continue;
-
-        const uint8_t cc = m->data[1] & 0x7Fu;
-        const uint8_t val = m->data[2] & 0x7Fu;
-        if (cc >= 120) continue; // Channel Mode, including All Sound Off, Reset Controllers and All Notes Off.
-        dp.lastMidiCc.store (int (cc), std::memory_order_relaxed);
-
-        const uint32_t target = dp.midiLearnTarget.load (std::memory_order_acquire);
-        if (target != CLAP_INVALID_ID && target != DesktopPlugin::kLearnArmedNoParam)
+        dp.lastMidiCc.store (cc, std::memory_order_relaxed);
+        auto target = dp.midiLearnTarget.load (std::memory_order_acquire);
+        if (target != CLAP_INVALID_ID && target != DesktopPlugin::kLearnArmedNoParam &&
+            dp.midiLearnTarget.compare_exchange_strong (target, CLAP_INVALID_ID, std::memory_order_acq_rel))
         {
-            for (int c = 0; c < 128; ++c)
-                if (dp.ccMap[c].load (std::memory_order_relaxed) == target) dp.ccMap[c].store (CLAP_INVALID_ID, std::memory_order_relaxed);
-            dp.ccMap[cc].store (target, std::memory_order_release);
-            dp.midiLearnTarget.store (CLAP_INVALID_ID, std::memory_order_release);
+            bool changed = dp.ccMap[cc].exchange (target, std::memory_order_acq_rel) != target;
+            for (unsigned i = 0; i < 128; ++i)
+            {
+                if (i == cc) continue;
+                uint32_t previous = target;
+                if (dp.ccMap[i].compare_exchange_strong (previous, CLAP_INVALID_ID, std::memory_order_relaxed))
+                    changed = true;
+            }
+            if (changed) dp.notifyMappingChanged();
         }
-
-        const clap_id mappedId = dp.ccMap[cc].load (std::memory_order_acquire);
-        if (mappedId == CLAP_INVALID_ID) continue;
-        const int idx = dp.findParamIndex (mappedId);
-        if (idx < 0) continue;
-        const auto& p = dp.params[size_t (idx)];
-        double v = p.minVal + (double (val) / 127.0) * p.range();
-        if (p.isStepped()) v = std::clamp (std::round (v), p.minVal, p.maxVal);
-        merged.addInjected (h->time, mappedId, v);
-        out.pushParamValue (h->time, mappedId, v);
     }
 
-    merged.finish();
+    const clap_id id = dp.ccMap[cc].load (std::memory_order_acquire);
+    if (id == CLAP_INVALID_ID) return false;
+    const int index = dp.findParamIndex (id);
+    if (index < 0) return false;
+    const auto& param = dp.params[size_t (index)];
+    double v = param.minVal + (double (value) / 127.0) * param.range();
+    if (param.isStepped()) v = std::clamp (std::round (v), param.minVal, param.maxVal);
+    event.header = { sizeof (event), midi.header.time, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 };
+    event.param_id = id;
+    event.note_id = event.port_index = event.channel = event.key = -1;
+    event.value = v;
+    out.pushParamValue (midi.header.time, id, v);
+    return true;
 }
 
 // Memory stream helpers for CLAP_EXT_STATE envelope -----------------------------------------------------------
@@ -596,10 +616,10 @@ void CLAP_ABI wrapParamsFlush (const clap_plugin_t* p, const clap_input_events_t
     if (dp.inAudioCall.exchange (true, std::memory_order_acq_rel))
         return;
     SafeOutputEvents safeOut { &dp, out, 0, 0 };
-    drainUiAndMidiEvents (dp, *dp.mergedFlush, in, safeOut, false);
+    drainUiEvents (dp, *dp.mergedFlush, in, safeOut, false);
     clap_input_events_t inList = dp.mergedFlush->asClapList();
     clap_output_events_t outList = safeOut.asClapList();
-    dp.innerParams->flush (dp.inner, &inList, out ? &outList : nullptr);
+    reverie::flushMapped (dp.inner, &inList, out ? &outList : nullptr, { &safeOut, mapMidiCc });
     dp.inAudioCall.store (false, std::memory_order_release);
 }
 
@@ -664,7 +684,7 @@ bool CLAP_ABI wrapStateLoad (const clap_plugin_t* p, const clap_istream_t* strea
 
         std::memcpy (ccTable, raw.data() + 12 + innerSize, sizeof (ccTable));
         for (int i = 0; i < 128; ++i)
-            dp.ccMap[i].store (i < 120 ? ccTable[i] : CLAP_INVALID_ID, std::memory_order_release);
+            dp.ccMap[i].store (ccTable[i], std::memory_order_release);
         dp.currentPresetIndex = -1;
         dp.markAllDirty();
         return true;
@@ -902,7 +922,7 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
             }
         }
     }
-    dp.openGestures.assign (dp.params.size(), 0);
+    dp.openGestures.assign (dp.params.size(), GestureState::Closed);
     dp.uiValue.assign (dp.params.size(), 0.0);
     dp.uiHoldUntil.assign (dp.params.size(), 0);
     for (size_t i = 0; i < dp.params.size(); ++i)
@@ -974,7 +994,6 @@ void CLAP_ABI wrapDeactivate (const clap_plugin_t* p)
     auto& dp = of (p);
     dp.processing.store (false, std::memory_order_release);
     dp.active.store (false, std::memory_order_release);
-    std::fill (dp.openGestures.begin(), dp.openGestures.end(), 0);
     if (dp.inner) dp.inner->deactivate (dp.inner);
 }
 
@@ -1012,14 +1031,14 @@ clap_process_status CLAP_ABI wrapProcess (const clap_plugin_t* p, const clap_pro
 
     const uint32_t maxTime = proc->frames_count > 0 ? proc->frames_count - 1 : 0;
     SafeOutputEvents safeOut { &dp, proc->out_events, maxTime, 0 };
-    drainUiAndMidiEvents (dp, *dp.mergedProcess, proc->in_events, safeOut, true);
+    drainUiEvents (dp, *dp.mergedProcess, proc->in_events, safeOut, true);
 
     clap_process_t wrapped = *proc;
     clap_input_events_t inList = dp.mergedProcess->asClapList();
     clap_output_events_t outList = safeOut.asClapList();
     wrapped.in_events = &inList;
     wrapped.out_events = proc->out_events ? &outList : nullptr;
-    const clap_process_status st = dp.inner->process (dp.inner, &wrapped);
+    const clap_process_status st = reverie::processMapped (dp.inner, &wrapped, { &safeOut, mapMidiCc });
     dp.inAudioCall.store (false, std::memory_order_release);
     return st;
 }
@@ -1106,6 +1125,12 @@ void CLAP_ABI wrapOnMainThread (const clap_plugin_t* p)
     auto& dp = of (p);
     if (dp.inner && dp.inner->on_main_thread)
         dp.inner->on_main_thread (dp.inner);
+
+    if (dp.pendingGestureFlush.exchange (false, std::memory_order_acq_rel))
+    {
+        if (dp.hostParams && dp.hostParams->request_flush) dp.hostParams->request_flush (dp.realHost);
+        else if (dp.realHost->request_process) dp.realHost->request_process (dp.realHost);
+    }
 
     // Deliver any deferred host notifications safely on the host's own main-thread callback tick.
     const uint32_t rescanFlags = dp.pendingRescanFlags.exchange (0, std::memory_order_acq_rel);
@@ -1323,7 +1348,11 @@ void DesktopPlugin::enqueue (UiEventKind kind, clap_id id, double value)
 {
     const uint64_t sequence = publishedUiSequence.load (std::memory_order_relaxed) + 1;
     if (uiToAudio.push ({ kind, id, value, sequence }))
+    {
+        if (kind == UiEventKind::Value)
+            reverie::publishPanelValue (inner, id, value, sequence);
         publishedUiSequence.store (sequence, std::memory_order_release);
+    }
     // When the audio thread is actively running process(), it drains uiToAudio on the very next audio block;
     // avoid spamming request_flush() mid-stream (which can trigger concurrent main-thread flush in some hosts).
     const bool audioTicking = processing.load (std::memory_order_acquire)
@@ -1412,19 +1441,32 @@ int DesktopPlugin::findCcForParam (clap_id id) const
     return -1;
 }
 
+void DesktopPlugin::notifyMappingChanged()
+{
+    // Learning runs on the audio thread. Deliver mark_dirty only from on_main_thread.
+    if (!pendingStateDirty.exchange (true, std::memory_order_acq_rel) && realHost->request_callback)
+        realHost->request_callback (realHost);
+}
+
 void DesktopPlugin::clearCcForParam (clap_id id)
 {
-    for (int c = 0; c < 128; ++c)
+    bool changed = false;
+    for (auto& mapping : ccMap)
     {
-        if (ccMap[c].load (std::memory_order_relaxed) == id)
-            ccMap[c].store (CLAP_INVALID_ID, std::memory_order_release);
+        uint32_t previous = id;
+        if (mapping.compare_exchange_strong (previous, CLAP_INVALID_ID, std::memory_order_relaxed))
+            changed = true;
     }
+    if (changed) notifyMappingChanged();
 }
 
 void DesktopPlugin::clearAllCc()
 {
-    for (int c = 0; c < 128; ++c)
-        ccMap[c].store (CLAP_INVALID_ID, std::memory_order_release);
+    bool changed = false;
+    for (auto& mapping : ccMap)
+        if (mapping.exchange (CLAP_INVALID_ID, std::memory_order_acq_rel) != CLAP_INVALID_ID)
+            changed = true;
+    if (changed) notifyMappingChanged();
 }
 
 int DesktopPlugin::countMappedCc() const

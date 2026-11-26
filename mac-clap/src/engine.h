@@ -235,6 +235,7 @@ public:
         }
         if (input.struck.test (key))
         {
+            input.strikeIds[key] = noteId;
             for (auto& v : voices)
                 if (v.active && v.pressed && v.key == key && v.channel == channel)
                 {
@@ -243,6 +244,15 @@ public:
                     v.strikeVelocity = velocity;
                     v.velocity = std::clamp (velocity * v.jitter, 0.02f, 1.0f);
                     v.gain = velocityGain (v.velocity, target[ParamId::velocity]) * v.level;
+                    // A voice born between ticks already has its first filter and gain ramps.
+                    // Recreate only that unheard attack, with exactly its original random draws.
+                    if (tickPos != 0 && v.born == now && v.group == v.birthGroup && v.waitTicks == 0)
+                    {
+                        const Rng next = rng;
+                        rng.s = v.birthSeed;
+                        start (v, key, v.group, (int) v.target, v.velocity, v.gain, v.index, v.size, v.isBass, 0, v.latched);
+                        rng = next;
+                    }
                 }
             return;
         }
@@ -328,6 +338,7 @@ public:
             v.pressed = true, v.channel = channel, v.noteId = noteId, v.strikeVelocity = velocity;
         }
         input.struck.set (key);
+        input.strikeIds[key] = noteId;
         fxChannels |= 1u << channel;
         tel->lastSlot.store (pad.slot, std::memory_order_relaxed);
         tel->strikes.fetch_add (1, std::memory_order_relaxed);
@@ -483,7 +494,7 @@ private:
         int32_t noteId = -1;
         bool pressed = false;
         float strikeVelocity = 0.0f;
-        uint32_t group = 0;
+        uint32_t group = 0, birthGroup = 0, birthSeed = 0;
         int index = 0, size = 1;
         int waitTicks = 0;
         float velocity = 1.0f, gain = 1.0f, jitter = 1.0f, level = 1.0f;
@@ -554,6 +565,7 @@ private:
     {
         uint64_t strikeSample = ~0ull;
         std::bitset<128> struck;
+        int32_t strikeIds[128] {}; // valid for the keys in struck, even after their voices move
         bool sustain = false;
     };
     ChannelInput channels[16] {};
@@ -616,7 +628,6 @@ private:
         {
             if (!v.active || (key >= 0 && key != v.key) || (channel >= 0 && channel != v.channel)
                 || (noteId != -1 && noteId != v.noteId)) continue;
-            if (v.pressed) channels[v.channel].struck.reset (v.key);
             v.pressed = false;
             if (choking) v.chokeNow();
             else if (v.gated && !v.latched)
@@ -625,14 +636,23 @@ private:
                 else v.releaseNow();
             }
         }
-        // A voice may already have been stolen on this same sample.
-        if (noteId == -1)
-            for (int i = 0; i < 16; ++i)
-                if (channel < 0 || channel == i)
-                {
-                    if (key < 0) channels[i].struck.reset();
-                    else if (key < int (channels[i].struck.size())) channels[i].struck.reset (key);
-                }
+        // A glide or voice steal can move every voice before this release. Match the
+        // strike's own address so a genuine restrike can play and a stale ID cannot unlock it.
+        for (int i = 0; i < 16; ++i)
+        {
+            auto& input = channels[i];
+            if ((channel >= 0 && channel != i) || input.strikeSample != now) continue;
+            if (key >= 0)
+            {
+                if (key < int (input.struck.size()) && (noteId == -1 || input.strikeIds[key] == noteId))
+                    input.struck.reset (key);
+            }
+            else if (noteId == -1)
+                input.struck.reset();
+            else
+                for (int k = 0; k < int (input.struck.size()); ++k)
+                    if (input.struck.test (k) && input.strikeIds[k] == noteId) input.struck.reset (k);
+        }
     }
 
     void liftSustain (int channel)
@@ -694,6 +714,7 @@ private:
     {
         v.active = true, v.gated = true, v.latched = latching, v.sustained = false, v.choking = false;
         v.key = key, v.group = group, v.index = index, v.size = size, v.isBass = isBass;
+        v.birthGroup = group, v.birthSeed = rng.s;
         v.waitTicks = wait;
         v.releaseIn = -1;
         v.velocity = vel, v.gain = gain;
@@ -819,7 +840,7 @@ private:
         if (! volumePrimed) volumeNow = vol, volumePrimed = true;
         volumeStep = (vol - volumeNow) / (float) tickSize;
         ensemble.control (smooth[ParamId::ensMix], smooth[ParamId::ensDepth], sh.ensHz);
-        const double beat = 60.0 / std::clamp (tempo, 40.0, 300.0);
+        const double beat = 60.0 / tempo; // the delay line limits the selected duration to its capacity
         delay.control (smooth[ParamId::dlyMix], (float) (delayBeats[(int) smooth[ParamId::dlyTime]] * beat), smooth[ParamId::dlyFeedback]);
         reverb.control (smooth[ParamId::revMix], smooth[ParamId::revSize], sh.decay, sh.damp, sh.predelay, smooth[ParamId::shimmer]);
         // Asleep once nothing sounds and the tails have been quiet for four seconds (the longest delay fits in it).

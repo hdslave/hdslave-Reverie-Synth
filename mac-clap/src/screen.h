@@ -17,6 +17,7 @@
 #include "chords.h"
 #include "engine.h"
 #include "params.h"
+#include "panel_value.h"
 #include "ui/page.h"
 #include "waves.h"
 
@@ -27,7 +28,41 @@
 
 namespace reverie
 {
-class Screen final
+// Plot inputs can refer to the engine or to a captured desktop frame.
+class ScreenPlots
+{
+    friend struct Surface;
+protected:
+    using Raster = hdui::Raster;
+    using Ink = hdui::Ink;
+    ScreenPlots (const ParameterValue* values, const Telemetry& telemetry) : values (values), tel (telemetry) {}
+
+    float live (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
+    int choice (uint32_t id) const { return (int) std::lround (live (id)); }
+    static constexpr Ink mutedBed = 0xffd4dcdc, mutedRule = 0xffafbcbc, mutedText = 0xff536265;
+    bool controlEnabled (uint32_t row) const
+    {
+        return (row != ParamId::progression && row != ParamId::key && row != ParamId::voicing)
+            || choice (ParamId::mood) == 0;
+    }
+    void formatted (uint32_t id, char* s, uint32_t n) const;
+
+    void padGrid (const Raster& r, uint32_t held) const;
+    void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
+    void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop = nullptr) const;
+    static void well (const Raster& r, int x, int y, int w, int h);
+    void scope (const Raster& r, int x0, int y0, int w, int h, int o) const;
+    void response (const Raster& r, int x0, int y0, int w, int h) const;
+    void envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const;
+    void lfoPicture (const Raster& r, int x0, int y0, int w, int h) const;
+    void outputMeter (const Raster& r, int x, int y) const;
+    static int meterSegments (float peak);
+
+    const ParameterValue* values;
+    const Telemetry& tel;
+};
+
+class Screen final : private ScreenPlots
 {
     friend struct TilesAccess;
     friend struct Surface;
@@ -36,7 +71,7 @@ class Screen final
     using Ink = hdui::Ink;
 
 public:
-    Screen (const std::atomic<float>* values, const Telemetry& telemetry) : values (values), tel (telemetry)
+    Screen (const ParameterValue* values, const Telemetry& telemetry) : ScreenPlots (values, telemetry)
     {
         for (int i = 0; i < paramCount; ++i) seen[i] = paramTable[i].def;
     }
@@ -62,16 +97,6 @@ private:
 
     static Layout layout (int p);
 
-    float live (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
-    int choice (uint32_t id) const { return (int) std::lround (live (id)); }
-    static constexpr Ink mutedBed = 0xffd4dcdc, mutedRule = 0xffafbcbc, mutedText = 0xff536265;
-    bool controlEnabled (uint32_t row) const
-    {
-        return (row != ParamId::progression && row != ParamId::key && row != ParamId::voicing)
-            || choice (ParamId::mood) == 0;
-    }
-    void formatted (uint32_t id, char* s, uint32_t n) const;
-
     bool moving (uint32_t* pixels, int stride, uint32_t sounding);
     void header (const Raster& r) const;
     static void arrow (const Raster& r, int x, int y, int dir, Ink color);
@@ -79,26 +104,13 @@ private:
     static void section (const Raster& r, int x, int y, int end, const char* title);
     void body (const Raster& r, uint32_t sounding, uint32_t held);
     void cell (const Raster& r, const Cell& c, bool focused, bool edited) const;
-    void padGrid (const Raster& r, uint32_t held) const;
-    void keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const;
-    void field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop = nullptr) const;
-    static void well (const Raster& r, int x, int y, int w, int h);
-    void scope (const Raster& r, int x0, int y0, int w, int h, int o) const;
-    void response (const Raster& r, int x0, int y0, int w, int h) const;
-    void envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const;
-    void lfoPicture (const Raster& r, int x0, int y0, int w, int h) const;
-    void outputMeter (const Raster& r, int x, int y) const;
-    static int meterSegments (float peak);
     static void knob (const Raster& r, int x, int y, float unit, Ink trackColor);
     void dock (const Raster& r, const Host& h) const;
 
-    const std::atomic<float>* values;
-    const Telemetry& tel;
-    // Separate from the MPC page's invalidation state. Only consulted by the desktop faceplate.
+    // Resting frames draw exclusively from these values. Live notes always repaint.
     struct {
-        std::array<float, paramCount> params {};
-        uint32_t held = 0;
-        int slot = -1, meter = 0, pathX = 0, pathY = 0;
+        std::array<ParameterValue, paramCount> params {};
+        Telemetry telemetry;
         bool sounding = false;
     } faceplate;
     float seen[paramCount] {};

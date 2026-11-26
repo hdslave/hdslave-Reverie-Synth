@@ -101,6 +101,8 @@ class PanelUI;
 struct PlatformGui;
 struct MergedInputEvents;
 
+enum class GestureState : uint8_t { Closed, Open, Ending };
+
 struct DesktopPlugin
 {
     clap_plugin_t clap {};
@@ -118,7 +120,9 @@ struct DesktopPlugin
     std::atomic<bool> pendingStateDirty { false };
     bool inInternalPresetLoad = false;
     bool inScreenInput = false;
-    std::vector<uint8_t> openGestures; // one host automation gesture per parameter, including both X/Y axes
+    bool retryGestureEnds = false;
+    std::atomic<bool> pendingGestureFlush { false };
+    std::vector<GestureState> openGestures; // one host automation gesture per parameter, including both X/Y axes
 
     const clap_plugin_t* inner = nullptr;
     const clap_plugin_params_t* innerParams = nullptr;
@@ -203,6 +207,7 @@ struct DesktopPlugin
     int findCcForParam (clap_id id) const;
     void clearCcForParam (clap_id id);
     void clearAllCc();
+    void notifyMappingChanged();
     int countMappedCc() const;
     void sendScreenInput (uint32_t kind, int32_t value);
     void sendNote (int midiNote, bool on, double velocity = 0.85);

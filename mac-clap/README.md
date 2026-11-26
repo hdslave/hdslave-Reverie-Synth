@@ -4,9 +4,9 @@
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.3.2** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Desktop version **0.3.3** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
-Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it.
+Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it. MIDI Learn accepts CC 0–119. Existing assignments in the Channel Mode range are preserved when loading a project. Actual MIDI mode messages bypass parameter mappings.
 
 The **Phaser** row in Effects & output has Mix, Rate, Feedback (FB) and Filter Envelope (F.Env). Set Rate to 0 Hz to let the filter envelope drive the sweep with each chord. Turn F.Env negative to reverse it. **Undertow Wah** uses this routing to sweep a low Choir oscillator layered with Hollow Pulse. Try it on pad A08 of Velvet Night in C with Neo Soul voicing and a 30 ms strum.
 
@@ -74,3 +74,5 @@ cmake --build build/vst3-win --target ReverieVST3
 ```
 
 Copy the complete `vst3/Reverie.vst3` directory from the chosen build folder to the VST3 installation folder above.
+
+Build the `vst3_automation_test` target to check that the VST3 renders the same parameter transitions across two block sizes. Pass the full bundle path on macOS or the binary inside `Contents/x86_64-win` on Windows.

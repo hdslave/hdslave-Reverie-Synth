@@ -8,6 +8,7 @@
 #include "screen.h"
 #include "sample_rate.h"
 #include "panel_note.h"
+#include "desktop_input.h"
 
 #include <clap/clap.h>
 
@@ -71,7 +72,9 @@ struct Plugin
     const clap_host* host = nullptr;
     // Every parameter's value. The audio thread writes it from events; the main thread reads it, and writes it when a
     // state or a sound is loaded or the page edits. The engine notices those at the next block.
-    std::atomic<float> values[paramCount];
+    ParameterValue values[paramCount];
+    uint64_t lastPanelEdit = 0; // main thread
+    std::atomic<uint64_t> discardedPanelEdits { 0 };
     std::atomic<bool> mainChanged { false };
     float applied[paramCount] {};
     Telemetry telemetry;
@@ -194,26 +197,44 @@ void midi (Plugin& p, const uint8_t* data)
     }
 }
 
-void handle (Plugin& p, const clap_event_header* e)
+void applyValue (Plugin& p, const clap_event_param_value& event)
+{
+    const int index = paramIndex (event.param_id);
+    if (index < 0) return;
+    const float value = clampParam (paramTable[index], (float) event.value);
+    if (event.header.size == sizeof (PanelParameter) && event.header.flags == CLAP_EVENT_IS_LIVE &&
+        reinterpret_cast<const PanelParameter&> (event).owner == &p.clap)
+    {
+        const auto sequence = reinterpret_cast<const PanelParameter&> (event).sequence;
+        if (sequence <= p.discardedPanelEdits.load (std::memory_order_acquire)) return;
+        p.values[index].acknowledge (value, sequence);
+    }
+    else
+        p.values[index].fromHost (value);
+    p.valuesMoved |= p.applied[index] != value;
+    p.applied[index] = value;
+    p.engine.set ((uint32_t) index, value);
+}
+
+bool applyMappedCc (Plugin& p, const clap_event_midi& event, const MidiMapper* mapper)
+{
+    clap_event_param_value value {};
+    if (!mapper || event.port_index != 0 || (event.data[0] & 0xf0) != 0xb0 ||
+        !mapper->map (mapper->context, event, value))
+        return false;
+    applyValue (p, value);
+    return true;
+}
+
+void handle (Plugin& p, const clap_event_header* e, const MidiMapper* mapper)
 {
     if (e->space_id != CLAP_CORE_EVENT_SPACE_ID)
         return;
     switch (e->type)
     {
         case CLAP_EVENT_PARAM_VALUE:
-        {
-            const auto* v = reinterpret_cast<const clap_event_param_value*> (e);
-            const int index = paramIndex (v->param_id);
-            if (index < 0)
-                break;
-            const float value = clampParam (paramTable[index], (float) v->value);
-            const bool moved = p.applied[index] != value;
-            p.values[index].store (value, std::memory_order_relaxed);
-            p.applied[index] = value;
-            p.engine.set ((uint32_t) index, value);
-            p.valuesMoved |= moved;
+            applyValue (p, *reinterpret_cast<const clap_event_param_value*> (e));
             break;
-        }
         case CLAP_EVENT_NOTE_ON:
         {
             const auto& n = *reinterpret_cast<const clap_event_note*> (e);
@@ -236,13 +257,14 @@ void handle (Plugin& p, const clap_event_header* e)
         {
             const auto& m = *reinterpret_cast<const clap_event_midi*> (e);
             if (m.port_index == 0) midi (p, m.data);
+            applyMappedCc (p, m, mapper);
             break;
         }
         default: break;
     }
 }
 
-void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const clap_output_events* out)
+void flushEvents (const clap_plugin* plugin, const clap_input_events* in, const clap_output_events* out, const MidiMapper* mapper)
 {
     auto& p = of (plugin);
     const uint32_t count = in != nullptr ? in->size (in) : 0;
@@ -250,14 +272,24 @@ void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const 
     for (uint32_t i = 0; i < count; ++i)
     {
         const auto* e = in->get (in, i);
-        if (e->space_id != CLAP_CORE_EVENT_SPACE_ID || e->type != CLAP_EVENT_PARAM_VALUE)
+        if (e->space_id != CLAP_CORE_EVENT_SPACE_ID) continue;
+        if (e->type == CLAP_EVENT_MIDI)
+        {
+            changed |= applyMappedCc (p, *reinterpret_cast<const clap_event_midi*> (e), mapper);
             continue;
-        handle (p, e);
+        }
+        if (e->type != CLAP_EVENT_PARAM_VALUE) continue;
+        handle (p, e, mapper);
         changed = true;
     }
     tellHost (p, out, 0);
     if (changed)
         requestPaint (p);
+}
+
+void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const clap_output_events* out)
+{
+    flushEvents (plugin, in, out, nullptr);
 }
 
 const clap_plugin_params paramsExtension { paramsCount, paramsInfo, paramsValue, paramsToText, paramsFromText, paramsFlush };
@@ -299,6 +331,7 @@ bool readAll (const clap_istream* s, void* data, uint64_t size)
 // dropped: the loaded values win.
 void setAll (Plugin& p, const float* values)
 {
+    p.discardedPanelEdits.store (p.lastPanelEdit, std::memory_order_release);
     p.outgoing.clear();
     for (int i = 0; i < paramCount; ++i)
         p.values[i].store (values[i], std::memory_order_relaxed);
@@ -488,7 +521,7 @@ struct FlushDenormals
 #endif
 };
 
-clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process* process)
+clap_process_status processEvents (const clap_plugin* plugin, const clap_process* process, const MidiMapper* mapper)
 {
     auto& p = of (plugin);
     FlushDenormals flush;
@@ -533,7 +566,7 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
             p.engine.render (left + at, right + at, time - at);
             at = time;
         }
-        handle (p, e);
+        handle (p, e, mapper);
     }
     if (at < frames)
         p.engine.render (left + at, right + at, frames - at);
@@ -549,6 +582,11 @@ clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process
     }
     p.valuesMoved = false;
     return p.engine.quiet() && count == 0 ? CLAP_PROCESS_SLEEP : CLAP_PROCESS_CONTINUE;
+}
+
+clap_process_status pluginProcess (const clap_plugin* plugin, const clap_process* process)
+{
+    return processEvents (plugin, process, nullptr);
 }
 
 // Melodee's screen ---------------------------------------------------------------------------------------------
@@ -628,6 +666,30 @@ void screenControls (const void* plugin, uint32_t ids[3])
 const melodee_screen_t screenExtension { screenDraw, screenInput, screenControls };
 
 } // namespace
+
+void publishPanelValue (const clap_plugin_t* plugin, clap_id id, double value, uint64_t sequence)
+{
+    auto& p = of (plugin);
+    const int row = paramIndex (id);
+    if (row < 0) return;
+    p.values[row].publish (clampParam (paramTable[row], (float) value), sequence);
+    p.lastPanelEdit = sequence;
+}
+
+bool currentPanelEdit (const clap_plugin_t* plugin, uint64_t sequence)
+{
+    return sequence > of (plugin).discardedPanelEdits.load (std::memory_order_acquire);
+}
+
+void flushMapped (const clap_plugin_t* plugin, const clap_input_events_t* in, const clap_output_events_t* out, const MidiMapper& mapper)
+{
+    flushEvents (plugin, in, out, &mapper);
+}
+
+clap_process_status processMapped (const clap_plugin_t* plugin, const clap_process_t* process, const MidiMapper& mapper)
+{
+    return processEvents (plugin, process, &mapper);
+}
 } // namespace reverie
 
 #include "tiles.h"

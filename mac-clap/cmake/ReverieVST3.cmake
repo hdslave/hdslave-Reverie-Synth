@@ -24,7 +24,7 @@ target_compile_definitions(clap-wrapper-shared-detail PRIVATE STATICALLY_LINKED_
 add_reverie_editor(ReverieVST3 HdslavePanelView_reverie_vst3)
 target_add_vst3_wrapper(TARGET ReverieVST3 OUTPUT_NAME Reverie
     BUNDLE_IDENTIFIER com.hdslave.desktop.reverie.vst3
-    BUNDLE_VERSION 0.3.2
+    BUNDLE_VERSION 0.3.3
     WINDOWS_FOLDER_VST3 TRUE
     ASSET_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/vst3")
 set_target_properties(ReverieVST3 PROPERTIES PREFIX "")
@@ -57,6 +57,36 @@ if(track_offset EQUAL -1)
     message(FATAL_ERROR "Review VST3 note-expression tracking for this version of clap-wrapper")
 endif()
 string(REPLACE "${track_note}" "" events "${events}")
+
+# Turn each point of an instrument parameter queue into a CLAP event. Leave
+# wrapper-owned preset selection and MIDI controller translation on their own
+# paths. CLAP will consume the ordinary points at the samples chosen by the host.
+set(last_parameter_point [=[          if (k->getPoint(nums - 1, offset, value) == kResultOk)
+          {
+            clap_multi_event_t n;
+            n.param.header.type = CLAP_EVENT_PARAM_VALUE;]=])
+set(all_parameter_points [=[          for (int32 point = 0; point < nums; ++point)
+          {
+            if (k->getPoint(point, offset, value) != kResultOk) continue;
+            clap_multi_event_t n;
+            n.param.header.type = CLAP_EVENT_PARAM_VALUE;]=])
+string(FIND "${events}" "${last_parameter_point}" automation_offset)
+if(automation_offset EQUAL -1)
+    message(FATAL_ERROR "Review the VST3 parameter queue conversion for this version of clap-wrapper")
+endif()
+string(REPLACE "${last_parameter_point}" "${all_parameter_points}" events "${events}")
+
+# The maximum block size and real parameter count are available at activation.
+# Reserve room for a point at every sample for every instrument parameter,
+# in addition to the adapter's existing allowance for note and MIDI events.
+set(old_event_reserve "  _events.reserve(8192);")
+set(new_event_reserve [=[  const auto instrumentParameters = ext_params ? ext_params->count(plugin) : 0;
+  _events.reserve(8192 + size_t(numSamples) * instrumentParameters);]=])
+string(FIND "${events}" "${old_event_reserve}" event_reserve_offset)
+if(event_reserve_offset EQUAL -1)
+    message(FATAL_ERROR "Review the VST3 event reservation for this version of clap-wrapper")
+endif()
+string(REPLACE "${old_event_reserve}" "${new_event_reserve}" events "${events}")
 # Keep quoted includes relative to the original translation unit. Adding its
 # directory to the compiler's search path would shadow the Windows <process.h>.
 string(REPLACE "#include \"" "#include \"detail/vst3/" events "${events}")
@@ -66,3 +96,9 @@ get_target_property(adapter_sources ${adapter_target} SOURCES)
 list(REMOVE_ITEM adapter_sources "${processor_src}" "${events_src}")
 set_property(TARGET ${adapter_target} PROPERTY SOURCES ${adapter_sources} "${adapted_processor}" "${adapted_events}")
 target_include_directories(${adapter_target} PRIVATE "${adapter_src}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+
+add_executable(vst3_automation_test "${CMAKE_CURRENT_SOURCE_DIR}/tests/vst3_automation.cpp")
+target_include_directories(vst3_automation_test PRIVATE "${VST3_SDK_ROOT}")
+if(APPLE)
+    target_link_libraries(vst3_automation_test PRIVATE "-framework CoreFoundation")
+endif()

@@ -60,6 +60,8 @@ struct StrictHostCtx
     uint32_t lastOutTime = 0;
     int bareParamValues = 0;
     int outParamValues = 0;
+    double lastOutputValue = 0;
+    bool rejectNextEnd = false;
 };
 
 void checkHostPtr (const clap_host_t* h, const char* fn)
@@ -170,12 +172,14 @@ bool CLAP_ABI strictOutPush (const clap_output_events_t* list, const clap_event_
         }
         else if (h->type == CLAP_EVENT_PARAM_GESTURE_END)
         {
+            if (ctx->rejectNextEnd) { ctx->rejectNextEnd = false; return false; }
             if (!ctx->openGestures.erase (reinterpret_cast<const clap_event_param_gesture_t*> (h)->param_id)) std::abort();
         }
         else if (h->type == CLAP_EVENT_PARAM_VALUE)
         {
             ++ctx->outParamValues;
             const auto* pv = reinterpret_cast<const clap_event_param_value_t*> (h);
+            ctx->lastOutputValue = pv->value;
             ctx->edited.insert (pv->param_id);
             if (!ctx->openGestures.count (pv->param_id))
             {
@@ -213,6 +217,27 @@ struct MemStream
         }
         return int64_t (n);
     }
+
+    static MemStream save (const clap_plugin_t* plugin, const clap_plugin_state_t* state)
+    {
+        MemStream result;
+        clap_ostream_t out { &result, write };
+        if (!state->save (plugin, &out)) std::abort();
+        return result;
+    }
+
+    bool load (const clap_plugin_t* plugin, const clap_plugin_state_t* state)
+    {
+        readPos = 0;
+        clap_istream_t input { this, read };
+        return state->load (plugin, &input);
+    }
+
+    void bindCc (unsigned cc, clap_id id)
+    {
+        if (cc >= 128 || data.size() < 128 * sizeof (id)) std::abort();
+        std::memcpy (data.data() + data.size() - (128 - cc) * sizeof (id), &id, sizeof (id));
+    }
 };
 
 // Exercise raw hardware streams through the desktop wrapper, including failure
@@ -220,17 +245,8 @@ struct MemStream
 bool checkStateImports (const clap_plugin_t* plugin, const clap_plugin_state_t* state,
                         const clap_plugin_params_t* params, MemStream initial)
 {
-    auto save = [&] {
-        MemStream result;
-        clap_ostream_t out { &result, MemStream::write };
-        if (!state->save (plugin, &out)) std::abort();
-        return result;
-    };
-    auto load = [&] (MemStream& data) {
-        data.readPos = 0;
-        clap_istream_t input { &data, MemStream::read };
-        return state->load (plugin, &input);
-    };
+    auto save = [&] { return MemStream::save (plugin, state); };
+    auto load = [&] (MemStream& data) { return data.load (plugin, state); };
     using Param = std::pair<uint32_t, float>;
     auto hardware = [] (uint32_t version, std::initializer_list<Param> params) {
         MemStream s;
@@ -256,9 +272,8 @@ bool checkStateImports (const clap_plugin_t* plugin, const clap_plugin_state_t* 
     };
 
     MemStream withMap = initial;
-    if (withMap.data.size() < 128 * sizeof (uint32_t)) return false;
-    const uint32_t mapped = 57;
-    std::memcpy (withMap.data.data() + withMap.data.size() - (128 - 24) * sizeof (mapped), &mapped, sizeof (mapped));
+    withMap.bindCc (24, 57);
+    withMap.bindCc (124, 57);
     if (!load (withMap) || save().data != withMap.data) return false;
     if (!imports (hardware (1, {{0, 9}}), 9)) return false;
     const auto otherSound = save();
@@ -691,6 +706,22 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
         process (&inEv);
         if (value (57) != 0 || value (58) != 0) return false;
 
+        // A save can arrive between mouse-up and the next process or flush.
+        auto centered = MemStream::save (plug, state);
+        mouse (0, 384, 136);
+        mouse (1, 420, 100);
+        mouse (2, 420, 100);
+        auto dragged = MemStream::save (plug, state);
+        if (!centered.load (plug, state)) return false;
+        process (&inEv);
+        if (value (57) != 0 || value (58) != 0 || !dragged.load (plug, state) ||
+            std::abs (value (57) - .8) > .001 || std::abs (value (58) - .8) > .001 ||
+            !centered.load (plug, state))
+        {
+            std::fprintf (stderr, "FAIL: pending panel edits crossed a state boundary\n");
+            return false;
+        }
+
         // Bind the X parameter using its masthead Learn and Clear CC buttons.
         click (465, 33);
         click (467, 89);
@@ -705,14 +736,52 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
             process (&ccIn);
             if (value (57) != 0) { std::fprintf (stderr, "FAIL: MIDI Learn captured channel mode %d\n", mode); return false; }
         }
+        plug->on_main_thread (plug);
+        int dirty = ctx.stateDirtyCalls;
         cc.data[1] = 24;
         cc.data[2] = 127;
         process (&ccIn);
-        if (value (57) != 1) { std::fprintf (stderr, "FAIL: masthead MIDI Learn\n"); return false; }
+        plug->on_main_thread (plug);
+        if (value (57) != 1 || ctx.stateDirtyCalls != dirty + 1)
+        {
+            std::fprintf (stderr, "FAIL: masthead MIDI Learn or dirty notification\n");
+            return false;
+        }
+
+        // Every mapped CC must reach the instrument even beyond the former injection buffer.
+        clap_event_midi_t low = cc;
+        low.data[2] = 0;
+        const clap_event_header_t* extremes[] = { &low.header, &cc.header };
+        clap_input_events_t flood { extremes, [] (const clap_input_events_t*) -> uint32_t { return 3500; },
+            [] (const clap_input_events_t* l, uint32_t i) { return static_cast<const clap_event_header_t* const*> (l->ctx)[i == 3499]; } };
+        const int beforeFlood = ctx.outParamValues;
+        process (&flood);
+        if (ctx.outParamValues - beforeFlood != 3500 || ctx.lastOutputValue != 1 || value (57) != 1) return false;
+
+        // A host can reject END after accepting BEGIN and VALUE. Recover during the
+        // requested flush, even if there is no further audio or MIDI.
+        ctx.rejectNextEnd = true;
+        process (&ccIn);
+        const int beforeRetry = ctx.flushRequests;
+        plug->on_main_thread (plug);
+        if (ctx.flushRequests == beforeRetry || ctx.openGestures != std::set<clap_id> {57}) return false;
+        params->flush (plug, &inEv, nullptr);
+        params->flush (plug, &inEv, &outEv);
+        if (!ctx.openGestures.empty()) return false;
+
+        dirty = ctx.stateDirtyCalls;
         click (575, 33);
         cc.data[2] = 0;
         process (&ccIn);
-        if (value (57) != 1) { std::fprintf (stderr, "FAIL: masthead Clear CC\n"); return false; }
+        plug->on_main_thread (plug);
+        if (value (57) != 1 || ctx.stateDirtyCalls != dirty + 1)
+        {
+            std::fprintf (stderr, "FAIL: masthead Clear CC or dirty notification\n");
+            return false;
+        }
+        click (575, 33);
+        plug->on_main_thread (plug);
+        if (ctx.stateDirtyCalls != dirty + 1) return false;
         click (467, 89, 2);
         process (&inEv);
 
@@ -723,6 +792,35 @@ bool testOnePlugin (const std::string& clapPath, const std::string& snapDir, boo
             const uint32_t rgb = px[(y * 3) * w + x * 3];
             return ((rgb >> 16) & 255) > (rgb & 255) + 60;
         };
+        auto mapped = centered;
+        mapped.bindCc (124, 57);
+        mapped.bindCc (24, 7);
+        if (!mapped.load (plug, state) || MemStream::save (plug, state).data != mapped.data) return false;
+        cc.data[1] = 124;
+        cc.data[2] = 0;
+        process (&ccIn);
+        if (value (57) != 0) return false; // Omni Off is never a parameter edit.
+        cc.data[2] = 127;
+        process (&ccIn);
+        if (value (57) != 1) return false; // Non-command values keep this saved legacy binding.
+
+        cc.data[1] = 24; // Latch at the CC's original position relative to the note.
+        testNote.key = 36;
+        const clap_event_header_t* pair[] = { &cc.header, &testNote.header };
+        clap_input_events_t tied { pair, [] (const clap_input_events_t*) -> uint32_t { return 2; },
+            [] (const clap_input_events_t* l, uint32_t i) { return static_cast<const clap_event_header_t* const*> (l->ctx)[i]; } };
+        for (int ccFirst = 1; ccFirst >= 0; --ccFirst)
+        {
+            plug->reset (plug);
+            setParam (7, 0);
+            testNote.header.type = CLAP_EVENT_NOTE_ON;
+            process (&tied);
+            testNote.header.type = CLAP_EVENT_NOTE_OFF;
+            process (&noteIn);
+            if (value (7) != 1 || padLit (26, 166) != bool (ccFirst)) return false;
+            std::swap (pair[0], pair[1]);
+        }
+        if (!centered.load (plug, state)) return false;
         plug->reset (plug);
         // A DAW can call params.flush between any two audio blocks, even while an audition is held.
         mouse (0, 26, 166);

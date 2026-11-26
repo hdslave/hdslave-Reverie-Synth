@@ -74,7 +74,7 @@ struct Surface
         r.text (x, y, s, color, size);
     }
 
-    static void header (const Raster& r, const Screen& s, const SurfaceHeader& state)
+    static void header (const Raster& r, const ScreenPlots& s, const SurfaceHeader& state)
     {
         using namespace hdui;
         std::copy_n (desktopArt::masthead, std::size (desktopArt::masthead), r.px);
@@ -191,7 +191,7 @@ struct Surface
         return base;
     }
 
-    static void parameter (const Raster& r, const Screen& s, const Cell& c)
+    static void parameter (const Raster& r, const ScreenPlots& s, const Cell& c)
     {
         using namespace hdui;
         const bool enabled = s.controlEnabled (c.id);
@@ -218,9 +218,34 @@ struct Surface
 
     static void CLAP_ABI paint (const clap_plugin_t* plugin, uint32_t* pixels, const SurfaceHeader* state)
     {
+        Screen& screen = of (plugin).screen;
+        const uint32_t sounding = screen.tel.sounding.load (std::memory_order_relaxed);
+        auto& shown = screen.faceplate;
+        shown.sounding = sounding != 0;
+        if (sounding)
+        {
+            draw (screen, sounding, pixels, state);
+            return;
+        }
+
+        // A host can automate a value during a paint and return it to its old
+        // value by the next GUI tick. Cache exactly the inputs used for this frame.
+        for (int i = 0; i < paramCount; ++i)
+            shown.params[i].store (screen.live (i), std::memory_order_relaxed);
+        auto capture = [] (auto& dest, const auto& src) {
+            dest.store (src.load (std::memory_order_relaxed), std::memory_order_relaxed);
+        };
+        capture (shown.telemetry.lastSlot, screen.tel.lastSlot);
+        capture (shown.telemetry.padsHeld, screen.tel.padsHeld);
+        capture (shown.telemetry.pathX, screen.tel.pathX);
+        capture (shown.telemetry.pathY, screen.tel.pathY);
+        capture (shown.telemetry.reverb, screen.tel.reverb);
+        draw (ScreenPlots (shown.params.data(), shown.telemetry), 0, pixels, state);
+    }
+
+    static void draw (const ScreenPlots& s, uint32_t sounding, uint32_t* pixels, const SurfaceHeader* state)
+    {
         using namespace hdui;
-        const Screen& s = of (plugin).screen;
-        const uint32_t sounding = s.tel.sounding.load (std::memory_order_relaxed);
         Raster r {pixels, metrics.width, metrics.height};
         const auto& base = chassis();
         std::copy (base.begin() + 66 * r.w, base.end(), pixels + 66 * r.w);
@@ -263,28 +288,18 @@ struct Surface
 
     static bool CLAP_ABI contentChanged (const clap_plugin_t* plugin)
     {
-        Screen& s = of (plugin).screen;
-        auto& shown = s.faceplate;
-        // Live voices drive the scopes, envelopes, filter, keyboard and motion lens.
-        // Keep their normal frame rate, then paint the transition back to the resting plots.
-        const bool sounding = s.tel.sounding.load (std::memory_order_relaxed) != 0;
-        const bool wasSounding = shown.sounding;
-        shown.sounding = sounding;
-        if (sounding) return true;
+        const Screen& s = of (plugin).screen;
+        const auto& shown = s.faceplate;
+        if (shown.sounding || s.tel.sounding.load (std::memory_order_relaxed) != 0) return true;
+        for (int i = 0; i < paramCount; ++i)
+            if (s.live (i) != shown.params[i].load (std::memory_order_relaxed)) return true;
 
-        bool changed = wasSounding;
-        auto observe = [&changed] (auto& prior, auto value) {
-            changed |= prior != value;
-            prior = value;
-        };
-        for (int i = 0; i < paramCount; ++i) observe (shown.params[i], s.live (i));
-        observe (shown.held, s.tel.padsHeld.load (std::memory_order_relaxed));
-        observe (shown.slot, s.tel.lastSlot.load (std::memory_order_relaxed));
-        observe (shown.meter, Screen::meterSegments (s.tel.reverb.load (std::memory_order_relaxed)));
-        // field() draws the path cursor on a lens with a 45-pixel radius.
-        observe (shown.pathX, int (std::lround (s.tel.pathX.load (std::memory_order_relaxed) * 45)));
-        observe (shown.pathY, int (std::lround (s.tel.pathY.load (std::memory_order_relaxed) * 45)));
-        return changed;
+        auto read = [] (const auto& v) { return v.load (std::memory_order_relaxed); };
+        auto cursor = [&] (const auto& v) { return std::lround (read (v) * 45); };
+        const auto& previous = shown.telemetry;
+        return read (s.tel.padsHeld) != read (previous.padsHeld) || read (s.tel.lastSlot) != read (previous.lastSlot)
+            || cursor (s.tel.pathX) != cursor (previous.pathX) || cursor (s.tel.pathY) != cursor (previous.pathY)
+            || Screen::meterSegments (read (s.tel.reverb)) != Screen::meterSegments (read (previous.reverb));
     }
 
     static bool CLAP_ABI controlEnabled (const clap_plugin_t* plugin, clap_id id)

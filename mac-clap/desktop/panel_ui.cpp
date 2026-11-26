@@ -315,17 +315,19 @@ bool PanelUI::updateSurface()
     bool learning = false;
     const auto line = readoutText (learning);
     const int mappings = p_->countMappedCc();
-    const auto& spot = drag_ == Drag::None ? hoverSpot_ : dragSpot_;
-    const int badgeCc = spot.kind == HDSLAVE_HOTSPOT_PARAM ? p_->findCcForParam (spot.param_id) : -1;
+    const auto overlay = highlight (0);
+    const bool visible = !overlay.bounds.empty();
     const bool contentChanged = p_->surface->content_changed (p_->inner);
     if (!fullDirty_ && !contentChanged && shownPreset_ == preset && shownReadout_ == line
-        && shownMappings_ == mappings && shownBadgeCc_ == badgeCc && shownLearning_ == learning)
+        && shownMappings_ == mappings && shownBadgeCc_ == overlay.cc && shownHighlightVisible_ == visible
+        && shownLearning_ == learning)
         return false;
 
     shownPreset_ = preset;
     shownReadout_ = line;
     shownMappings_ = mappings;
-    shownBadgeCc_ = badgeCc;
+    shownBadgeCc_ = overlay.cc;
+    shownHighlightVisible_ = visible;
     shownLearning_ = learning;
     SurfaceHeader header {preset.c_str(), line.c_str(), mappings, learning,
                           popup_ == PopupKind::Presets, SurfaceControl::Count};
@@ -333,7 +335,7 @@ bool PanelUI::updateSurface()
         if (hoverItem_ == surfaceItems[i]) header.hovered = (SurfaceControl) i;
     p_->surface->paint (p_->inner, surfacePixels_.data(), &header);
     c_.blitSharp (surfacePixels_.data(), nativeWidth(), nativeHeight(), dst);
-    drawHighlight (0);
+    drawHighlight (0, overlay);
     if (popup_ != PopupKind::None) drawPopup();
     return true;
 }
@@ -433,54 +435,49 @@ void PanelUI::drawTile (int tileIdx)
     if (srcPx)
         c_.blitSharp (srcPx, MELODEE_SCREEN_WIDTH, std::max (120, p_->tileScreenH), tv.screenRect);
 
-    drawHighlight (tileIdx);
+    drawHighlight (tileIdx, highlight (tileIdx));
 }
 
-void PanelUI::drawHighlight (int tileIdx)
+PanelUI::Highlight PanelUI::highlight (int tileIdx) const
 {
-    const auto& tv = tiles_[(size_t) tileIdx];
+    const bool dragging = drag_ != Drag::None && dragTile_ == tileIdx;
+    if (!dragging && (drag_ != Drag::None || hoverTile_ != tileIdx)) return {};
+    const auto& spot = dragging ? dragSpot_ : hoverSpot_;
+    if (spot.kind == HDSLAVE_HOTSPOT_NONE
+        || (spot.kind == HDSLAVE_HOTSPOT_PARAM && !controlEnabled (p_->findParamIndex (spot.param_id)))) return {};
+    const int cc = spot.param_id == CLAP_INVALID_ID ? -1 : p_->findCcForParam (spot.param_id);
+    return {spotToLogicalRect (tileIdx, spot), dragging, cc};
+}
+
+void PanelUI::drawHighlight (int tileIdx, const Highlight& overlay)
+{
+    const Rect& hr = overlay.bounds;
+    if (hr.empty()) return;
     const auto& th = p_->theme;
-    // Interactive hotspot highlight overlay (hover or active drag)
-    const bool draggingHere = (drag_ != Drag::None && dragTile_ == tileIdx && dragSpot_.kind != HDSLAVE_HOTSPOT_NONE);
-    const bool hoveringHere = (drag_ == Drag::None && hoverTile_ == tileIdx && hoverSpot_.kind != HDSLAVE_HOTSPOT_NONE);
+    const uint32_t col = overlay.dragging ? 0xFFFFFFFFu : th.accent;
+    c_.fill (hr, th.accent, overlay.dragging ? 38 : 22);
+    c_.frame (hr, col, overlay.dragging ? 245 : 190);
 
-    if (draggingHere || hoveringHere)
+    // Corner ticks for crisp visual feedback
+    const int tk = std::min (5, std::min (hr.w, hr.h) / 3);
+    if (tk >= 2)
     {
-        const hdslave_tile_hotspot_t& sp = draggingHere ? dragSpot_ : hoverSpot_;
-        if (sp.kind == HDSLAVE_HOTSPOT_PARAM && !controlEnabled (p_->findParamIndex (sp.param_id))) return;
-        const Rect hr = spotToLogicalRect (tileIdx, sp);
-        if (!hr.empty())
-        {
-            const uint32_t col = draggingHere ? 0xFFFFFFFFu : th.accent;
-            c_.fill (hr, th.accent, draggingHere ? 38 : 22);
-            c_.frame (hr, col, draggingHere ? 245 : 190);
+        c_.fill (hr.x, hr.y, tk, 2, col);
+        c_.fill (hr.x, hr.y, 2, tk, col);
+        c_.fill (hr.x + hr.w - tk, hr.y, tk, 2, col);
+        c_.fill (hr.x + hr.w - 2, hr.y, 2, tk, col);
+        c_.fill (hr.x, hr.y + hr.h - 2, tk, 2, col);
+        c_.fill (hr.x, hr.y + hr.h - tk, 2, tk, col);
+        c_.fill (hr.x + hr.w - tk, hr.y + hr.h - 2, tk, 2, col);
+        c_.fill (hr.x + hr.w - 2, hr.y + hr.h - tk, 2, tk, col);
+    }
 
-            // Corner ticks for crisp visual feedback
-            const int tk = std::min (5, std::min (hr.w, hr.h) / 3);
-            if (tk >= 2)
-            {
-                c_.fill (hr.x, hr.y, tk, 2, col);
-                c_.fill (hr.x, hr.y, 2, tk, col);
-                c_.fill (hr.x + hr.w - tk, hr.y, tk, 2, col);
-                c_.fill (hr.x + hr.w - 2, hr.y, 2, tk, col);
-                c_.fill (hr.x, hr.y + hr.h - 2, tk, 2, col);
-                c_.fill (hr.x, hr.y + hr.h - tk, 2, tk, col);
-                c_.fill (hr.x + hr.w - tk, hr.y + hr.h - 2, tk, 2, col);
-                c_.fill (hr.x + hr.w - 2, hr.y + hr.h - tk, 2, tk, col);
-            }
-
-            // Show MIDI CC badge if the hovered parameter is mapped to a CC
-            if (sp.param_id != CLAP_INVALID_ID)
-            {
-                const int cc = p_->findCcForParam (sp.param_id);
-                if (cc >= 0)
-                {
-                    char ccTag[16];
-                    std::snprintf (ccTag, sizeof (ccTag), "CC%d", cc);
-                    c_.tag (hr.x + 2, std::max (tv.screenRect.y, hr.y - 14), ccTag, th.accent, 0xFF05070Au, 2);
-                }
-            }
-        }
+    if (overlay.cc >= 0)
+    {
+        char ccTag[16];
+        std::snprintf (ccTag, sizeof (ccTag), "CC%d", overlay.cc);
+        const int top = tiles_[(size_t) tileIdx].screenRect.y;
+        c_.tag (hr.x + 2, std::max (top, hr.y - 14), ccTag, th.accent, 0xFF05070Au, 2);
     }
 }
 

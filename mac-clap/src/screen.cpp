@@ -198,7 +198,7 @@ bool Screen::moving (uint32_t* pixels, int stride, uint32_t sounding)
     return picture.region<155, bodyH> (pixels, stride, false, 0, headH, [&] (Raster& r) { plots (r, sounding); });
 }
 
-void Screen::formatted (uint32_t id, char* s, uint32_t n) const
+void ScreenPlots::formatted (uint32_t id, char* s, uint32_t n) const
 {
     if (id == ParamId::key)
     {
@@ -333,7 +333,7 @@ void Screen::cell (const Raster& r, const Cell& c, bool focused, bool edited) co
 }
 
 // The sixteen pads, pad 1 bottom left (as on the MPC); 9-16 the lifted chords.
-void Screen::padGrid (const Raster& r, uint32_t held) const
+void ScreenPlots::padGrid (const Raster& r, uint32_t held) const
 {
     using namespace hdui;
     const int prog = std::clamp (choice (ParamId::progression), 0, progressionCount - 1);
@@ -386,7 +386,7 @@ void Screen::padGrid (const Raster& r, uint32_t held) const
 }
 
 // Notes C1 to C7; the sounding ones lit (the bass gold), else the last chord's, dim.
-void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const
+void ScreenPlots::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding) const
 {
     using namespace hdui;
     constexpr int low = 24, high = 96;
@@ -442,7 +442,7 @@ void Screen::keyboard (const Raster& r, int x0, int y0, int w, int h, uint32_t s
 }
 
 // The X / Y field: its grid, the path around (X, Y), the notes on it.
-void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop) const
+void ScreenPlots::field (const Raster& r, int x0, int y0, int w, int h, uint32_t sounding, const Ink* backdrop) const
 {
     using namespace hdui;
     // The meridians and the specular highlight belong to the lens, so bake them once.
@@ -527,7 +527,7 @@ void Screen::field (const Raster& r, int x0, int y0, int w, int h, uint32_t soun
     caption (x0 + w - 5 - r.measure ("X / Y", 10), y0 + h - 14, "X / Y", ink::ice, 10);
 }
 
-void Screen::well (const Raster& r, int x, int y, int w, int h)
+void ScreenPlots::well (const Raster& r, int x, int y, int w, int h)
 {
     using namespace hdui;
     r.gradient (x, y, w, h, 0xff145d79, ink::deep);
@@ -537,7 +537,7 @@ void Screen::well (const Raster& r, int x, int y, int w, int h)
 }
 
 // An oscillator's wave where its Position is now (the newest note's, else the knob's).
-void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
+void ScreenPlots::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
 {
     using namespace hdui;
     well (r, x0, y0, w, h);
@@ -572,7 +572,7 @@ void Screen::scope (const Raster& r, int x0, int y0, int w, int h, int o) const
 }
 
 // The filter's response, 20 Hz to 20 kHz, -36 to +18 dB; the newest note's cutoff marked.
-void Screen::response (const Raster& r, int x0, int y0, int w, int h) const
+void ScreenPlots::response (const Raster& r, int x0, int y0, int w, int h) const
 {
     using namespace hdui;
     well (r, x0, y0, w, h);
@@ -618,7 +618,7 @@ void Screen::response (const Raster& r, int x0, int y0, int w, int h) const
 }
 
 // An ADSR from the four ids from `first`, with where the newest note is.
-void Screen::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const
+void ScreenPlots::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t first, float now, Ink c, bool sounding) const
 {
     using namespace hdui;
     well (r, x0, y0, w, h);
@@ -657,7 +657,7 @@ void Screen::envelope (const Raster& r, int x0, int y0, int w, int h, uint32_t f
     r.disc (x4, sy, 2, c);
 }
 
-void Screen::lfoPicture (const Raster& r, int x0, int y0, int w, int h) const
+void ScreenPlots::lfoPicture (const Raster& r, int x0, int y0, int w, int h) const
 {
     using namespace hdui;
     well (r, x0, y0, w, h);
@@ -688,7 +688,7 @@ void Screen::lfoPicture (const Raster& r, int x0, int y0, int w, int h) const
 }
 
 // Post-limiter stereo peak, in 3 dB segments from -48 dBFS to full scale.
-int Screen::meterSegments (float peak)
+int ScreenPlots::meterSegments (float peak)
 {
     const float db = 20.f * std::log10 (std::max (peak, 1.e-5f));
     int count = 0;
@@ -696,7 +696,7 @@ int Screen::meterSegments (float peak)
     return count;
 }
 
-void Screen::outputMeter (const Raster& r, int x, int y) const
+void ScreenPlots::outputMeter (const Raster& r, int x, int y) const
 {
     using namespace hdui;
     r.box (x, y, 103, 13, ink::deep);
