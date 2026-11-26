@@ -187,7 +187,7 @@ void Sp16Screen::knobs (uint32_t ids[6], char name[SIXTEEN_TAB_NAME_SIZE]) const
 {
     const Bank& bank = pages[page].banks[banks[page]];
     std::transform (bank.ids.begin(), bank.ids.end(), ids, [this] (uint32_t row) {
-        if (row == originalProgression && choice (progBank) != 0) row = progression;
+        if (row == originalProgression && std::lround (value (progBank)) != 0) row = progression;
         return row == none || !plots.controlEnabled (row) ? none : paramTable[row].id;
     });
     std::snprintf (name, SIXTEEN_TAB_NAME_SIZE, "%s", bank.strip);
@@ -200,7 +200,7 @@ void Sp16Screen::soundLoaded (int index)
     dirty = true;
 }
 
-int Sp16Screen::matchingSound() const
+int Sp16Screen::matchingSound (const float* snapshot) const
 {
     // Match only the sound parameters. Key, voicing and progression stay
     // independent, including when an old project restores its parameter blob.
@@ -212,7 +212,7 @@ int Sp16Screen::matchingSound() const
     }();
     std::array<float, paramCount> live {};
     for (int i = chordSection; i < paramCount; ++i)
-        if (isSoundRow ((uint32_t) i)) live[i] = value (i);
+        if (isSoundRow ((uint32_t) i)) live[i] = snapshot ? snapshot[i] : value (i);
     for (int i = 0; i < presetCount; ++i)
         if (std::equal (live.begin() + chordSection, live.end(), factory[i].begin() + chordSection,
                         [] (float a, float b) { return std::abs (a - b) < 1.0e-6f; }))
@@ -265,7 +265,7 @@ Sp16Screen::Touch Sp16Screen::touch (int phase, int x, int y)
         gesture = Gesture::none;
         if (inside (x, y, patchX, 0, patchW, patchH))
         {
-            const int match = matchingSound();
+            const int match = matchingSound (nullptr);
             const int anchor = match >= 0 ? match : lastFactory;
             if (x < patchX + arrowW || x >= patchX + patchW - arrowW)
             {
@@ -371,6 +371,7 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
 {
     if (surface.pixels == nullptr || surface.width != w || surface.height != h || surface.stride < w)
         return false;
+    // Static labels can survive many animation ticks. Paint them from the same values checked here.
     bool refresh = full || dirty;
     for (int i = 0; i < paramCount; ++i)
     {
@@ -403,20 +404,26 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     const bool refreshHeader = refresh || (perform && (strikes != shownStrikes || slot != shownSlot));
     if (refreshHeader)
     {
-        const int match = matchingSound();
+        const int match = matchingSound (seen.data());
         if (match >= 0) lastFactory = match;
-        header (r, match);
+        header (r, match, slot);
     }
-    std::copy_n (sp16Art::water, w * (h - bodyTop), r.px + w * bodyTop);
-    if (soundsOpen) sounds (r);
+    // During an animation tick only the keyboard and lens change. Both redraw their own backgrounds.
+    if (perform && !refresh && !changed)
+        performanceLights (r, sounding);
     else
     {
-        r.box (paneW - 1, bodyTop, 1, h - bodyTop, ink::rule);
-        switch (page / 2)
+        std::copy_n (sp16Art::water, w * (h - bodyTop), r.px + w * bodyTop);
+        if (soundsOpen) sounds (r);
+        else
         {
-            case 0: performance (r, sounding, held); break;
-            case 1: synthesis (r, sounding != 0); break;
-            case 2: output (r, sounding != 0); break;
+            r.box (paneW - 1, bodyTop, 1, h - bodyTop, ink::rule);
+            switch (page / 2)
+            {
+                case 0: performance (r, sounding, held, slot); break;
+                case 1: synthesis (r, sounding != 0); break;
+                case 2: output (r, sounding != 0); break;
+            }
         }
     }
 
@@ -441,15 +448,15 @@ bool Sp16Screen::render (const sixteen_screen_surface_t& surface, bool full)
     return drew;
 }
 
-void Sp16Screen::header (const Raster& r, int sound) const
+void Sp16Screen::header (const Raster& r, int sound, int slot) const
 {
     static_assert (std::size (sp16Art::header) == w * headerH && std::size (sp16Art::water) == w * (h - bodyTop));
     std::copy_n (sp16Art::header, w * headerH, r.px);
-    const auto& prog = progressionAt (selectedProgression (values));
+    const auto& prog = progressionAt (selectedProgression (seen.data()));
     char mode[16];
-    const int set = choice (mood);
-    if (set) std::snprintf (mode, sizeof (mode), "Mood %+d", choice (moodShift));
-    else std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (choice (key), prog.minor), prog.minor ? "minor" : "major");
+    const int set = shownChoice (mood);
+    if (set) std::snprintf (mode, sizeof (mode), "Mood %+d", shownChoice (moodShift));
+    else std::snprintf (mode, sizeof (mode), "%s %s", keyTonic (shownChoice (key), prog.minor), prog.minor ? "minor" : "major");
     const int badgeW = textWidth<14> (mode) + 14;
     r.gel (15, 54, badgeW, 21, 0xff1f728b, 0xfff4ffff, 0xff8adcdf, 0xffc3eff4);
     centered<14> (r, 15 + badgeW / 2, 55, mode, ink::deep);
@@ -508,17 +515,16 @@ void Sp16Screen::header (const Raster& r, int sound) const
         title (r, x + 18, 87, pages[s].heading);
         if (s == Screen::chordsPage)
         {
-            const int slot = telemetry.lastSlot.load (std::memory_order_relaxed);
             if (slot >= 0 && slot < padSlots)
             {
                 char name[32], caption[48];
                 if (set)
                 {
                     const auto& pad = moodPads[set - 1][slot];
-                    std::snprintf (name, sizeof (name), "%s%s%s%s", moodPitchName (pad.root, choice (moodShift)),
-                                   pad.quality, *pad.slashBass ? "/" : "", moodPitchName (pad.slashBass, choice (moodShift)));
+                    std::snprintf (name, sizeof (name), "%s%s%s%s", moodPitchName (pad.root, shownChoice (moodShift)),
+                                   pad.quality, *pad.slashBass ? "/" : "", moodPitchName (pad.slashBass, shownChoice (moodShift)));
                 }
-                else chordText (parsedProgressions()[selectedProgression (values)].chords[slot % 8], choice (key), prog.minor, name, sizeof (name));
+                else chordText (parsedProgressions()[selectedProgression (seen.data())].chords[slot % 8], shownChoice (key), prog.minor, name, sizeof (name));
                 std::snprintf (caption, sizeof (caption), "%s%s", name, ! set && slot >= 8 ? " / Lift" : "");
                 text<14> (r, 99, 87, caption, ink::ice);
             }
@@ -547,15 +553,24 @@ void Sp16Screen::sounds (const Raster& r) const
 void Sp16Screen::field (const Raster& r, int x, int y, int width, const char* label, uint32_t id) const
 {
     char formatted[64];
-    formatParam (paramTable[id], value (id), formatted, sizeof (formatted));
+    formatParam (paramTable[id], seen[id], formatted, sizeof (formatted));
     row (r, x, y, width, label, formatted);
 }
 
-void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held) const
+void Sp16Screen::performanceLights (const Raster& r, uint32_t sounding) const
 {
-    const int prog = selectedProgression (values), tonic = choice (key), set = choice (mood);
+    plots.keyboard (r, 8, 256, 373, 22, sounding);
+    picture (r, globeX, globeY, globeSize, sp16Art::lens);
+    const int shape = shownChoice (motionShape);
+    plots.motionTrace (r, globeCenterX, globeCenterY, globeRadius, shape, sounding, shownCursor);
+    text<14> (r, globeX + 7, globeY + 127, motionChoices[shape], ink::white);
+    text<14> (r, globeX + 112, globeY + 127, "X / Y", ink::ice);
+}
+
+void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held, int lastSlot) const
+{
+    const int prog = selectedProgression (seen.data()), tonic = shownChoice (key), set = shownChoice (mood);
     const auto& sequence = parsedProgressions()[prog];
-    const int last = telemetry.lastSlot.load (std::memory_order_relaxed);
     for (int slot = 0; slot < padSlots; ++slot)
     {
         const int x = padX + (slot % 4) * padDX, y = padY + (3 - slot / 4) * padDY;
@@ -569,7 +584,7 @@ void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held)
         if (set)
         {
             const auto& pad = moodPads[set - 1][slot];
-            moodRootText (pad, choice (moodShift), root, sizeof (root));
+            moodRootText (pad, shownChoice (moodShift), root, sizeof (root));
             quality = pad.quality;
         }
         else chordRootText (chord, tonic, progressionAt (prog).minor, root, sizeof (root));
@@ -578,14 +593,9 @@ void Sp16Screen::performance (const Raster& r, uint32_t sounding, uint32_t held)
         if (textWidth<14> (quality) <= padW - 10) text<14> (r, x + 6, y + 12, quality, ink::text);
         else text<11> (r, x + 6, y + 14, quality, ink::text);
         text<11> (r, x + padW - 19, y + 2, index, ink::label);
-        if (slot == last) r.box (x + padW - 22, y + padH - 6, 14, 2, on ? 0xffa8590c : ink::teal);
+        if (slot == lastSlot) r.box (x + padW - 22, y + padH - 6, 14, 2, on ? 0xffa8590c : ink::teal);
     }
-    plots.keyboard (r, 8, 256, 373, 22, sounding);
-    picture (r, globeX, globeY, globeSize, sp16Art::lens);
-    const int shape = choice (motionShape);
-    plots.motionTrace (r, globeCenterX, globeCenterY, globeRadius, shape, sounding, shownCursor);
-    text<14> (r, globeX + 7, globeY + 127, motionChoices[shape], ink::white);
-    text<14> (r, globeX + 112, globeY + 127, "X / Y", ink::ice);
+    performanceLights (r, sounding);
 
     constexpr int x = 553, col = 106, top = 118, dy = 23;
     field (r, x, top, col, "X", motionX);

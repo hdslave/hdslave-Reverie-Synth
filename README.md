@@ -416,7 +416,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
-The SP-16 build, version **0.4.4-sp16.15**, uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.16**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 
@@ -493,6 +493,8 @@ Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell,
 Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
 
 ## Cost
+
+Moving Perform frames in the Cortex-A9 renderer fixture averaged 842,629 guest instructions in 0.4.4-sp16.16, down from 1,616,041. All 421 reference frames matched pixel for pixel.
 
 Instructions a 128-frame block takes (callgrind, `tools/bench.sh`; a block at 48 kHz is about 4.8 million cycles of
 the MPC's 1.8 GHz Cortex-A55):

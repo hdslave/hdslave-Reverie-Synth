@@ -267,7 +267,7 @@ void checkUndertow (Fixture& f, const char* out)
     f.setValue (98, 0);
 }
 
-void checkMotionDuringTail (const clap_plugin_factory_t& factory)
+void checkPerformAnimation (const clap_plugin_factory_t& factory)
 {
     Fixture f;
     f.attach (factory);
@@ -280,17 +280,29 @@ void checkMotionDuringTail (const clap_plugin_factory_t& factory)
     f.setValue (revMix, 0.7);
     f.setValue (revDecay, 0.8);
     f.block (CLAP_EVENT_NOTE_ON);
-    for (int i = 0; i < 90; ++i) f.block();
+    assert (f.frame (true));
+    auto checkPartial = [&] {
+        const auto before = f.pixels;
+        assert (f.frame() && f.pixels != before);
+        const auto partial = f.pixels;
+        assert (f.frame (true) && f.pixels == partial);
+    };
+    for (int i = 0; i < 45; ++i) f.block();
+    checkPartial(); // keyboard and lens while held
+    f.setValue (key, 5);
+    checkPartial(); // pad labels, fields and header after a parameter edit
+    f.block (CLAP_EVENT_NOTE_ON, 40, 8);
+    checkPartial(); // pad colors and last strike
+    f.block (CLAP_EVENT_NOTE_OFF, 40, 8);
+    checkPartial();
+    for (int i = 0; i < 45; ++i) f.block();
     f.block (CLAP_EVENT_NOTE_OFF);
     for (int i = 0; i < 20; ++i) f.block();
     assert (f.frame (true));
-    const auto released = f.pixels;
     float peak = 0.0f;
     for (int i = 0; i < 10; ++i) peak = std::max (peak, f.block());
     assert (peak > 0.001f);
-    assert (f.frame() && f.pixels != released);
-    const auto partial = f.pixels;
-    assert (f.frame (true) && f.pixels == partial);
+    checkPartial(); // motion cursor during the audible effects tail
     assert (! f.frame());
     f.stop();
 }
@@ -337,7 +349,7 @@ int main (int argc, char** argv)
     const auto* factory = static_cast<const clap_plugin_factory_t*> (entry->get_factory (CLAP_PLUGIN_FACTORY_ID));
     assert (factory);
     checkFactoryList (entry);
-    checkMotionDuringTail (*factory);
+    checkPerformAnimation (*factory);
     checkUndertowAudio (*factory);
     Fixture f;
     f.attach (*factory);

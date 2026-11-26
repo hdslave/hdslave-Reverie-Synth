@@ -32,16 +32,17 @@ private:
     enum class Gesture { none, pad, motion };
     using Raster = hdui::Raster;
 
-    void header (const Raster& r, int sound) const;
+    void header (const Raster& r, int sound, int slot) const;
     void sounds (const Raster& r) const;
-    void performance (const Raster& r, uint32_t sounding, uint32_t held) const;
+    void performance (const Raster& r, uint32_t sounding, uint32_t held, int lastSlot) const;
+    void performanceLights (const Raster& r, uint32_t sounding) const;
     bool performanceChanged (uint32_t sounding);
     void synthesis (const Raster& r, bool sounding) const;
     void output (const Raster& r, bool sounding) const;
     void field (const Raster& r, int x, int y, int width, const char* label, uint32_t id) const;
-    int matchingSound() const;
+    int matchingSound (const float* snapshot) const;
     float value (uint32_t id) const { return values[id].load (std::memory_order_relaxed); }
-    int choice (uint32_t id) const { return static_cast<int> (std::lround (value (id))); }
+    int shownChoice (uint32_t id) const { return static_cast<int> (std::lround (seen[id])); }
 
     const std::atomic<float>* values;
     const Telemetry& telemetry;
