@@ -17,15 +17,21 @@
 
 | Platform | Published download | Setup and source |
 | --- | --- | --- |
-| MPC Sample | [0.6.5](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.6.5-MPC-Sample.zip) | [MPC install](#install) · `main` |
-| SP-16 | [0.4.4-sp16.17](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.4.4-sp16.17-SP-16.zip) | [freesp16 install and build](https://github.com/hdslave/hdslave-Reverie-Synth/tree/sp16-screen#sp-16) · `sp16-screen` |
-| macOS and Windows | [0.3.5 CLAP and VST3](mac-clap/README.md#download-and-install) | [Desktop guide](mac-clap/README.md) · `main` |
+| MPC Sample | [0.6.6](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.6.6-MPC-Sample.zip) | [MPC install](#install) · `main` |
+| SP-16 | [0.4.4-sp16.18](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.4.4-sp16.18-SP-16.zip) | [freesp16 install and build](https://github.com/hdslave/hdslave-Reverie-Synth/tree/sp16-screen#sp-16) · `sp16-screen` |
+| macOS and Windows | [0.3.6 CLAP and VST3](mac-clap/README.md#download-and-install) | [Desktop guide](mac-clap/README.md) · `main` |
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New MPC tracks open on Velvet Night, the first of Reverie’s 46 original progressions. Each has six voicings and plays in any key. The 208 factory progressions remain available for saved projects. A Mood can override either bank with sixteen individually voiced chords. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, an envelope-controlled stereo phaser, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory bank uses the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.5). Physical MPC Sample testing of this build remains open.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.6). Physical MPC Sample testing of this build remains open.
+
+## Platform compatibility
+
+All four platforms share 25 factory sounds, 46 Original progressions and 18 Mood sets. MPC Sample and SP-16 also provide the 208 Factory progressions and expose 88 parameters. The macOS and Windows editions expose 86 parameters and add MIDI Learn. CLAP and VST3 on desktop use the same synth and editor.
+
+MPC Sample uses the host drum pad map. Both hardware builds accept MIDI tie and slide messages. The freesp16 build adds its six-encoder panel, maps chromatic notes 60–75 to the chord pads and fades held audio when changing sounds. Use the [desktop state import guide](mac-clap/README.md#progression-and-mood) when moving a patch from hardware.
 
 ## Install
 
@@ -498,17 +504,17 @@ Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter en
 
 ## Cost
 
-Callgrind counts below use six-second AArch64 renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55. The silent path skips voice rendering while the engine sleeps, reducing the count from 3,887 to 2,861 instructions per block in the same fixture.
+Callgrind counts below use six-second AArch64 renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55. During sleep the engine skips voice rendering and avoids publishing the same empty voice display again. The current source uses 2,471 instructions per silent block, compared with 2,861 in the 0.6.5 release.
 
 | Scene | Instructions | Estimated share of one core |
 |---|---|---|
-| silent | 2,861 | 0.06 % |
-| Undertow Wah chord, phaser Mix at zero | 198,612 | 4.14 % |
-| same chord with the factory phaser setting | 211,309 | 4.40 % |
-| one chord held, default sound | 251,553 | 5.24 % |
-| the progression played, releases overlapping | 380,030 | 7.92 % |
-| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,196 | 21.77 % |
-| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,090,666 | 22.72 % |
+| silent | 2,471 | 0.05 % |
+| Undertow Wah chord, phaser Mix at zero | 197,697 | 4.12 % |
+| same chord with the factory phaser setting | 210,395 | 4.38 % |
+| one chord held, default sound | 250,638 | 5.22 % |
+| the progression played, releases overlapping | 378,262 | 7.88 % |
+| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,041,028 | 21.69 % |
+| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,086,509 | 22.64 % |
 
 The page costs about 77,000 instructions per CHORDS frame and 110,000 per MOTION frame while moving, at 25 frames per second on Melodee's screen thread. The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both

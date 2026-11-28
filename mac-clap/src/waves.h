@@ -24,13 +24,6 @@ constexpr int waveFrames = 4;
 constexpr int waveLevels = 10;
 constexpr int topHarmonics = 512;
 
-struct WaveTable
-{
-    const float* data; // length + 1 samples (the first repeated at the end)
-    uint32_t shift;    // 32 - log2 (length): a 32-bit phase's index is phase >> shift
-    uint32_t length;
-};
-
 class WaveBank
 {
 public:
@@ -40,11 +33,11 @@ public:
         return bank;
     }
 
-    const WaveTable& table (int wave, int frame, int level) const { return tables[((wave * waveFrames) + frame) * waveLevels + level]; }
-    // Segment `seg` (frames seg and seg + 1) at a level: 2 (length + 1) floats, as above; the same shift as the table.
+    // A segment interleaves each sample of frame seg and its difference to frame seg + 1.
     const float* segment (int wave, int seg, int level) const { return segments[((wave * (waveFrames - 1)) + seg) * waveLevels + level]; }
     static constexpr int harmonicsAt (int level) { return topHarmonics >> level; }
-    static constexpr uint32_t lengthAt (int level) { return (uint32_t) std::max (64, 8 * (topHarmonics >> level)); }
+    static constexpr uint32_t lengthAt (int level) { return 1u << tableBits (level); }
+    static constexpr uint32_t shiftAt (int level) { return 32u - tableBits (level); }
 
     // The level whose harmonics stay under `limit` (as a share of the sample rate) at `cycles` a sample.
     static int levelFor (float cycles, float limit = 0.46f)
@@ -59,8 +52,14 @@ public:
     }
 
 private:
-    std::vector<float> storage, pairs;
-    WaveTable tables[waveCount * waveFrames * waveLevels] {};
+    static constexpr int tableBits (int level)
+    {
+        constexpr int maxBits = 12, minBits = 6;
+        static_assert ((1u << maxBits) == 8u * topHarmonics);
+        return std::max (minBits, maxBits - level);
+    }
+
+    std::vector<float> pairs;
     const float* segments[waveCount * (waveFrames - 1) * waveLevels] {};
 
     using Spectrum = std::vector<double>; // amplitudes of harmonics 1..512 (index h - 1); negative flips the phase
@@ -69,7 +68,9 @@ private:
     {
         size_t total = 0;
         for (int l = 0; l < waveLevels; ++l) total += lengthAt (l) + 1;
-        storage.resize (total * waveCount * waveFrames);
+        // Only the interpolated segments are kept after construction.
+        std::vector<float> storage (total * waveCount * waveFrames);
+        const float* frames[waveCount][waveFrames][waveLevels];
         float* at = storage.data();
         for (int w = 0; w < waveCount; ++w)
         {
@@ -87,10 +88,7 @@ private:
                 {
                     const uint32_t n = lengthAt (l);
                     synthesize (a, phase, harmonicsAt (l), n, gain, at);
-                    WaveTable& t = tables[((w * waveFrames) + f) * waveLevels + l];
-                    t.data = at;
-                    t.length = n;
-                    t.shift = 32u - (uint32_t) std::lround (std::log2 ((double) n));
+                    frames[w][f][l] = at;
                     at += n + 1;
                 }
             }
@@ -101,13 +99,13 @@ private:
             for (int s = 0; s < waveFrames - 1; ++s)
                 for (int l = 0; l < waveLevels; ++l)
                 {
-                    const WaveTable& a = table (w, s, l);
-                    const WaveTable& b = table (w, s + 1, l);
+                    const float* a = frames[w][s][l];
+                    const float* b = frames[w][s + 1][l];
                     segments[((w * (waveFrames - 1)) + s) * waveLevels + l] = out;
-                    for (uint32_t i = 0; i <= a.length; ++i)
+                    for (uint32_t i = 0; i <= lengthAt (l); ++i)
                     {
-                        *out++ = a.data[i];
-                        *out++ = b.data[i] - a.data[i];
+                        *out++ = a[i];
+                        *out++ = b[i] - a[i];
                     }
                 }
     }

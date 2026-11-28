@@ -110,7 +110,24 @@ struct Envelope
     enum Stage : uint8_t { idle, attack, decay, release };
     Stage stage = idle;
     float level = 0.0f;
-    struct Coefs { float attack, decay, sustain, release; };
+    struct Coefs
+    {
+        float attack = 0.0f, decay = 0.0f, sustain = 0.0f, release = 0.0f;
+
+        void update (float a, float d, float s, float r, float tickMs)
+        {
+            auto coefficient = [tickMs] (float ms, float shape) {
+                return ms <= tickMs * 0.5f ? 1.0f : 1.0f - std::exp (-tickMs * shape / ms);
+            };
+            if (a != attackKnob) attack = coefficient (envMs (a), 1.609f), attackKnob = a;
+            if (d != decayKnob) decay = coefficient (envMs (d), 4.6f), decayKnob = d;
+            if (r != releaseKnob) release = coefficient (envMs (r), 6.9f), releaseKnob = r;
+            sustain = s;
+        }
+
+    private:
+        float attackKnob = -1.0f, decayKnob = -1.0f, releaseKnob = -1.0f;
+    };
 
     void trigger() { stage = attack; }
     void off() { if (stage != idle) stage = release; }
@@ -153,6 +170,8 @@ public:
     void set (uint32_t index, float v)
     {
         if (index >= (uint32_t) paramCount) return;
+        // The host may repeat the same value every tick. Compare its bits to preserve signed zero.
+        if (running && std::memcmp (&target[index], &v, sizeof (v)) == 0) return;
         target[index] = v;
         if (paramTable[index].kind != Kind::continuous || ! running) smooth[index] = v;
         dirty = true;
@@ -193,6 +212,9 @@ public:
         beatClock = hostBeats = 0.0, hostAt = 0;
         glideCoefAt = -1.0f, motionHzAt = -1.0f;
         volumePrimed = false;
+        publishedQuiet = false;
+        sh.amp = {};
+        sh.flt = {};
         for (auto& f : fading) f.ticks = 0;
         fadingSlots = 0;
         wokeAt = ~0ull;
@@ -563,6 +585,7 @@ private:
     int activeCount = 0;
     float volumeNow = 0.0f, volumeStep = 0.0f;
     bool volumePrimed = false;
+    bool publishedQuiet = false;
     const Voice* newestVoice = nullptr;
     struct Fading { Voice voice; int ticks = 0; };
     Fading fading[maxVoices];
@@ -894,13 +917,9 @@ private:
         sh.envAmt = p[filterEnv] * 6.0f;
         sh.keyTrack = p[keyTrack];
         sh.velCut = p[velCutoff];
-        auto coefs = [&] (float a, float d, float s, float r) {
-            const float tick = 1000.0f / tickRate; // ms
-            auto rc = [&] (float ms, float shape) { return ms <= tick * 0.5f ? 1.0f : 1.0f - std::exp (-tick * shape / ms); };
-            return Envelope::Coefs { rc (envMs (a), 1.609f), rc (envMs (d), 4.6f), s, rc (envMs (r), 6.9f) };
-        };
-        sh.amp = coefs (p[ampAttack], p[ampDecay], p[ampSustain], p[ampRelease]);
-        sh.flt = coefs (p[fltAttack], p[fltDecay], p[fltSustain], p[fltRelease]);
+        const float tickMs = 1000.0f / tickRate;
+        sh.amp.update (p[ampAttack], p[ampDecay], p[ampSustain], p[ampRelease], tickMs);
+        sh.flt.update (p[fltAttack], p[fltDecay], p[fltSustain], p[fltRelease], tickMs);
         sh.lfoShape = (int) p[lfoShape];
         sh.lfoInc = lfoHz (p[lfoRate]) / tickRate;
         sh.lfoFadeTicks = std::max (1.0f, lfoDelayMs (p[lfoDelay]) * 0.001f * tickRate);
@@ -1048,7 +1067,7 @@ private:
             // one band limit for the unison: the highest of them
             const int level = WaveBank::levelFor (top);
             v.seg[o] = WaveBank::get().segment (sh.wave[o], frame, level);
-            v.shift[o] = WaveBank::get().table (sh.wave[o], frame, level).shift;
+            v.shift[o] = WaveBank::shiftAt (level);
             v.oscGain[o] = oscGain[o] * sh.unisonGain[o];
         }
         if (&v == newestVoice)
@@ -1272,6 +1291,10 @@ private:
 
     void publish()
     {
+        // Keep the publication cadence on embedded builds. The empty picture needs writing only once.
+        const bool isQuiet = quiet();
+        if (isQuiet && publishedQuiet) return;
+        publishedQuiet = isQuiet;
         uint32_t sounding = 0, held = 0;
         for (int i = 0; i < maxVoices; ++i)
         {

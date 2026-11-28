@@ -117,7 +117,6 @@ struct DesktopPlugin
     std::atomic<uint32_t> pendingRescanFlags { 0 };
     std::atomic<bool> pendingStateDirty { false };
     bool inInternalPresetLoad = false;
-    bool inScreenInput = false;
     bool retryGestureEnds = false;
     std::atomic<bool> pendingGestureFlush { false };
     std::vector<GestureState> openGestures; // one host automation gesture per parameter, including both X/Y axes
@@ -205,7 +204,6 @@ struct DesktopPlugin
     void clearAllCc();
     void notifyMappingChanged();
     int countMappedCc() const;
-    void sendScreenInput (uint32_t kind, int32_t value);
     void sendNote (int midiNote, bool on, double velocity = 0.85);
     bool paintScreen (uint64_t now); // true when the page changed
     bool paintAllTiles (uint64_t now); // paints all MPC screen tiles

@@ -153,10 +153,6 @@ void CLAP_ABI tParamsRescan (const clap_host_t* h, clap_param_rescan_flags flags
     auto* dp = fromHost (h);
     if (!dp) return;
     dp->markAllDirty();
-    // During live screen input, the inner plug-in also queues p.outgoing for out_events; skip redundant main-thread
-    // rescan(VALUES) here so it never races against the audio thread's out_events in FL Studio.
-    if (dp->inScreenInput && flags == CLAP_PARAM_RESCAN_VALUES)
-        return;
     dp->pendingRescanFlags.fetch_or (flags, std::memory_order_acq_rel);
     scheduleMainThreadFlush (dp);
 }
@@ -1485,16 +1481,6 @@ void DesktopPlugin::refreshScreenKnobs()
     innerScreen->controls (inner, ids);
     for (int i = 0; i < 3; ++i)
         screenKnobIds[i] = ids[i] == MELODEE_SCREEN_NO_CONTROL ? CLAP_INVALID_ID : ids[i];
-}
-
-void DesktopPlugin::sendScreenInput (uint32_t kind, int32_t value)
-{
-    if (!innerScreen || !innerScreen->input) return;
-    melodee_screen_input_t inp { kind, value, screenShift ? 1u : 0u };
-    inScreenInput = true;
-    innerScreen->input (inner, &inp);
-    inScreenInput = false;
-    refreshScreenKnobs();
 }
 
 void DesktopPlugin::sendNote (int midiNote, bool on, double velocity)
