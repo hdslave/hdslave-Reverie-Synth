@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | MPC Sample | [0.6.6](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.6.6-MPC-Sample.zip) | [MPC install](#install) · `main` |
 | SP-16 | [0.4.4-sp16.18](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.4.4-sp16.18-SP-16.zip) | [freesp16 install and build](https://github.com/hdslave/hdslave-Reverie-Synth/tree/sp16-screen#sp-16) · `sp16-screen` |
-| macOS and Windows | [0.3.6 CLAP and VST3](mac-clap/README.md#download-and-install) | [Desktop guide](mac-clap/README.md) · `main` |
+| macOS and Windows | [0.3.7 CLAP and VST3](mac-clap/README.md#download-and-install) | [Desktop guide](mac-clap/README.md) · `main` |
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New MPC tracks open on Velvet Night, the first of Reverie’s 46 original progressions. Each has six voicings and plays in any key. The 208 factory progressions remain available for saved projects. A Mood can override either bank with sixteen individually voiced chords. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, an envelope-controlled stereo phaser, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 

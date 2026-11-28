@@ -677,8 +677,8 @@ private:
     }
 
     // A voice for a note of chord `group`: a free one, else the quietest letting go, else the oldest held, each
-    // taken from another chord first (a chord struck when every voice began on this sample never takes its own
-    // notes). The stolen voice's sound fades out apart (no click) and it starts clean.
+    // taken from another chord first. When held voices began on the same sample, steal from the earliest chord
+    // before reusing a voice from a later chord. The stolen voice fades out while the new voice starts clean.
     Voice& allocate (uint32_t group)
     {
         for (auto& v : voices)
@@ -686,7 +686,8 @@ private:
         auto rather = [group] (const Voice& v, const Voice* best, bool quieter) {
             if (best == nullptr) return true;
             if ((v.group == group) != (best->group == group)) return best->group == group;
-            return quieter ? v.amp.level < best->amp.level : v.born < best->born;
+            if (quieter) return v.amp.level < best->amp.level;
+            return v.born < best->born || (v.born == best->born && (int32_t) (v.group - best->group) < 0);
         };
         Voice* best = nullptr;
         for (auto& v : voices)

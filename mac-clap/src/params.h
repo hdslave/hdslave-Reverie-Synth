@@ -16,7 +16,7 @@
 #include "../../src/mood_data.h"
 
 #ifndef REVERIE_VERSION
-#define REVERIE_VERSION "0.3.6"
+#define REVERIE_VERSION "0.3.7"
 #endif
 
 namespace reverie
