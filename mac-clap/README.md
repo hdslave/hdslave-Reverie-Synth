@@ -2,7 +2,7 @@
 
 **hdslave Reverie** is a VST3 and CLAP instrument for macOS (Apple Silicon and Intel) and Windows (x64). Both formats include the complete synth and editor and can be installed independently.
 
-![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
+![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/desktop-preview.webp)
 
 Version **0.3.7** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
@@ -18,7 +18,7 @@ With **Mood** set to **Off**, **Progression** selects the 46 original progressio
 
 On the Chord pads panel, choose a **Mood** to play any of the 18 SQUID chord sets, each with 16 original voicings. **Mood shift** transposes the set by up to an octave in either direction. Progression, Voicing and Key are greyed out while a Mood is selected. Choose **Off** to use their stored settings again. The set stays selected when you change sounds.
 
-![Mood selected on the desktop panel, with Progression, Voicing and Key greyed out](assets/mood-controls.png)
+![Selecting Dawn dims Progression, Voicing and Key while the chord pads keep playing](assets/mood-controls.webp)
 
 Desktop can import raw MPC Sample and SP-16 states saved with the Original progression bank, including the earlier Original-only state format. Hardware loads native `RVRE` state. A desktop project state wraps the synth state and MIDI Learn map in a desktop-specific envelope. To transfer a patch that uses a Factory progression, select an Original progression on the hardware and save a separate copy first. Desktop reports an unsupported Factory state without changing the current patch.
 

@@ -9,9 +9,9 @@
     <th width="27%">SP-16 · freesp16</th>
   </tr>
   <tr>
-    <td align="center"><a href="docs/reverie-pages.gif"><img src="docs/reverie-pages.gif" alt="Reverie original progressions, Mood chords and synth pages in hdslaveOS"></a></td>
-    <td align="center"><a href="mac-clap/assets/desktop-preview.gif"><img src="mac-clap/assets/desktop-preview.gif" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
-    <td align="center"><a href="docs/reverie-sp16-chords.png"><img src="docs/reverie-sp16-chords.png" alt="Reverie on freesp16 with the Dawn Mood selected and the notes of pad 6 highlighted"></a></td>
+    <td align="center"><a href="docs/reverie-pages.webp"><img src="docs/reverie-chords.webp" alt="Reverie playing Velvet Night chords on the MPC Sample"></a></td>
+    <td align="center"><a href="mac-clap/assets/desktop-preview.webp"><img src="mac-clap/assets/desktop-preview.webp" alt="Reverie chord pads, Motion orb and output meter during playback"></a></td>
+    <td align="center"><a href="docs/reverie-sp16.webp"><img src="docs/reverie-sp16.webp" alt="Reverie playing Dawn chords and moving the X/Y control on SP-16"></a></td>
   </tr>
 </table>
 
@@ -42,7 +42,7 @@ hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.scr
 
 ## The pads
 
-![Velvet Night on the Chords panel in hdslaveOS with pad A01 playing](docs/reverie-chords.png)
+![Velvet Night chords lighting up the pads and keyboard in hdslaveOS](docs/reverie-chords.webp)
 
 | Pads | What they play |
 |---|---|
@@ -409,7 +409,7 @@ Left out (45 M3 sets): 1 with a cluster no chord name fits; 44 with power chords
 
 ## Sound and parameters
 
-![The MOTION page: the path, its centre and a light for every note](docs/reverie-motion.png)
+![Notes following the orbit on the MOTION page](docs/reverie-motion.webp)
 
 **Oscillators.** Two, each with a WAVE (twelve sources made for pads), a POS (Position: each wave has four frames
 and POS morphs across them), OCT, SEMI, FINE, UNISON (1-4 voices), DETUNE (the outer unison voices' spread, up to 50
@@ -465,7 +465,7 @@ into it). VOLUME sets the level; a soft limiter keeps the output under 0 dBFS.
 
 ## The page
 
-Use Minus and Plus to move through the six pages. [Watch the screen tour in hdslaveOS](docs/reverie-pages.gif). The wheel moves between controls. Push edits one; turn the
+Use Minus and Plus to move through the six pages. [Watch the screen tour in hdslaveOS](docs/reverie-pages.webp). The wheel moves between controls. Push edits one; turn the
 wheel to change it (Shift + wheel for fine steps, Minus and Plus for coarse) and Push again when done. On a switch,
 Push flips it at once. K1-K3 hold the control picked and the next two. Hold Shift to see the controls.
 
@@ -484,7 +484,7 @@ A hollow amber marker shows where a physical knob sits while it waits for pickup
 
 The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
 
-![The OSC page: Velvet Saw and Choir at their positions](docs/reverie-osc.png)
+![The OSC page while the wavetable position changes](docs/reverie-osc.webp)
 
 ## Sounds
 
