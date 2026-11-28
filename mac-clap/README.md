@@ -4,7 +4,7 @@
 
 ![Reverie’s desktop panel with its chord pads, motion lens and live output meter](assets/reverie-desktop.png)
 
-Desktop version **0.3.5** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
+Version **0.3.5** opens at its smallest size, **960 × 648**, and keeps the panel’s 40:27 proportions when resized. The glass panorama holds the sound preset selector, MIDI Learn and the live parameter readout. The six sections below it give direct access to all 86 parameters. The sixteen pads audition the chord bank from A01 at the lower left through A16 at the upper right.
 
 Drag or scroll a value to edit it. Shift-drag or right-drag for fine adjustments. Click a choice to advance it, double-click to restore its default, or right-click for its menu. Click MIDI Learn, select a parameter and move a MIDI controller to bind it. MIDI Learn accepts CC 0–119. Existing assignments in the Channel Mode range are preserved when loading a project. Actual MIDI mode messages bypass parameter mappings.
 
@@ -24,12 +24,12 @@ Hardware states saved with the Original progression bank recall their selected s
 
 ## Download and install
 
-Each desktop ZIP contains CLAP, VST3 and four optional VST3 pad preset files. All 25 sounds are available in Reverie’s preset menu.
+The desktop downloads are version **0.3.5**. Each ZIP contains CLAP, VST3 and four optional VST3 pad preset files. All 25 sounds are available in Reverie’s preset menu.
 
-| Platform | Version 0.3.4 download | VST3 installation folder | CLAP installation folder |
+| Platform | Version 0.3.5 download | VST3 installation folder | CLAP installation folder |
 | --- | --- | --- | --- |
-| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.3/Reverie-0.3.4-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.3/Reverie-0.3.4-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
+| macOS 11 or later, Apple Silicon or Intel | [macOS ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.3.5-macOS-universal.zip) | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/CLAP` |
+| Windows x64 | [Windows ZIP](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.3.5-Windows-x64.zip) | `C:\Program Files\Common Files\VST3` | `C:\Program Files\Common Files\CLAP` |
 
 Quit your DAW and extract the ZIP. For VST3, copy the entire `Reverie.vst3` bundle or folder. For CLAP, copy `Reverie.clap`. Create the installation folder if needed. In FL Studio, reopen the app, go to **Options → Manage plugins → Find installed plugins**, then add **hdslave Reverie** as a generator. The macOS downloads are ad-hoc signed and unnotarized.
 
@@ -40,10 +40,9 @@ Requires Xcode Command Line Tools and CMake 3.20+ (Ninja optional):
 ```bash
 cd mac-clap
 ./build-macos.sh
-./install-macos.sh
 ```
 
-`install-macos.sh` builds, ad-hoc signs, tests, and installs `Reverie.clap` to `/Library/Audio/Plug-Ins/CLAP/` (pass `--user` to install to `~/Library/Audio/Plug-Ins/CLAP/`). Quit and reopen FL Studio after reinstalling so macOS reloads the updated bundle.
+To build and install in one step, use `./install-macos.sh`. It ad-hoc signs, tests, and installs `Reverie.clap` to `/Library/Audio/Plug-Ins/CLAP/` (pass `--user` to install to `~/Library/Audio/Plug-Ins/CLAP/`). Quit and reopen FL Studio after reinstalling so macOS reloads the updated bundle.
 
 ## Build CLAP on Windows x64
 
@@ -56,7 +55,7 @@ Copy `build\windows\clap\Release\Reverie.clap` to `C:\Program Files\Common Files
 
 ## Build VST3
 
-Run these commands from `mac-clap/` with CMake 3.21 or later, Ninja, Git and a C++17 toolchain. CMake fetches the pinned adapter and SDK on first configure.
+Run these commands from `mac-clap/` in a checkout of `main` with CMake 3.21 or later, Ninja, Git and a C++17 toolchain. CMake fetches the pinned adapter and SDK on first configure.
 
 On macOS, build both architectures and sign the bundle locally.
 
@@ -75,4 +74,4 @@ cmake --build build/vst3-win --target ReverieVST3
 
 Copy the complete `vst3/Reverie.vst3` directory from the chosen build folder to the VST3 installation folder above.
 
-Build the `vst3_automation_test` target to check that the VST3 renders the same parameter transitions across two block sizes. Pass the full bundle path on macOS or the binary inside `Contents/x86_64-win` on Windows.
+Run `host_test` with the CLAP bundle or file path to check parameters, state import, presets, MIDI Learn and the editor. Build the `vst3_automation_test` target to check that VST3 preserves dense sample-accurate automation across block sizes. Pass the full bundle path on macOS or the binary inside `Contents/x86_64-win` on Windows.

@@ -48,7 +48,7 @@ rate-44100 9ba8d50d6f871f26
 rate-96000 4443dacc425cd921
 sound-off 787c1c86708b4652
 sound-off-96000 601e20968d28b38f
-reset 06d7e56e705cfea1
+reset fe2581a1301863bd
 reverb-off-on 6486c84d2d9eecaa
 sleep-wake eece492244798f22
 phaser-envelope 72f2cdc0a982b492

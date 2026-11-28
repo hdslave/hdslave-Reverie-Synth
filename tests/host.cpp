@@ -1738,7 +1738,26 @@ void testStoppedDelay()
     CHECK (processRequests == before);
 }
 
-// 0.6.4: two defects a review reproduced.
+void testResetFirstNote()
+{
+    using namespace ParamId;
+    Instance before, after;
+    const auto held = dry() + std::vector<Cue> { On (0, 36) };
+    for (auto* inst : { &before, &after })
+        CHECK (peak (inst->render (2049, held)) > 0.01);
+
+    // Set the same cutoff before or after reset. The new chord should start
+    // from the new value in both cases, even though the old chord was held.
+    Events edit;
+    edit.param (0, cutoff, 0.05);
+    before.params->flush (before.plugin, &edit.in, nullptr);
+    before.plugin->reset (before.plugin);
+    after.plugin->reset (after.plugin);
+    const auto expected = before.render (4096, { On (0, 36) });
+    const auto actual = after.render (4096, { P (0, cutoff, 0.05), On (0, 36) });
+    CHECK (same (expected, actual));
+}
+
 void testShortNotesAndLp24()
 {
     using namespace ParamId;
@@ -1941,6 +1960,7 @@ int main (int argc, char** argv)
     testExtremes();
     testSleep();
     testStoppedDelay();
+    testResetFirstNote();
     testShortNotesAndLp24();
     testScreen();
     entry->deinit();

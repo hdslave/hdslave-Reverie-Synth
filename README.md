@@ -15,13 +15,17 @@
   </tr>
 </table>
 
-[Download Reverie for MPC Sample, SP-16, macOS or Windows](https://github.com/hdslave/hdslave-Reverie-Synth/releases/latest). The release lists the matching firmware or desktop format for each build.
+| Platform | Published download | Setup and source |
+| --- | --- | --- |
+| MPC Sample | [0.6.5](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.6.5-MPC-Sample.zip) | [MPC install](#install) · `main` |
+| SP-16 | [0.4.4-sp16.17](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.4.4-sp16.17-SP-16.zip) | [freesp16 install and build](https://github.com/hdslave/hdslave-Reverie-Synth/tree/sp16-screen#sp-16) · `sp16-screen` |
+| macOS and Windows | [0.3.5 CLAP and VST3](mac-clap/README.md#download-and-install) | [Desktop guide](mac-clap/README.md) · `main` |
 
 Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New MPC tracks open on Velvet Night, the first of Reverie’s 46 original progressions. Each has six voicings and plays in any key. The 208 factory progressions remain available for saved projects. A Mood can override either bank with sixteen individually voiced chords. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, an envelope-controlled stereo phaser, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory bank uses the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.4). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.6.5). Physical MPC Sample testing of this build remains open.
 
 ## Install
 
@@ -494,22 +498,19 @@ Undertow Wah layers a low Choir oscillator with Hollow Pulse. A 315 ms filter en
 
 ## Cost
 
-The 0.6.3 AArch64 build averaged 3,855 guest instructions per silent block, 251,327 for a held chord, 379,619 during the progression, and 211,084 for Undertow Wah in QEMU at 48 kHz with 128-frame blocks.
+Callgrind counts below use six-second AArch64 renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55. The silent path skips voice rendering while the engine sleeps, reducing the count from 3,887 to 2,861 instructions per block in the same fixture.
 
-The earlier Callgrind counts below use six-second renders at 48 kHz with 128-frame blocks. The estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
-
-| Scene | Instructions | Share of one core |
+| Scene | Instructions | Estimated share of one core |
 |---|---|---|
-| silent | 3,830 | 0.08 % |
-| Undertow Wah chord, phaser Mix at zero | 198,775 | 4.14 % |
-| same chord with the factory phaser setting | 211,432 | 4.40 % |
-| one chord held, default sound | 252,524 | 5.26 % |
-| the progression played, releases overlapping | 381,037 | 7.94 % |
-| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,897 | 21.8 % |
-| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,091,328 | 22.7 % |
+| silent | 2,861 | 0.06 % |
+| Undertow Wah chord, phaser Mix at zero | 198,612 | 4.14 % |
+| same chord with the factory phaser setting | 211,309 | 4.40 % |
+| one chord held, default sound | 251,553 | 5.24 % |
+| the progression played, releases overlapping | 380,030 | 7.92 % |
+| worst: all 24 voices (five lifted Open chords), unison 4 + 4, LP 24, every effect up | 1,045,196 | 21.77 % |
+| the same, its pads rotating every block so stolen voices keep fading beside the 24 | 1,090,666 | 22.72 % |
 
-The page costs about 77,000 instructions a frame on CHORDS and 110,000 on MOTION while it moves (25 frames a
-second, on Melodee's screen thread, not the audio one). The oscillators read each morph as one 128-bit load a sample
+The page costs about 77,000 instructions per CHORDS frame and 110,000 per MOTION frame while moving, at 25 frames per second on Melodee's screen thread. The oscillators read each morph as one 128-bit load a sample
 (the frame and its difference to the next, interleaved) and mix in stereo pairs with NEON; the filter runs both
 channels in one register; air is one noise for every voice; the control work (envelopes, LFOs, Motion, the knobs'
 smoothing) runs every 16 samples and only while something moves; silent, Reverie sleeps. Clearing the effects (All
@@ -527,7 +528,8 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   chord, the third there, only the chord's own tones on pads 1-8 and one colour tone more on 9-16, no root in Rootless,
   no stray minor ninths, a bass line that does not jump), every chord name fitting its pad, the pad map Melodee reads, chords from the pads and banks,
   Melodee's on-on-off and same-sample strikes, a pad struck and let go on one sample (the same to the bit as let go a
-  tick later, with and without Strum, at any block size), strum, latch, sustain, Chord Glide, chokes and the channel modes
+  tick later, with and without Strum, at any block size), the first chord after host reset with a cutoff edit on
+  its strike, strum, latch, sustain, Chord Glide, chokes and the channel modes
   (Reset All Controllers lifts the pedal), note-offs and chokes by note id, stolen voices fading without a step
   (at a block's start, twelve at once, a chord never taking its own notes, five chords on one sample taking the
   earliest one's), state recall across the Original, Factory and Mood banks, the effects cleared sounding exactly as
@@ -537,7 +539,7 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   against the search, set by set.
 - `tests/fingerprint.cpp` hashes every output sample over 58 scenes (`tests/fingerprint.txt`), including one in
   blocks of 1, 37, 128 and 4096 frames that must hash the same: the output does not depend on the host's blocks. A
-  change meant to keep the sound must keep the hashes; `make fingerprint-update` records a change meant to change it.
+  change meant to keep the sound must keep the hashes. Use `make fingerprint-update` for an intended sound change. The reset fix changes only the `reset` scene.
 - `./build.sh sanitize`: the host tests against an AddressSanitizer and UBSan build.
 - `tools/bench.sh`: the cost table above.
 - `./build.sh render` then `build/render build/Reverie.clap OUT.wav PLAYLIST`: renders progressions and sounds for

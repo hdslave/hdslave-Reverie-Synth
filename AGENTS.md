@@ -15,6 +15,8 @@ Read `../AGENTS.md`, then `../Workflow/plugins.md` and `../Workflow/host-facts.m
 
 ## Build and test
 
+- `main` serves MPC Sample and desktop. Build macOS and Windows CLAP/VST3 from `mac-clap/` as described in [the desktop guide](mac-clap/README.md).
+- `sp16-screen` serves freesp16. Verify shared engine changes there against an ARMv7 baseline. The MPC fingerprint file is an AArch64 reference.
 - `./build.sh` builds the plug-in in a Linux arm64 container (image `melodee-builder`, Colima VM `melodee`). It runs `make all test`: the host tests in `tests/host.cpp` and the sound's fingerprint. Pass make targets to run others, for example `./build.sh sanitize` and `./build.sh render` (WAVs for listening).
 - `tools/bench.sh` counts the instructions of a 128-frame block with callgrind. A block is about 4.8 M cycles on one of the MPC's Cortex-A55 cores.
 - Check the build's own exit code: `./build.sh | grep …` hides a failure.

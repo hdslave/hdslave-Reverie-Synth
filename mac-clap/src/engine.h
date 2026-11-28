@@ -183,12 +183,15 @@ public:
         motionPhase = 0.0;
         groups = 0;
         fxAwake = false;
+        activeCount = 0;
+        tickPeak = 0.0f;
         noise = 0x1234567u;
         airLp[0] = airLp[1] = airHp[0] = airHp[1] = 0.0f;
         silentTicks = 0;
         bend = 0.0f;
         wheel = 0.0f;
         beatClock = hostBeats = 0.0, hostAt = 0;
+        glideCoefAt = -1.0f, motionHzAt = -1.0f;
         volumePrimed = false;
         for (auto& f : fading) f.ticks = 0;
         fadingSlots = 0;
@@ -196,6 +199,7 @@ public:
         dirty = true, smoothing = false;
         derive();
         running = true;
+        tel->reverb.store (0.0f, std::memory_order_relaxed);
         tel->sounding.store (0, std::memory_order_relaxed);
         tel->padsHeld.store (0, std::memory_order_relaxed);
     }
@@ -417,40 +421,9 @@ public:
             const int n = (int) std::min<uint32_t> (frames, (uint32_t) (tickSize - tickPos));
             std::fill (left, left + n, 0.0f);
             std::fill (right, right + n, 0.0f);
-            float air[tickSize] {};
-            bool breathing = false;
-            for (auto& v : voices)
-                if (v.active && v.waitTicks == 0)
-                {
-                    breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
-                    renderVoice (v, left, right, air, n);
-                }
-            for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
-            {
-                Fading& f = fading[__builtin_ctz (m)];
-                breathing |= f.voice.airNow > 0.0f;
-                renderVoice (f.voice, left, right, air, n);
-            }
-            // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
-            // a voice, for a twentieth of the work).
-            if (breathing)
-            {
-                const float c = sh.airCoef, hc = sh.airHigh;
-                uint32_t x = noise;
-                for (int j = 0; j < n; ++j)
-                {
-                    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
-                    const float nl = (float) (int16_t) (x & 0xffff) * (1.0f / 32768.0f);
-                    const float nr = (float) (int16_t) (x >> 16) * (1.0f / 32768.0f);
-                    airLp[0] += (nl - airLp[0]) * c;
-                    airLp[1] += (nr - airLp[1]) * c;
-                    airHp[0] += (airLp[0] - airHp[0]) * hc;
-                    airHp[1] += (airLp[1] - airHp[1]) * hc;
-                    left[j] += (airLp[0] - airHp[0]) * air[j];
-                    right[j] += (airLp[1] - airHp[1]) * air[j];
-                }
-                noise = x;
-            }
+            // The clocks and output ramp still run while the synth sleeps.
+            if (!quiet() || fadingSlots != 0)
+                renderVoices (left, right, n);
             if (fxAwake)
             {
                 phaser.process (left, right, n);
@@ -580,6 +553,8 @@ private:
     ChannelInput channels[16] {};
     uint32_t fxChannels = 0;
     float bend = 0.0f, wheel = 0.0f;
+    float glideCoefAt = -1.0f, glideCoef = 1.0f; // the glide coefficient at an exact knob value (control())
+    float motionHzAt = -1.0f, motionHzFor = 0.0f; // Motion's rate at an exact smoothed value (advanceClocks())
     VoicingSet shown {};
     bool fxAwake = false;
     uint64_t wokeAt = ~0ull; // the sample a note woke the engine on
@@ -883,7 +858,14 @@ private:
         const bool sync = target[ParamId::motionSync] >= 0.5f;
         const double div = motionDivBeats[std::clamp ((int) target[ParamId::motionDiv], 0, 6)];
         if (sync) motionPhase = beatClock / div;
-        else motionPhase += (double) (motionHz (smooth[ParamId::motionRate]) / tickRate);
+        else
+        {
+            // The rate at the knob's exact smoothed value, worked out once a value (the derived snapshot's copy
+            // lags it while asleep, when derive() waits for the next note).
+            const float k = smooth[ParamId::motionRate];
+            if (k != motionHzAt) motionHzFor = motionHz (k), motionHzAt = k;
+            motionPhase += (double) (motionHzFor / tickRate);
+        }
         if (motionPhase > 1e6) motionPhase -= std::floor (motionPhase);
     }
 
@@ -958,9 +940,14 @@ private:
         // Glide (Chord Glide: about 95 % of the way in the glide time)
         if (v.pitch != v.target)
         {
-            const float gms = glideMs (target[ParamId::glide]);
-            const float coef = gms <= 0.0f ? 1.0f : 1.0f - std::exp (-3.0f * 1000.0f / (gms * tickRate));
-            v.pitch += (v.target - v.pitch) * coef;
+            const float g = target[ParamId::glide];
+            if (g != glideCoefAt)
+            {
+                const float gms = glideMs (g);
+                glideCoef = gms <= 0.0f ? 1.0f : 1.0f - std::exp (-3.0f * 1000.0f / (gms * tickRate));
+                glideCoefAt = g;
+            }
+            v.pitch += (v.target - v.pitch) * glideCoef;
             if (std::fabs (v.target - v.pitch) < 1e-4f) v.pitch = v.target;
         }
 
@@ -1107,6 +1094,44 @@ private:
     }
 
     // --- A voice's samples -----------------------------------------------------------------------------------------
+    void renderVoices (float* left, float* right, int n)
+    {
+        float air[tickSize] {};
+        bool breathing = false;
+        for (auto& v : voices)
+            if (v.active && v.waitTicks == 0)
+            {
+                breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
+                renderVoice (v, left, right, air, n);
+            }
+        for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
+        {
+            Fading& f = fading[__builtin_ctz (m)];
+            breathing |= f.voice.airNow > 0.0f;
+            renderVoice (f.voice, left, right, air, n);
+        }
+        // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
+        // a voice, for a twentieth of the work).
+        if (breathing)
+        {
+            const float c = sh.airCoef, hc = sh.airHigh;
+            uint32_t x = noise;
+            for (int j = 0; j < n; ++j)
+            {
+                x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+                const float nl = (float) (int16_t) (x & 0xffff) * (1.0f / 32768.0f);
+                const float nr = (float) (int16_t) (x >> 16) * (1.0f / 32768.0f);
+                airLp[0] += (nl - airLp[0]) * c;
+                airLp[1] += (nr - airLp[1]) * c;
+                airHp[0] += (airLp[0] - airHp[0]) * hc;
+                airHp[1] += (airLp[1] - airHp[1]) * hc;
+                left[j] += (airLp[0] - airHp[0]) * air[j];
+                right[j] += (airLp[1] - airHp[1]) * air[j];
+            }
+            noise = x;
+        }
+    }
+
     // The oscillators into a stereo buffer (pairs), the filter over it, then the amplitude into the output; the voice's
     // air envelope into `air` (one noise for every voice: Engine::render).
     void renderVoice (Voice& v, float* outL, float* outR, float* air, int n)

@@ -2,6 +2,7 @@
 #include "panel_ui.h"
 #include "panel_note.h"
 #include "desktop_input.h"
+#include "../src/params.h"
 
 #include <algorithm>
 #include <chrono>
@@ -124,7 +125,6 @@ void proxyScreenRedraw (const void* host, uint32_t flags)
 {
     auto* dp = fromHost (static_cast<const clap_host_t*> (host));
     if (!dp) return;
-    dp->screenRequested.store (true, std::memory_order_release);
     if ((flags & MELODEE_SCREEN_RUN) && dp->realHost && dp->realHost->request_process)
         dp->realHost->request_process (dp->realHost);
 }
@@ -503,7 +503,6 @@ bool mapMidiCc (void* context, const clap_event_midi_t& midi, clap_event_param_v
     if (channelModeCommand (cc, value)) return false;
     if (cc < 120)
     {
-        dp.lastMidiCc.store (cc, std::memory_order_relaxed);
         auto target = dp.midiLearnTarget.load (std::memory_order_acquire);
         if (target != CLAP_INVALID_ID && target != DesktopPlugin::kLearnArmedNoParam &&
             dp.midiLearnTarget.compare_exchange_strong (target, CLAP_INVALID_ID, std::memory_order_acq_rel))
@@ -913,19 +912,18 @@ bool CLAP_ABI wrapInit (const clap_plugin_t* p)
         for (uint32_t i = 0; i < count; ++i)
         {
             clap_param_info_t info {};
-            if (dp.innerParams->get_info (dp.inner, i, &info))
-            {
-                CachedParamInfo c;
-                c.id = info.id;
-                c.index = i;
-                c.flags = info.flags;
-                c.name = info.name;
-                c.module = info.module;
-                c.minVal = info.min_value;
-                c.maxVal = info.max_value;
-                c.defVal = info.default_value;
-                dp.params.push_back (std::move (c));
-            }
+            // The statically linked engine enumerates its parameters in compact row order.
+            if (!dp.innerParams->get_info (dp.inner, i, &info) || reverie::paramIndex (info.id) != static_cast<int> (i))
+                return false;
+            CachedParamInfo c;
+            c.id = info.id;
+            c.flags = info.flags;
+            c.name = info.name;
+            c.module = info.module;
+            c.minVal = info.min_value;
+            c.maxVal = info.max_value;
+            c.defVal = info.default_value;
+            dp.params.push_back (std::move (c));
         }
     }
     dp.openGestures.assign (dp.params.size(), GestureState::Closed);
@@ -990,16 +988,13 @@ void CLAP_ABI wrapDestroy (const clap_plugin_t* p)
 bool CLAP_ABI wrapActivate (const clap_plugin_t* p, double sr, uint32_t minF, uint32_t maxF)
 {
     auto& dp = of (p);
-    const bool ok = dp.inner && dp.inner->activate (dp.inner, sr, minF, maxF);
-    dp.active.store (ok, std::memory_order_release);
-    return ok;
+    return dp.inner && dp.inner->activate (dp.inner, sr, minF, maxF);
 }
 
 void CLAP_ABI wrapDeactivate (const clap_plugin_t* p)
 {
     auto& dp = of (p);
     dp.processing.store (false, std::memory_order_release);
-    dp.active.store (false, std::memory_order_release);
     if (dp.inner) dp.inner->deactivate (dp.inner);
 }
 
@@ -1317,11 +1312,8 @@ void DesktopPlugin::resolveHostExtensions()
 
 int DesktopPlugin::findParamIndex (clap_id id) const
 {
-    for (size_t i = 0; i < params.size(); ++i)
-    {
-        if (params[i].id == id) return int (i);
-    }
-    return -1;
+    const int index = reverie::paramIndex (id);
+    return index >= 0 && static_cast<size_t> (index) < params.size() ? index : -1;
 }
 
 double DesktopPlugin::getParamValue (clap_id id) const
@@ -1396,7 +1388,6 @@ void DesktopPlugin::setEdit (int index, double value)
         uiHoldUntil[size_t (index)] = nowMs() + 250;
     }
     enqueue (UiEventKind::Value, p.id, value);
-    screenRequested.store (true, std::memory_order_release);
 }
 
 void DesktopPlugin::endEdit (int index)
@@ -1504,7 +1495,6 @@ void DesktopPlugin::sendScreenInput (uint32_t kind, int32_t value)
     innerScreen->input (inner, &inp);
     inScreenInput = false;
     refreshScreenKnobs();
-    screenRequested.store (true, std::memory_order_release);
 }
 
 void DesktopPlugin::sendNote (int midiNote, bool on, double velocity)
@@ -1527,7 +1517,6 @@ void DesktopPlugin::sendNote (int midiNote, bool on, double velocity)
     publishedUiSequence.store (sequence, std::memory_order_release);
     if (realHost && realHost->request_process)
         realHost->request_process (realHost);
-    screenRequested.store (true, std::memory_order_release);
 }
 
 bool DesktopPlugin::paintAllTiles (uint64_t now)
@@ -1577,7 +1566,6 @@ bool DesktopPlugin::paintAllTiles (uint64_t now)
         anyDrew |= innerTiles->paint (inner, t, &frame, tileKnobIds[t]);
     }
     screenWholeNeeded = false;
-    screenRequested.store (false, std::memory_order_release);
     return anyDrew;
 }
 
@@ -1623,7 +1611,6 @@ bool DesktopPlugin::paintScreen (uint64_t now)
 
     const bool drew = innerScreen->draw (inner, &frame);
     screenWholeNeeded = false;
-    screenRequested.store (false, std::memory_order_release);
     refreshScreenKnobs();
     return drew;
 }
@@ -1632,7 +1619,6 @@ void DesktopPlugin::markAllDirty()
 {
     std::fill (uiHoldUntil.begin(), uiHoldUntil.end(), 0);
     screenWholeNeeded = true;
-    screenRequested.store (true, std::memory_order_release);
     if (ui) ui->invalidateAll();
 }
 

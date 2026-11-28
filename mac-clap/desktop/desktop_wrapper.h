@@ -76,7 +76,6 @@ private:
 struct CachedParamInfo
 {
     clap_id id = CLAP_INVALID_ID;
-    uint32_t index = 0;
     uint32_t flags = 0;
     std::string name;
     std::string module;
@@ -112,7 +111,6 @@ struct DesktopPlugin
     MergedInputEvents* mergedFlush = nullptr;
 
     // Lifecycle / thread guards for safe FL Studio interop
-    std::atomic<bool> active { false };
     std::atomic<bool> processing { false };
     std::atomic<bool> inAudioCall { false };
     std::atomic<uint64_t> lastProcessMs { 0 };
@@ -157,7 +155,6 @@ struct DesktopPlugin
     std::atomic<uint32_t> ccMap[128];
     static constexpr uint32_t kLearnArmedNoParam = 0xFFFFFFFEu;
     std::atomic<uint32_t> midiLearnTarget { CLAP_INVALID_ID };
-    std::atomic<int> lastMidiCc { -1 };
 
     static constexpr size_t kControlQueueSize = 2048, kNoteQueueSize = 256;
     SpscQueue<kControlQueueSize> uiToAudio;
@@ -178,7 +175,6 @@ struct DesktopPlugin
     std::vector<std::vector<uint32_t>> tilePixels;
     clap_id tileKnobIds[16][3] {};
     bool screenWholeNeeded = true;
-    std::atomic<bool> screenRequested { true };
     std::atomic<bool> transportPlaying { false };
     clap_id screenKnobIds[3] { CLAP_INVALID_ID, CLAP_INVALID_ID, CLAP_INVALID_ID };
     bool screenShift = false;
