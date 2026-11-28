@@ -2,7 +2,7 @@
 
 **A chord-progression and X/Y Motion pad synthesizer for freesp16 on the TORAIZ SP-16.**
 
-![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
+![Dawn chords and the X/Y Motion control on SP-16](https://raw.githubusercontent.com/hdslave/hdslave-Reverie-Synth/main/docs/reverie-sp16.webp)
 
 [Download Reverie 0.4.4-sp16.18 for freesp16.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.4.4-sp16.18-SP-16.zip) [MPC and desktop downloads and instructions.](https://github.com/hdslave/hdslave-Reverie-Synth/tree/main)
 
@@ -16,7 +16,7 @@ For SP-16 installation, see [the freesp16 setup](#sp-16).
 
 ## The pads
 
-![The Chords page in hdslaveOS with the Dawn Mood selected and pad 6 playing](docs/reverie-chords.png)
+![Velvet Night chords playing on MPC Sample](https://raw.githubusercontent.com/hdslave/hdslave-Reverie-Synth/main/docs/reverie-chords.webp)
 
 | Pads | What they play |
 |---|---|
@@ -335,7 +335,7 @@ Left out (45 M3 sets): 1 with a cluster no chord name fits; 44 with power chords
 
 ## Sound and parameters
 
-![The MOTION page: the path, its centre and a light for every note](docs/reverie-motion.png)
+![Notes following the orbit on the MPC Motion page](https://raw.githubusercontent.com/hdslave/hdslave-Reverie-Synth/main/docs/reverie-motion.webp)
 
 **Oscillators.** Two, each with a WAVE (twelve sources made for pads), a POS (Position: each wave has four frames
 and POS morphs across them), OCT, SEMI, FINE, UNISON (1-4 voices), DETUNE (the outer unison voices' spread, up to 50
@@ -406,7 +406,7 @@ A hollow amber marker shows where a physical knob sits while it waits for pickup
 
 The page draws nothing while nothing changes; while notes sound it moves at 25 frames a second.
 
-![The OSC page: Velvet Saw and Choir at their positions](docs/reverie-osc.png)
+![Wavetable position changing on the MPC oscillator page](https://raw.githubusercontent.com/hdslave/hdslave-Reverie-Synth/main/docs/reverie-osc.webp)
 
 ## SP-16
 
