@@ -46,3 +46,7 @@ Read `../AGENTS.md`, then `../Workflow/plugins.md` and `../Workflow/host-facts.m
 - **SP-16 encoders.** On Perform → Chord pads → Progression, encoder 1 follows the active bank and encoder 6 selects that bank. Latch is on Feel. Mood disables the Prog, Voicing, Key and Bank slots.
 - **Drum map.** The `.clap` embeds one, so hdslaveOS plays the pads as notes 36-51.
 - **The page.** It is `src/screen.cpp` with `src/ui/screen_art.h`, baked by `tools/bake_screen_art.py` from `assets/`, whose prompts are in `assets/README.md`.
+
+## Release packaging
+
+Every release ZIP includes the full repository `LICENSE.txt` beside the third-party notices, outside signed plug-in bundles. Preserve both when packaging the plug-in for another project.

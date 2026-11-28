@@ -3,3 +3,7 @@
 See the [desktop guide on `main`](https://github.com/hdslave/hdslave-Reverie-Synth/tree/main/mac-clap) for the current macOS and Windows CLAP and VST3 downloads, installation steps and build instructions.
 
 The desktop files here are an older source snapshot used for the SP-16 panel artwork. Use the [SP-16 build instructions](../README.md#build-and-check-the-sp-16-clap) to build for freesp16.
+
+## hdslave plug-in license
+
+You may use these plug-ins to make, perform, record and sell music, including paid client work, without royalties or credit to hdslave. You may share complete, unchanged official releases for free with their notices intact. Selling the software, including it in a paid product or subscription, or distributing a modified version requires prior written permission from hdslave. Third-party components keep their own licenses. [Full plug-in license](../LICENSE.txt).

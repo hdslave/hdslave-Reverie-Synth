@@ -14,6 +14,10 @@ Hosts list it as **hdslave Reverie** (CLAP id `com.hdslave.reverie`). This branc
 
 For SP-16 installation, see [the freesp16 setup](#sp-16).
 
+## hdslave plug-in license
+
+You may use these plug-ins to make, perform, record and sell music, including paid client work, without royalties or credit to hdslave. You may share complete, unchanged official releases for free with their notices intact. Selling the software, including it in a paid product or subscription, or distributing a modified version requires prior written permission from hdslave. Third-party components keep their own licenses. [Full plug-in license](LICENSE.txt).
+
 ## The pads
 
 ![Velvet Night chords playing on MPC Sample](https://raw.githubusercontent.com/hdslave/hdslave-Reverie-Synth/main/docs/reverie-chords.webp)
@@ -537,5 +541,5 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
 
 ## Licence
 
-No project licence yet. The page uses Barlow SemiBold (SIL Open Font License, `licenses/OFL-barlow.txt`);
+The page uses Barlow SemiBold (SIL Open Font License, `licenses/OFL-barlow.txt`);
 the CLAP headers are MIT (`third_party/clap/LICENSE`); `src/melodee_screen.h` is MIT.
