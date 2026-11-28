@@ -44,3 +44,7 @@ Read `../AGENTS.md`, then `../Workflow/plugins.md` and `../Workflow/host-facts.m
 - **Voicings** are baked at build time. `tools/voicings.cpp` writes `build/voicings.inc`, with the plug-in's own flags.
 - **Drum map.** The `.clap` embeds one, so hdslaveOS plays the pads as notes 36-51.
 - **The page.** It is `src/screen.cpp` with `src/ui/screen_art.h`, baked by `tools/bake_screen_art.py` from `assets/`, whose prompts are in `assets/README.md`.
+
+## Release packaging
+
+Every release ZIP includes the full repository `LICENSE.txt` beside the third-party notices, outside signed plug-in bundles. Preserve both when packaging the plug-in for another project.

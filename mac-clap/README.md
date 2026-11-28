@@ -5,6 +5,10 @@ Separate desktop CLAP build of **hdslave Reverie** for **FL Studio** (2024+) and
 - **Multi-Screen MPC Dashboard:** displays all of hdslave Reverie's native MPC screens simultaneously on one resizable Retina/HiDPI panel (with the hardware `K1`–`K3` footer panels removed) and direct mouse, trackpad, and touch control over every parameter, plot, sequencer, and pad.
 - **Standalone from the MPC Sample build:** this directory is completely separate from the MPC Sample build in the repository root (`../src`, `../build.sh`). GitHub releases remain MPC Sample-only for now while the desktop builds are being finalized.
 
+## hdslave plug-in license
+
+You may use these plug-ins to make, perform, record and sell music, including paid client work, without royalties or credit to hdslave. You may share complete, unchanged official releases for free with their notices intact. Selling the software, including it in a paid product or subscription, or distributing a modified version requires prior written permission from hdslave. Third-party components keep their own licenses. [Full plug-in license](../LICENSE.txt).
+
 ## Build & Install (macOS)
 
 Requires Xcode Command Line Tools and CMake 3.20+ (Ninja optional):

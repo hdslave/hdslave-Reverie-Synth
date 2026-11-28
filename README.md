@@ -12,6 +12,10 @@ Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs,
 
 Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.2). Not yet run on the MPC itself.
 
+## hdslave plug-in license
+
+You may use these plug-ins to make, perform, record and sell music, including paid client work, without royalties or credit to hdslave. You may share complete, unchanged official releases for free with their notices intact. Selling the software, including it in a paid product or subscription, or distributing a modified version requires prior written permission from hdslave. Third-party components keep their own licenses. [Full plug-in license](LICENSE.txt).
+
 ## Install
 
 Copy `build/Reverie.clap` to the card as `Melodee/Plugins/hdslave/hdslave Reverie.clap`, with this README and the
@@ -459,5 +463,5 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
 
 ## Licence
 
-No project licence yet. The page uses Barlow SemiBold (SIL Open Font License, `licenses/OFL-barlow.txt`);
+The page uses Barlow SemiBold (SIL Open Font License, `licenses/OFL-barlow.txt`);
 the CLAP headers are MIT (`third_party/clap/LICENSE`); `src/melodee_screen.h` is MIT.
