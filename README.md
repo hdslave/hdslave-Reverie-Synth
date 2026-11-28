@@ -475,7 +475,9 @@ docker --context colima-melodee run --rm -v "$PWD:/work" -w /work --ulimit stack
 ```
 
 The build output is `build/Reverie-sp16.clap`. The filename on a freesp16 USB
-stick can be `freesp16-data/freesp16/Plugins/Reverie.clap`. The ARMv7
+stick can be `Plugins/Reverie.clap`, the plug-in folder every app on the stick
+shares (builds made before 2026-11-28 read `freesp16-data/freesp16/Plugins/`
+instead); the release's SP-16 ZIP puts it there. The ARMv7
 candidate passed the screen and audio smoke test under QEMU and the glibc
 2.13 check. freesp16's Linux host opened the native preview build on
 `40747ce` and exercised the touchscreen, encoders and sound selection. Unit
