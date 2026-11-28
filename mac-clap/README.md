@@ -12,6 +12,10 @@ The **Phaser** row in Effects & output has Mix, Rate, Feedback (FB) and Filter E
 
 The last four entries in the 25-sound preset menu are Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom.
 
+## hdslave plug-in license
+
+You may use these plug-ins to make, perform, record and sell music, including paid client work, without royalties or credit to hdslave. You may share complete, unchanged official releases for free with their notices intact. Selling the software, including it in a paid product or subscription, or distributing a modified version requires prior written permission from hdslave. Third-party components keep their own licenses. [Full plug-in license](../LICENSE.txt).
+
 ## Progression and Mood
 
 With **Mood** set to **Off**, **Progression** selects the 46 original progressions, from Velvet Night through Moonstone. Choose a key and one of six voicing styles. A01–A08 play the eight chords in order. A09–A16 play their lifted voicings.
