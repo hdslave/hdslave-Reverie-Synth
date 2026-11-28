@@ -307,10 +307,12 @@ void handle (Plugin& p, const clap_event_header* e)
                 break;
             const float value = clampParam (paramTable[index], (float) v->value);
             const bool moved = p.applied[index] != value;
-            const int before = selectedProgression (p.applied);
+            const bool chordTextChanged = moved && (index == ParamId::progression
+              || index == ParamId::originalProgression || index == ParamId::progBank);
+            const int before = chordTextChanged ? selectedProgression (p.applied) : 0;
             p.applied[index] = value;
             p.values[index].store (value, std::memory_order_relaxed);
-            if (moved && (index == ParamId::progression || index == ParamId::originalProgression || index == ParamId::progBank))
+            if (chordTextChanged)
             {
                 const bool keyChanged = progressionMinor (before) != progressionMinor (selectedProgression (p.applied));
                 if (keyChanged) p.keyTextMoved.store (true, std::memory_order_release);

@@ -4,7 +4,7 @@
 
 ![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
-[Download Reverie 0.4.4-sp16.17 for freesp16.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.4.4-sp16.17-SP-16.zip) [MPC and desktop downloads and instructions.](https://github.com/hdslave/hdslave-Reverie-Synth/tree/main)
+[Download Reverie 0.4.4-sp16.18 for freesp16.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.6/Reverie-0.4.4-sp16.18-SP-16.zip) [MPC and desktop downloads and instructions.](https://github.com/hdslave/hdslave-Reverie-Synth/tree/main)
 
 New tracks start on Velvet Night, the first of 46 Original progressions. The Factory bank adds 208 progressions. Both banks support six voicings and can be transposed to any key. Mood sets replace either bank with sixteen individually voiced chords. The synth layers dual morphing wavetable oscillators with per-note X/Y Motion, a stereo phaser, ensemble chorus, tempo-synced delay and shimmer reverb.
 
@@ -410,7 +410,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## SP-16
 
-The SP-16 build, version **0.4.4-sp16.17**, uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.18**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 
@@ -488,6 +488,8 @@ Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
 ## Cost
 
 Moving Perform frames in the Cortex-A9 renderer fixture averaged 842,629 guest instructions in 0.4.4-sp16.16, down from 1,616,041. All 421 reference frames matched pixel for pixel.
+
+The current ARMv7 build uses 3,237 guest instructions per silent 128-frame block in the Cortex-A9 QEMU fixture, compared with 3,598 in 0.4.4-sp16.17. The fixture runs at 48 kHz.
 
 Earlier AArch64 development fixture counts from `tools/bench.sh` use 128-frame blocks at 48 kHz. Estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
 

@@ -95,8 +95,8 @@ struct DelayLine
     {
         const uint32_t written = fill + pushed;
         const uint32_t from = back >= 1.0f ? (uint32_t) back - 1u : 0u;
-        for (uint32_t d = from; d <= from + 3u; ++d)
-            if (d >= written) buffer[(at + pushed - 1u - d) & mask] = 0.0f;
+        for (uint32_t d = std::max (from, written); d <= from + 3u; ++d)
+            buffer[(at + pushed - 1u - d) & mask] = 0.0f;
     }
     void push (float x) { buffer[at] = x; at = (at + 1) & mask; }
     // `d` samples before the newest (0 = the newest).
