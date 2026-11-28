@@ -1,6 +1,6 @@
 # Notes for coding agents
 
-**hdslave Reverie** is a pad and chord synth whose pads play chord progressions: a CLAP plug-in for the Akai MPC Sample. It is made to run in hdslaveOS, the hdslave fork of Kerem Kiliç's Melodee. Its CLAP id is `com.hdslave.reverie`, and it builds to `build/Reverie.clap`.
+**hdslave Reverie** on `sp16-screen` is the freesp16 CLAP instrument and its six-encoder panel. Its id is `com.hdslave.reverie`, and its output is `build/Reverie-sp16.clap`. The current MPC and desktop builds come from `main`.
 
 ## Read the workspace guide first
 
@@ -15,6 +15,7 @@ Read `../AGENTS.md`, then `../Workflow/plugins.md` and `../Workflow/host-facts.m
 
 ## Build and test
 
+- For ARMv7, follow [the freesp16 build steps](README.md#build-and-check-the-sp-16-clap) and test the actual plug-in under Cortex-A9 QEMU. Compare audio fingerprints to an ARMv7 baseline built with the same flags.
 - `./build.sh` builds the plug-in in a Linux arm64 container (image `melodee-builder`, Colima VM `melodee`). It runs `make all test`: the host tests in `tests/host.cpp` and the sound's fingerprint. Pass make targets to run others, for example `./build.sh sanitize` and `./build.sh render` (WAVs for listening).
 - `tools/bench.sh` counts the instructions of a 128-frame block with callgrind. A block is about 4.8 M cycles on one of the MPC's Cortex-A55 cores.
 - Check the build's own exit code: `./build.sh | grep …` hides a failure.
@@ -24,7 +25,7 @@ Read `../AGENTS.md`, then `../Workflow/plugins.md` and `../Workflow/host-facts.m
 - **Fixed for saved projects.** Parameter ids, preset keys and choice orders never change once released, because saved projects and presets refer to them.
   - Add new ones at the end.
   - Ranges stay as they are too: the host stores bindings normalized to the range.
-- **The sound is held to the bit** by `tests/fingerprint.txt`.
+- **The AArch64 sound is held to the bit** by `tests/fingerprint.txt`.
   - A refactor or speed-up must leave every hash unchanged. With `-ffp-contract=fast`, even reshaping a loop can change the last bit, so check after every edit.
   - Only a change meant to change the sound runs `make fingerprint-update`, and its commit says which hashes moved and why.
 - **Real-time and determinism.** The output is the same at every block size. No allocation, locks or file I/O on the audio thread.

@@ -1,23 +1,18 @@
 # hdslave Reverie
 
-**A chord-progression and X/Y Motion pad synthesizer as a CLAP plug-in for the Akai MPC Sample.**
+**A chord-progression and X/Y Motion pad synthesizer for freesp16 on the TORAIZ SP-16.**
 
-![Reverie six Frutiger Aero pages running in hdslaveOS](docs/reverie-pages.gif)
+![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
 
-[Download Reverie for SP-16, MPC Sample, macOS or Windows.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/latest)
+[Download Reverie 0.4.4-sp16.17 for freesp16.](https://github.com/hdslave/hdslave-Reverie-Synth/releases/download/v0.6.5/Reverie-0.4.4-sp16.17-SP-16.zip) [MPC and desktop downloads and instructions.](https://github.com/hdslave/hdslave-Reverie-Synth/tree/main)
 
-Built for the Akai MPC Sample running [Melodee](https://github.com/keremimo/melodee-sample) / [hdslaveOS](https://github.com/hdslave/hdslaveOS) (64-bit ARM Linux, Cortex-A55). New tracks start on Velvet Night, the first of 46 Original progressions. The Factory bank contains 208 progressions taken from the M3's factory pad chord sets and the TORAIZ SQUID's chord sets — voiced with voice-led bass lines across six keyboardist styles and transposed to any key, with progressions and patches chosen independently. Built for huge, lush, evolving pads: dual morphing wavetable oscillators with unison, drift, and air, a per-note X/Y **Motion** path, ensemble chorus, tempo-synced delay, and a big modulated shimmer reverb across six Frutiger Aero screen pages.
+New tracks start on Velvet Night, the first of 46 Original progressions. The Factory bank adds 208 progressions. Both banks support six voicings and can be transposed to any key. Mood sets replace either bank with sixteen individually voiced chords. The synth layers dual morphing wavetable oscillators with per-note X/Y Motion, a stereo phaser, ensemble chorus, tempo-synced delay and shimmer reverb.
 
 Inspired by Korg's M3 workstation (its X/Y MOTION pad, dual-oscillator programs, and chord-trigger pads), Reverie is an original design, not a model of the M3. Korg and M3 are trademarks of their owner; this plug-in is not made or endorsed by Korg. The Factory progressions are the chords of the M3's factory pad chord sets and of the chord sets of Pioneer DJ's TORAIZ SQUID sequencer (below); their names are Reverie's own. Pioneer DJ, TORAIZ and SQUID are trademarks of their owner, who does not make or endorse this plug-in either.
 
-Hosts list it as **hdslave Reverie** (id `com.hdslave.reverie`, version 0.4.4). Not yet run on the MPC itself.
+Hosts list it as **hdslave Reverie** (CLAP id `com.hdslave.reverie`). This branch builds the SP-16 plug-in. Its AArch64 target is used for development checks. The current MPC and desktop builds come from `main`.
 
-## Install
-
-Copy `build/Reverie.clap` to the card as `Melodee/Plugins/hdslave/hdslave Reverie.clap`, with this README and the
-licence files from `licenses/` beside it (as the staged card holds them: `hdslave Reverie - README.md` and so on).
-Pick it on a PLUGIN track (SYNTH on Stage): Plugin, hdslave, hdslave Reverie. hdslaveOS reads Reverie's embedded drum map and sets the track to Drums. On stock Melodee 0.7.1 select Drums on Keys. With Drums selected, pad A01 is note 36, A16 note 51, whatever the key or the octave, and
-hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.screen/1` on Melodee 0.7 and hdslaveOS based on it. Open Edit on the plug-in track or select PANEL on Stage.
+For SP-16 installation, see [the freesp16 setup](#sp-16).
 
 ## The pads
 
@@ -32,6 +27,7 @@ hdslaveOS names them Chord 1-8 and Lift 1-8. The custom screen uses `melodee.scr
 A chord sounds while its pad is held. A pad struck again while it still holds its chord (Melodee sends on, on, off
 when a step repeats) starts the chord fresh and lets the old one ring out. Two strikes of one pad on the same sample
 play once, at the louder velocity; one struck, let go and struck again all on one sample plays its second strike.
+A pad released on its strike sample plays for one control tick before release, including the first note of a strum.
 A step the sequencer ties (or slides) goes on with no new attack, travelling at Chord Glide's pace — at once while
 the legato pedal is down.
 
@@ -414,9 +410,7 @@ The page draws nothing while nothing changes; while notes sound it moves at 25 f
 
 ## SP-16
 
-![Reverie on SP-16 with the Dawn Mood selected and pad 6 held](docs/reverie-sp16-chords.png)
-
-The SP-16 build, version **0.4.4-sp16.16**, uses the `org.sixteen.screen/1` extension on freesp16's
+The SP-16 build, version **0.4.4-sp16.17**, uses the `org.sixteen.screen/1` extension on freesp16's
 `feat/plugin-tracks` checkout. The 780 × 285 Reverie panel sits between the
 host's track header and its six-encoder strip on the 800 × 480 display.
 
@@ -468,7 +462,7 @@ the table across the two builds.
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 uv run --script tools/bake_sp16_art.py
-docker --context colima run --rm -v "$PWD:/work" -w /work --ulimit stack=268435456 \
+docker --context colima-melodee run --rm -v "$PWD:/work" -w /work --ulimit stack=268435456 \
     sp16-toolchain:gcc11-egl sh -ec '
         make sp16 build/sp16-test-arm
         sp16-check-glibc build/Reverie-sp16.clap
@@ -485,8 +479,7 @@ playback and real-time CPU load remain unverified.
 
 ## Sounds
 
-Twenty, on Melodee's PRESETS page (and any host's preset browser). A sound sets every control but the chord
-section. They are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
+The AArch64 development build exposes the first 20 sounds. The SP-16 build adds Undertow Wah, Opal Rain, Lantern Ferry, Cinder Cello and Cloud Loom for 25 total. Each sound keeps the chord settings. Factory sounds are levelled to about -19 dBFS RMS for a held chord (Crystal Harp, a pluck, lower).
 
 Reverie (the default), Velvet Nebula, Glass Cathedral, Choir of Moons, Silk Strings, Aurora Drift, Celestial Keys,
 Deep Ocean, Starfield, Lo-Fi Dream, Gospel Glow, Breath of Angels, Velour Swell, Crystal Harp, Dark Matter, Sunrise
@@ -496,8 +489,7 @@ Bloom, Ethereal Vox, Mystic Reed, Polar Lights, Satin Keys.
 
 Moving Perform frames in the Cortex-A9 renderer fixture averaged 842,629 guest instructions in 0.4.4-sp16.16, down from 1,616,041. All 421 reference frames matched pixel for pixel.
 
-Instructions a 128-frame block takes (callgrind, `tools/bench.sh`; a block at 48 kHz is about 4.8 million cycles of
-the MPC's 1.8 GHz Cortex-A55):
+Earlier AArch64 development fixture counts from `tools/bench.sh` use 128-frame blocks at 48 kHz. Estimated core share assumes one instruction per cycle on a 1.8 GHz Cortex-A55.
 
 | Scene | Instructions | Share of one core |
 |---|---|---|
@@ -530,11 +522,12 @@ image in the `colima-melodee` Docker context; start it with `colima start melode
   (at a block's start, twelve at once, a chord never taking its own notes, five chords on one sample taking the
   earliest one's), state recall across the Original, Factory and Mood banks, the effects cleared sounding exactly as
   wiped ones (and All Sound Off on 16 channels costing what one does), tuning at 44.1, 48 and 96 kHz, bounded output
-  at every extreme, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
+  at every extreme, short notes, the first chord after reset, LP 24 mode changes, sleeping, and the page (it writes `build/screen-*.png`). It also checks the voicing table
   against the search, set by set.
-- `tests/fingerprint.cpp` hashes every output sample over 50 scenes (`tests/fingerprint.txt`), including one in
+- `tests/fingerprint.cpp` hashes every output sample over 52 scenes (`tests/fingerprint.txt`), including one in
   blocks of 1, 37, 128 and 4096 frames that must hash the same: the output does not depend on the host's blocks. A
-  change meant to keep the sound must keep the hashes; `make fingerprint-update` records a change meant to change it.
+  change meant to keep the sound must keep the hashes. Use `make fingerprint-update` for an intended sound change.
+  The stored hashes are for AArch64. Compare ARMv7 hashes against a baseline built with the same ARMv7 toolchain and flags.
 - `./build.sh sanitize`: the host tests against an AddressSanitizer and UBSan build.
 - `tools/bench.sh`: the cost table above.
 - `./build.sh render` then `build/render build/Reverie.clap OUT.wav PLAYLIST`: renders progressions and sounds for

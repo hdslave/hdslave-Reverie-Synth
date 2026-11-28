@@ -185,6 +185,8 @@ public:
         motionPhase = 0.0;
         groups = 0;
         fxAwake = false;
+        activeCount = 0;
+        tickPeak = 0.0f;
         noise = 0x1234567u;
         airLp[0] = airLp[1] = airHp[0] = airHp[1] = 0.0f;
         silentTicks = 0;
@@ -200,6 +202,7 @@ public:
         dirty = true, smoothing = false;
         derive();
         running = true;
+        tel->peak.store (0.0f, std::memory_order_relaxed);
         tel->sounding.store (0, std::memory_order_relaxed);
         tel->padsHeld.store (0, std::memory_order_relaxed);
     }
@@ -319,7 +322,7 @@ public:
                 for (int i = 1; i < n; ++i) // by pitch (insertion: at most eight)
                     for (int j = i; j > 0 && glideFrom[j - 1]->target > glideFrom[j]->target; --j) std::swap (glideFrom[j - 1], glideFrom[j]);
                 reused = std::min (n, count);
-                for (int i = reused; i < n; ++i) glideFrom[i]->releaseNow();
+                for (int i = reused; i < n; ++i) glideFrom[i]->letGoNow(); // replaced, as the rest
                 for (int i = 0; i < reused; ++i) glideFrom[i]->group = group; // spared by releaseLatched below
             }
         }
@@ -395,7 +398,7 @@ public:
             {
                 v.pressed = false;
                 if (v.waitTicks > 0) v.active = false, v.gated = false, v.waitTicks = 0;
-                else if (v.gated) v.releaseNow();
+                else if (v.gated) v.letGoNow(); // at once: struck on this sample, it never sounds (as one yet to strum)
             }
         for (int i = 0; i < 16; ++i)
             if (channel < 0 || channel == i) channels[i].struck.reset(), channels[i].sustain = false;
@@ -437,40 +440,9 @@ public:
             const int n = (int) std::min<uint32_t> (frames, (uint32_t) (tickSize - tickPos));
             std::fill (left, left + n, 0.0f);
             std::fill (right, right + n, 0.0f);
-            float air[tickSize] {};
-            bool breathing = false;
-            for (auto& v : voices)
-                if (v.active && v.waitTicks == 0)
-                {
-                    breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
-                    renderVoice (v, left, right, air, n);
-                }
-            for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
-            {
-                Fading& f = fading[__builtin_ctz (m)];
-                breathing |= f.voice.airNow > 0.0f;
-                renderVoice (f.voice, left, right, air, n);
-            }
-            // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
-            // a voice, for a twentieth of the work).
-            if (breathing)
-            {
-                const float c = sh.airCoef, hc = sh.airHigh;
-                uint32_t x = noise;
-                for (int j = 0; j < n; ++j)
-                {
-                    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
-                    const float nl = (float) (int16_t) (x & 0xffff) * (1.0f / 32768.0f);
-                    const float nr = (float) (int16_t) (x >> 16) * (1.0f / 32768.0f);
-                    airLp[0] += (nl - airLp[0]) * c;
-                    airLp[1] += (nr - airLp[1]) * c;
-                    airHp[0] += (airLp[0] - airHp[0]) * hc;
-                    airHp[1] += (airLp[1] - airHp[1]) * hc;
-                    left[j] += (airLp[0] - airHp[0]) * air[j];
-                    right[j] += (airLp[1] - airHp[1]) * air[j];
-                }
-                noise = x;
-            }
+            // The clocks and output ramp still run while the synth sleeps.
+            if (!quiet() || fadingSlots != 0)
+                renderVoices (left, right, n);
             if (fxAwake)
             {
 #ifdef REVERIE_SP16
@@ -540,16 +512,25 @@ private:
         float drift[2] {};
         double startBeat = 0.0;
 
-        int releaseIn = -1; // a note let go before its strum turn: the ticks it plays from its turn, then lets go
+        int releaseIn = -1; // a note let go before it was heard: the ticks it plays from its turn, then lets go
 
+        // Let go (its pad up, the pedal up, Latch off). A note not heard yet plays as long as the pad was held, at
+        // least its first tick: one before its strum turn, or one let go on the sample it struck, before its first
+        // tick (hdslaveOS sends a note shorter than its 128-frame block so, its on and off both at frame 0).
         void releaseNow()
         {
             latched = false, sustained = false;
-            if (waitTicks > 0)
+            if (waitTicks > 0 || ticks == 0)
             {
                 if (releaseIn < 0) releaseIn = std::max (1, (int) (ticks)); // as long as the pad was held
                 return;
             }
+            letGoNow();
+        }
+        // Lets go at once, heard yet or not.
+        void letGoNow()
+        {
+            latched = false, sustained = false;
             gated = false, releaseIn = -1;
             amp.off(), flt.off();
         }
@@ -557,12 +538,12 @@ private:
         void replaceNow()
         {
             if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; }
-            releaseNow();
+            letGoNow();
         }
         void chokeNow()
         {
             if (waitTicks > 0) { active = false, gated = false, waitTicks = 0; return; } // never sounded
-            releaseNow();
+            letGoNow();
             choking = true;
         }
     };
@@ -871,7 +852,8 @@ private:
                 control (v, true);
                 continue;
             }
-            if (v.releaseIn > 0 && --v.releaseIn == 0) v.releaseNow();
+            // (A note let go on the sample it struck, on this tick's, waits for this first tick before counting.)
+            if (v.releaseIn > 0 && v.ticks > 0 && --v.releaseIn == 0) v.releaseNow();
             control (v, false);
             if (v.active) ++active;
         }
@@ -1124,6 +1106,9 @@ private:
                     + lfo * sh.lfoCutoff + mod[Dest::cutoff] * 4.0f;
         const float hz = std::clamp (fast::exp2 (oct), 16.0f, std::min (20000.0f, 0.45f * rate));
         const float reso = std::clamp (sh.reso + mod[Dest::resonance], 0.0f, 1.0f);
+        // LP 24's second stage runs only in LP 24. Coming back to it, the stage starts clean, as on a first switch
+        // (the voice's start cleared it), not from where it stopped when the filter left LP 24.
+        if (sh.filter == Filter::lp24 && v.filterMode != Filter::lp24) v.fl[1].clear(), v.fr[1].clear();
         v.filterMode = sh.filter;
         v.g = fast::tan (3.14159265f * hz / rate);
         v.k = 2.0f - 1.94f * reso;
@@ -1153,6 +1138,44 @@ private:
     }
 
     // --- A voice's samples -----------------------------------------------------------------------------------------
+    void renderVoices (float* left, float* right, int n)
+    {
+        float air[tickSize] {};
+        bool breathing = false;
+        for (auto& v : voices)
+            if (v.active && v.waitTicks == 0)
+            {
+                breathing |= v.airNow > 0.0f || v.airStep > 0.0f;
+                renderVoice (v, left, right, air, n);
+            }
+        for (uint32_t m = fadingSlots; m != 0; m &= m - 1)
+        {
+            Fading& f = fading[__builtin_ctz (m)];
+            breathing |= f.voice.airNow > 0.0f;
+            renderVoice (f.voice, left, right, air, n);
+        }
+        // Air: one stereo noise in its band, under the sum of the voices' air envelopes (the same sound as a noise
+        // a voice, for a twentieth of the work).
+        if (breathing)
+        {
+            const float c = sh.airCoef, hc = sh.airHigh;
+            uint32_t x = noise;
+            for (int j = 0; j < n; ++j)
+            {
+                x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+                const float nl = (float) (int16_t) (x & 0xffff) * (1.0f / 32768.0f);
+                const float nr = (float) (int16_t) (x >> 16) * (1.0f / 32768.0f);
+                airLp[0] += (nl - airLp[0]) * c;
+                airLp[1] += (nr - airLp[1]) * c;
+                airHp[0] += (airLp[0] - airHp[0]) * hc;
+                airHp[1] += (airLp[1] - airHp[1]) * hc;
+                left[j] += (airLp[0] - airHp[0]) * air[j];
+                right[j] += (airLp[1] - airHp[1]) * air[j];
+            }
+            noise = x;
+        }
+    }
+
     // The oscillators into a stereo buffer (pairs), the filter over it, then the amplitude into the output; the voice's
     // air envelope into `air` (one noise for every voice: Engine::render).
     void renderVoice (Voice& v, float* outL, float* outR, float* air, int n)
